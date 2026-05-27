@@ -4,7 +4,8 @@ import {
   getProjects,
   getProjectById,
   createProject,
-  updateProject
+  updateProject,
+  getProjectAnalytics
 } from '../controllers/project.controller.js';
 
 const router = express.Router();
@@ -270,4 +271,74 @@ router.post('/', requireAuth, createProject);
  */
 router.put('/:id', requireAuth, updateProject);
 
+/**
+ * @swagger
+ * /api/v1/projects/{id}/analytics:
+ *   get:
+ *     summary: Lấy dữ liệu phân tích và thống kê xu hướng của dự án (Trending Charts)
+ *     tags:
+ *       - Project
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID của dự án cần lấy dữ liệu thống kê
+ *     responses:
+ *       200:
+ *         description: Lấy dữ liệu thống kê thành công
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Lấy dữ liệu thống kê dự án thành công"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     article_volume_trend:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           year:
+ *                             type: integer
+ *                             example: 2023
+ *                           article_count:
+ *                             type: integer
+ *                             example: 150
+ *                     journal_metrics_comparison:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           journal_name:
+ *                             type: string
+ *                             example: "Journal A"
+ *                           metric_code:
+ *                             type: string
+ *                             example: "IF"
+ *                           value:
+ *                             type: number
+ *                             example: 5.4
+ *       400:
+ *         description: ID dự án không hợp lệ (không phải số nguyên)
+ *       401:
+ *         description: Chưa xác thực
+ *       404:
+ *         description: Không tìm thấy dự án hoặc không có quyền xem
+ *       500:
+ *         description: Lỗi hệ thống server
+ */
+router.get('/:id/analytics', requireAuth, getProjectAnalytics);
+
 export default router;
+

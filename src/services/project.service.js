@@ -265,3 +265,94 @@ export const updateProject = async (projectId, userId, { title, subject_area, su
     client.release();
   }
 };
+
+/**
+ * Lấy dữ liệu phân tích / thống kê của một dự án (trending & comparison)
+ * @param {string|number} projectId
+ * @param {string} userId
+ * @returns {Promise<Object|null>}
+ */
+export const getProjectAnalyticsData = async (projectId, userId) => {
+  // 1. Kiểm tra xem project có tồn tại và thuộc sở hữu của user không
+  const projectCheck = await pool.query(
+    `SELECT 1 FROM "Project" WHERE project_id = $1 AND user_id = $2`,
+    [projectId, userId]
+  );
+  if (projectCheck.rows.length === 0) {
+    return null;
+  }
+
+  // 2. Chart 1: Xu hướng số lượng bài báo qua các năm
+  const trendResult = await pool.query(
+    `SELECT 
+       a.publication_year AS year, 
+       COUNT(a.article_id)::int AS article_count
+     FROM "Article" a
+     JOIN "Issue" i ON a.issue_id = i.issue_id
+     JOIN "Volume" v ON i.volume_id = v.volume_id
+     JOIN "Project_Journal" pj ON v.journal_id = pj.journal_id
+     WHERE pj.project_id = $1 AND a.publication_year IS NOT NULL
+     GROUP BY a.publication_year
+     ORDER BY a.publication_year ASC`,
+    [projectId]
+  );
+
+  // 3. Chart 2: So sánh thứ hạng/chỉ số giữa các Tạp chí trong Project
+  const comparisonResult = await pool.query(
+    `WITH latest_rankings AS (
+       SELECT 
+         jr.journal_id,
+         jr.metric_id,
+         jr.value_txt,
+         jr.value_int,
+         jr.value_float,
+         jr.year,
+         rm.code AS metric_code,
+         rm.metric_type,
+         j.display_name AS journal_name,
+         ROW_NUMBER() OVER (
+           PARTITION BY jr.journal_id, jr.metric_id 
+           ORDER BY jr.year DESC, jr.created_at DESC
+         ) as rn
+       FROM "Journal_Ranking" jr
+       JOIN "Ranking_Metric" rm ON jr.metric_id = rm.metric_id
+       JOIN "Journal" j ON jr.journal_id = j.journal_id
+       JOIN "Project_Journal" pj ON jr.journal_id = pj.journal_id
+       WHERE pj.project_id = $1
+     )
+     SELECT 
+       journal_name,
+       metric_code,
+       metric_type,
+       value_txt,
+       value_int,
+       value_float,
+       year
+     FROM latest_rankings
+     WHERE rn = 1
+     ORDER BY journal_name ASC, metric_code ASC`,
+    [projectId]
+  );
+
+  const journalMetrics = comparisonResult.rows.map(row => {
+    let value = null;
+    if (row.metric_type === 'QUARTILE') {
+      value = row.value_txt;
+    } else if (row.metric_type === 'INTEGER') {
+      value = row.value_int !== null ? Number(row.value_int) : null;
+    } else if (row.metric_type === 'SCORE') {
+      value = row.value_float !== null ? Number(row.value_float) : null;
+    }
+    return {
+      journal_name: row.journal_name,
+      metric_code: row.metric_code,
+      value: value
+    };
+  });
+
+  return {
+    article_volume_trend: trendResult.rows,
+    journal_metrics_comparison: journalMetrics
+  };
+};
+

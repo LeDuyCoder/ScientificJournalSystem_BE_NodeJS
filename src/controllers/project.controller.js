@@ -198,3 +198,41 @@ export const updateProject = async (req, res) => {
     });
   }
 };
+
+/**
+ * Lấy dữ liệu phân tích / thống kê biểu đồ của dự án
+ */
+export const getProjectAnalytics = async (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const userId = req.user.user_id;
+
+    // Validate ID phải là số nguyên dương
+    if (!/^\d+$/.test(projectId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'ID dự án không hợp lệ'
+      });
+    }
+
+    const analyticsData = await projectService.getProjectAnalyticsData(projectId, userId);
+    if (!analyticsData) {
+      return res.status(404).json({
+        success: false,
+        message: 'Không tìm thấy dự án hoặc bạn không có quyền truy cập dự án này'
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Lấy dữ liệu thống kê dự án thành công',
+      data: analyticsData
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: 'Có lỗi xảy ra ở server khi lấy dữ liệu thống kê dự án'
+    });
+  }
+};
+
