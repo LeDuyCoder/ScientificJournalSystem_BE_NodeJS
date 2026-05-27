@@ -1,5 +1,5 @@
 import express from 'express';
-import { login } from '../controllers/auth.controller.js';
+import { login } from '../controllers/login.controller.js';
 
 const router = express.Router();
 
@@ -42,7 +42,7 @@ const router = express.Router();
  *                   example: true
  *                 message:
  *                   type: string
- *                   example: "Đăng nhập thành công!"
+ *                   example: "Đăng nhập thành công"
  *                 data:
  *                   type: object
  *                   properties:
@@ -77,7 +77,7 @@ const router = express.Router();
  *                   example: false
  *                 message:
  *                   type: string
- *                   example: "Email không được để trống!"
+ *                   example: "Email không được để trống"
  *       401:
  *         description: Sai thông tin đăng nhập (email không tồn tại hoặc sai mật khẩu)
  *         content:
@@ -90,7 +90,7 @@ const router = express.Router();
  *                   example: false
  *                 message:
  *                   type: string
- *                   example: "Email hoặc mật khẩu không chính xác!"
+ *                   example: "Email hoặc mật khẩu không đúng"
  *       403:
  *         description: Tài khoản không được phép truy cập (bị khóa hoặc chưa kích hoạt)
  *         content:
@@ -103,7 +103,7 @@ const router = express.Router();
  *                   example: false
  *                 message:
  *                   type: string
- *                   example: "Tài khoản của bạn đã bị khóa!"
+ *                   example: "Tài khoản đã bị khóa"
  *       500:
  *         description: Lỗi hệ thống server
  *         content:
@@ -116,7 +116,7 @@ const router = express.Router();
  *                   example: false
  *                 message:
  *                   type: string
- *                   example: "Có lỗi xảy ra ở Server!"
+ *                   example: "Có lỗi xảy ra ở server"
  */
 router.post('/login', login);
 

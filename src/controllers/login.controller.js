@@ -1,7 +1,8 @@
-import * as authService from '../services/auth.service.js';
+import { loginWithEmailPassword } from '../services/login.service.js';
 
 const isValidEmail = (email) => {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
 };
 
 export const login = async (req, res) => {
@@ -29,10 +30,7 @@ export const login = async (req, res) => {
       });
     }
 
-    const data = await authService.loginWithEmailPassword({
-      email,
-      password
-    });
+    const data = await loginWithEmailPassword({ email, password });
 
     return res.status(200).json({
       success: true,
