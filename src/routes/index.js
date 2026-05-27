@@ -3,6 +3,7 @@ import userRouter from './user.route.js';
 import loginRouter from './login.route.js';
 import registerRouter from './register.route.js';
 import projectRouter from './project.route.js';
+import articleRouter from './article.route.js';
 
 const router = express.Router();
 
@@ -15,5 +16,7 @@ router.use('/auth', registerRouter);
 
 // Gom router của project vào đường dẫn /projects
 router.use('/projects', projectRouter);
+// Gom router của user vào đường dẫn /article
+router.use('/articles', articleRouter);
 
 export default router;
