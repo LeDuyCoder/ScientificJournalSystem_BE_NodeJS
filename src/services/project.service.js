@@ -390,18 +390,22 @@ export const getCategoryIdsByProjectId = async (projectId) => {
 };
 
 /**
- * Lấy danh sách các bài viết liên quan dựa trên mảng ID tạp chí và mảng ID danh mục.
+ * Lấy danh sách các bài viết liên quan dựa trên mảng ID tạp chí HOẶC mảng ID danh mục thuộc dự án.
+ * Ưu tiên các bài viết thỏa mãn cả hai điều kiện, sắp xếp theo năm xuất bản mới nhất.
  *
  * @async
- * @param {(number[]|string[])} journalIds - Mảng chứa các ID của tạp chí cần lọc.
- * @param {(number[]|string[])} categoryIds - Mảng chứa các ID của danh mục cần lọc.
- * @param {Object} options - Cấu hình tùy chọn cho truy vấn.
- * @param {number} [options.limit=5] - Số lượng bài viết tối đa muốn lấy (mặc định là 5).
- * @returns {Promise<Array<{article_id: (number|string), title: string, abstract: string, publication_year: number, doi: string, journal_id: (number|string)}>>} Mảng chứa danh sách các bài viết liên quan tìm được.
- * @throws {Error} Ném ra lỗi nếu có sai sót trong quá trình truy vấn Database.
+ * @param {Array<number|string>} journalIds - Mảng chứa các ID của tạp chí thuộc dự án.
+ * @param {Array<number|string>} categoryIds - Mảng chứa các ID của danh mục thuộc dự án.
+ * @param {Object} options - Cấu hình tùy chọn cho dữ liệu.
+ * @param {number} [options.limit=5] - Số lượng bài viết giới hạn lấy ra.
+ * @returns {Promise<Array<{article_id: (number|string), title: string, abstract: string, publication_year: number, doi: string, journal_name: string}>>} Danh sách bài viết gợi ý.
  */
 export const getRelatedArticles = async (journalIds, categoryIds, { limit = 5 }) => {
     try {
+        // Phòng hờ trường hợp mảng truyền vào bị rỗng để tránh lỗi SQL ANY()
+        const finalJournalIds = journalIds.length > 0 ? journalIds : [-1];
+        const finalCategoryIds = categoryIds.length > 0 ? categoryIds : [-1];
+
         const queryText = `
             SELECT DISTINCT
                 a.article_id,
@@ -409,25 +413,28 @@ export const getRelatedArticles = async (journalIds, categoryIds, { limit = 5 })
                 a.abstract,
                 a.publication_year,
                 a.doi,
-                v.journal_id 
+                j.display_name AS journal_name -- Lấy ra tên tạp chí tương ứng như yêu cầu bài toán
             FROM "Article" a
+            -- Luồng đi ngược cây thư mục theo sơ đồ DB của bạn: Article -> Issue -> Volume -> Journal
             JOIN "Issue" i ON a.issue_id = i.issue_id
             JOIN "Volume" v ON i.volume_id = v.volume_id
-            JOIN "Journal_Subject_Category" jc ON v.journal_id = jc.journal_id
+            JOIN "Journal" j ON v.journal_id = j.journal_id
+            -- Kết nối sang bảng danh mục để kiểm tra chuyên ngành hẹp
+            LEFT JOIN "Journal_Subject_Category" jc ON j.journal_id = jc.journal_id
+            -- Điều kiện lọc động "Hoặc/Và": Thỏa mãn tạp chí HOẶC thỏa mãn chuyên ngành đều lấy
             WHERE v.journal_id = ANY($1) 
-              AND jc.subject_category_id = ANY($2) 
+               OR jc.subject_category_id = ANY($2) 
+            -- Sắp xếp: Ưu tiên bài viết mới xuất bản nhất, tiếp theo là bài tạo mới nhất trong DB
             ORDER BY a.publication_year DESC, a.article_id DESC
             LIMIT $3;
         `;
 
-        const values = [journalIds, categoryIds, limit];
-
+        const values = [finalJournalIds, finalCategoryIds, limit];
         const res = await pool.query(queryText, values);
-
         return res.rows; 
         
     } catch (error) {
-        logger.error('Lỗi khi lấy bài viết liên quan:', error);
+        logger.error('Lỗi khi lấy bài viết liên quan tại Service:', error);
         throw error;
     }
 }
