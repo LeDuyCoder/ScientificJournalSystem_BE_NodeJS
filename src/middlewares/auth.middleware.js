@@ -3,7 +3,15 @@ import logger from '../utils/logger.js';
 
 
 /**
- * Middleware xác thực người dùng bằng JWT Token để có quyền thao tác với Project
+ * Middleware xác thực người dùng bằng JWT Token
+ * Kiểm tra sự tồn tại của Authorization header chứa Bearer token, giải mã và gán thông tin giải mã vào req.user.
+ * 
+ * @param {Object} req - Express request object
+ * @param {Object} req.headers - Headers của request
+ * @param {string} [req.headers.authorization] - Chuỗi Authorization header dạng: "Bearer <token>"
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next middleware function
+ * @returns {void|Object} Gọi hàm next() nếu xác thực thành công, ngược lại trả về response lỗi 401 hoặc 500
  */
 export const requireAuth = (req, res, next) => {
   try {
@@ -35,7 +43,15 @@ export const requireAuth = (req, res, next) => {
 };
 
 /**
- * Middleware xác thực người dùng bằng JWT Token
+ * Middleware xác thực và kiểm tra token của người dùng
+ * Giải mã Bearer token từ Authorization header, gán decoded payload vào req.user, và ghi nhật ký (logs) sự kiện.
+ * 
+ * @param {Object} req - Express request object
+ * @param {Object} req.headers - Headers của request
+ * @param {string} [req.headers.authorization] - Chuỗi Authorization header dạng: "Bearer <token>"
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next middleware function
+ * @returns {void|Object} Gọi hàm next() nếu xác thực thành công, ngược lại trả về response lỗi 401
  */
 export const verifyToken = (req, res, next) => {
   const authHeader = req.headers.authorization;
