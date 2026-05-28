@@ -1,4 +1,5 @@
 import pool from '../config/database.js';
+import logger from '../utils/logger.js';
 
 /**
  * Lấy danh sách các project của một user
@@ -336,3 +337,104 @@ export const deleteProject = async (projectId, userId) => {
   }
 };
 
+
+/**
+ * Lấy danh sách journal_id thuộc về một dự án.
+ *
+ * @async
+ * @param {(number|string)} projectId - ID của dự án cần truy vấn.
+ * @returns {Promise<number[]>} Mảng các journal_id.
+ */
+export const getJournalIdsByProjectId = async (projectId) => {
+    try {
+        const queryText = `
+            SELECT pj.journal_id
+            FROM "Project_Journal" pj
+            WHERE pj.project_id = $1;
+        `;
+
+        const res = await pool.query(queryText, [Number(projectId)]);
+
+        // Chỉ trả về mảng số
+        return res.rows.map(row => Number(row.journal_id));
+    } catch (error) {
+        logger.error('Lỗi khi lấy journal_id của dự án:', error);
+        throw error;
+    }
+};
+
+/**
+ * Lấy danh sách subject_category_id thuộc về các journal trong dự án.
+ *
+ * @async
+ * @param {(number|string)} projectId - ID của dự án.
+ * @returns {Promise<number[]>} Mảng các subject_category_id (không trùng).
+ */
+export const getCategoryIdsByProjectId = async (projectId) => {
+    try {
+        const queryText = `
+            SELECT DISTINCT jsc.subject_category_id
+            FROM "Project_Journal" pj
+            JOIN "Journal_Subject_Category" jsc 
+                ON pj.journal_id = jsc.journal_id
+            WHERE pj.project_id = $1;
+        `;
+
+        const res = await pool.query(queryText, [Number(projectId)]);
+
+        return res.rows.map(row => Number(row.subject_category_id));
+    } catch (error) {
+        logger.error('Lỗi khi lấy subject_category_id của dự án:', error);
+        throw error;
+    }
+};
+
+/**
+ * Lấy danh sách các bài viết liên quan dựa trên mảng ID tạp chí HOẶC mảng ID danh mục thuộc dự án.
+ * Ưu tiên các bài viết thỏa mãn cả hai điều kiện, sắp xếp theo năm xuất bản mới nhất.
+ *
+ * @async
+ * @param {Array<number|string>} journalIds - Mảng chứa các ID của tạp chí thuộc dự án.
+ * @param {Array<number|string>} categoryIds - Mảng chứa các ID của danh mục thuộc dự án.
+ * @param {Object} options - Cấu hình tùy chọn cho dữ liệu.
+ * @param {number} [options.limit=5] - Số lượng bài viết giới hạn lấy ra.
+ * @returns {Promise<Array<{article_id: (number|string), title: string, abstract: string, publication_year: number, doi: string, journal_name: string}>>} Danh sách bài viết gợi ý.
+ */
+export const getRelatedArticles = async (journalIds, categoryIds, { limit = 5 }) => {
+    try {
+        // Phòng hờ trường hợp mảng truyền vào bị rỗng để tránh lỗi SQL ANY()
+        const finalJournalIds = journalIds.length > 0 ? journalIds : [-1];
+        const finalCategoryIds = categoryIds.length > 0 ? categoryIds : [-1];
+
+        const queryText = `
+            SELECT DISTINCT
+                a.article_id,
+                a.title,
+                a.abstract,
+                a.publication_year,
+                a.doi,
+                j.display_name AS journal_name -- Lấy ra tên tạp chí tương ứng như yêu cầu bài toán
+            FROM "Article" a
+            -- Luồng đi ngược cây thư mục theo sơ đồ DB của bạn: Article -> Issue -> Volume -> Journal
+            JOIN "Issue" i ON a.issue_id = i.issue_id
+            JOIN "Volume" v ON i.volume_id = v.volume_id
+            JOIN "Journal" j ON v.journal_id = j.journal_id
+            -- Kết nối sang bảng danh mục để kiểm tra chuyên ngành hẹp
+            LEFT JOIN "Journal_Subject_Category" jc ON j.journal_id = jc.journal_id
+            -- Điều kiện lọc động "Hoặc/Và": Thỏa mãn tạp chí HOẶC thỏa mãn chuyên ngành đều lấy
+            WHERE v.journal_id = ANY($1) 
+               OR jc.subject_category_id = ANY($2) 
+            -- Sắp xếp: Ưu tiên bài viết mới xuất bản nhất, tiếp theo là bài tạo mới nhất trong DB
+            ORDER BY a.publication_year DESC, a.article_id DESC
+            LIMIT $3;
+        `;
+
+        const values = [finalJournalIds, finalCategoryIds, limit];
+        const res = await pool.query(queryText, values);
+        return res.rows; 
+        
+    } catch (error) {
+        logger.error('Lỗi khi lấy bài viết liên quan tại Service:', error);
+        throw error;
+    }
+}
