@@ -5,6 +5,7 @@ import {
   getProjectById,
   createProject,
   updateProject,
+  getRelatedArticles,
   deleteProject
 } from '../controllers/project.controller.js';
 
@@ -152,6 +153,78 @@ router.get('/', requireAuth, getProjects);
  * Lấy chi tiết thông tin một dự án cụ thể theo ID (Yêu cầu xác thực)
  */
 router.get('/:id', requireAuth, getProjectById);
+
+/**
+ * @swagger
+ * /api/v1/projects/{id}/related-articles:
+ *   get:
+ *     summary: Lấy danh sách bài viết liên quan của một dự án
+ *     description: Tự động tổng hợp các bài viết mới nhất từ các tạp chí (journals) và danh mục (categories) đã được liên kết trong dự án.
+ *     tags:
+ *       - Project
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID của dự án cần khai thác bài viết liên quan (dạng số nguyên BIGINT)
+ *       - in: query
+ *         name: limit
+ *         required: false
+ *         schema:
+ *           type: integer
+ *           default: 5
+ *         description: Số lượng bài viết tối đa muốn lấy (mặc định là 5 nếu không truyền)
+ *     responses:
+ *       200:
+ *         description: Lấy danh sách bài viết liên quan thành công
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Lấy bài viết liên quan thành công"
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       article_id:
+ *                         type: integer
+ *                         example: 101
+ *                       title:
+ *                         type: string
+ *                         example: "A Comprehensive Review of Signal Transduction in Cancer Cells"
+ *                       abstract:
+ *                         type: string
+ *                         example: "This paper discusses the recent pathways discovered in cell signaling..."
+ *                       publication_year:
+ *                         type: integer
+ *                         example: 2026
+ *                       doi:
+ *                         type: string
+ *                         example: "10.1000/xyz123"
+ *                       journal_id:
+ *                         type: integer
+ *                         example: 14
+ *       400:
+ *         description: ID dự án hoặc giá trị limit không hợp lệ (không phải số nguyên)
+ *       401:
+ *         description: Chưa xác thực (Thiếu hoặc sai Token)
+ *       404:
+ *         description: Dự án không tồn tại hoặc người dùng không có quyền sở hữu
+ *       500:
+ *         description: Lỗi hệ thống hoặc lỗi máy chủ kết nối Database
+ */
+router.get('/:id/related-articles', requireAuth, getRelatedArticles);
 
 /**
  * @swagger

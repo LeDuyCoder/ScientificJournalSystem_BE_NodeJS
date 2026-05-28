@@ -10,14 +10,13 @@ const router = express.Router();
 
 // Gom router của user vào đường dẫn /users
 router.use('/users', userRouter);
+router.use('/projects', projectRouter);
 
 // Gom router của login, register và google vào đường dẫn /auth
 router.use('/auth', loginRouter);
 router.use('/auth', registerRouter);
 router.use('/auth', googleRouter);
 
-// Gom router của project vào đường dẫn /projects
-router.use('/projects', projectRouter);
 // Gom router của article vào đường dẫn /articles
 router.use('/articles', articleRouter);
 
