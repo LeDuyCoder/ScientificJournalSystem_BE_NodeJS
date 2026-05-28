@@ -84,7 +84,7 @@ const validateIdsExist = async (ids, tableName, idColumnName) => {
   const query = `
     SELECT ${idColumnName} 
     FROM "${tableName}" 
-    WHERE ${idColumnName} = ANY($1::bigint[])
+    WHERE ${idColumnName} = ANY($1::uuid[])
   `;
   const result = await pool.query(query, [uniqueIds]);
   return result.rows.length === uniqueIds.length;
@@ -284,14 +284,28 @@ export const getProjectAnalyticsData = async (projectId, userId) => {
 
   // 2. Chart 1: Xu hướng số lượng bài báo qua các năm
   const trendResult = await pool.query(
-    `SELECT 
+    `WITH project_journals AS (
+       SELECT journal_id FROM "Project_Journal" WHERE project_id = $1
+       UNION
+       SELECT jsc.journal_id 
+       FROM "Journal_Subject_Category" jsc
+       JOIN "Subject_Category_Project" scp ON jsc.subject_category_id = scp.subject_category_id
+       WHERE scp.project_id = $1 AND NOT EXISTS (SELECT 1 FROM "Project_Journal" WHERE project_id = $1)
+       UNION
+       SELECT jsc.journal_id
+       FROM "Journal_Subject_Category" jsc
+       JOIN "Subject_Category" sc ON jsc.subject_category_id = sc.subject_category_id
+       JOIN "Project" p ON sc.subject_area_id = p.subject_area
+       WHERE p.project_id = $1 AND NOT EXISTS (SELECT 1 FROM "Project_Journal" WHERE project_id = $1)
+     )
+     SELECT 
        a.publication_year AS year, 
        COUNT(a.article_id)::int AS article_count
      FROM "Article" a
      JOIN "Issue" i ON a.issue_id = i.issue_id
      JOIN "Volume" v ON i.volume_id = v.volume_id
-     JOIN "Project_Journal" pj ON v.journal_id = pj.journal_id
-     WHERE pj.project_id = $1 AND a.publication_year IS NOT NULL
+     JOIN project_journals pj ON v.journal_id = pj.journal_id
+     WHERE a.publication_year IS NOT NULL
      GROUP BY a.publication_year
      ORDER BY a.publication_year ASC`,
     [projectId]
@@ -299,7 +313,21 @@ export const getProjectAnalyticsData = async (projectId, userId) => {
 
   // 3. Chart 2: So sánh thứ hạng/chỉ số giữa các Tạp chí trong Project
   const comparisonResult = await pool.query(
-    `WITH latest_rankings AS (
+    `WITH project_journals AS (
+       SELECT journal_id FROM "Project_Journal" WHERE project_id = $1
+       UNION
+       SELECT jsc.journal_id 
+       FROM "Journal_Subject_Category" jsc
+       JOIN "Subject_Category_Project" scp ON jsc.subject_category_id = scp.subject_category_id
+       WHERE scp.project_id = $1 AND NOT EXISTS (SELECT 1 FROM "Project_Journal" WHERE project_id = $1)
+       UNION
+       SELECT jsc.journal_id
+       FROM "Journal_Subject_Category" jsc
+       JOIN "Subject_Category" sc ON jsc.subject_category_id = sc.subject_category_id
+       JOIN "Project" p ON sc.subject_area_id = p.subject_area
+       WHERE p.project_id = $1 AND NOT EXISTS (SELECT 1 FROM "Project_Journal" WHERE project_id = $1)
+     ),
+     latest_rankings AS (
        SELECT 
          jr.journal_id,
          jr.metric_id,
@@ -317,8 +345,7 @@ export const getProjectAnalyticsData = async (projectId, userId) => {
        FROM "Journal_Ranking" jr
        JOIN "Ranking_Metric" rm ON jr.metric_id = rm.metric_id
        JOIN "Journal" j ON jr.journal_id = j.journal_id
-       JOIN "Project_Journal" pj ON jr.journal_id = pj.journal_id
-       WHERE pj.project_id = $1
+       JOIN project_journals pj ON jr.journal_id = pj.journal_id
      )
      SELECT 
        journal_name,
