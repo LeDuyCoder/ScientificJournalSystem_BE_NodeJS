@@ -1,6 +1,9 @@
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
+import jwt from 'jsonwebtoken';
 import pool from '../config/database.js';
+import { emailHelper } from '../utils/email.js';
+import logger from '../utils/logger.js';
 
 export const registerWithEmailPassword = async ({
   email,
@@ -27,7 +30,7 @@ export const registerWithEmailPassword = async ({
   const hashedPassword = await bcrypt.hash(password, 10);
   const userId = crypto.randomUUID();
 
-  // 3. Insert user mới vào Database
+  // 3. Insert user mới vào Database với trạng thái mặc định là 'INACTIVE'
   const insertQuery = `
     INSERT INTO "user" (
       "user_id",
@@ -58,7 +61,7 @@ export const registerWithEmailPassword = async ({
     normalizedEmail,
     hashedPassword,
     'LOCAL',
-    'ACTIVE',
+    'INACTIVE', // Đổi từ ACTIVE thành INACTIVE để bắt buộc xác thực email
     role,
     first_name || null,
     last_name || null,
@@ -66,5 +69,74 @@ export const registerWithEmailPassword = async ({
     gender !== undefined ? gender : null
   ]);
 
-  return insertResult.rows[0];
+  const newUser = insertResult.rows[0];
+
+  // 4. Tạo token kích hoạt tài khoản bằng JWT (thời hạn 24 giờ)
+  const activationToken = jwt.sign(
+    { user_id: newUser.user_id, email: newUser.email },
+    process.env.JWT_SECRET || 'scientific_journal_secret_key',
+    { expiresIn: '24h' }
+  );
+
+  // 5. Gửi email kích hoạt (không block luồng đăng ký chính nếu gửi lỗi/thành công)
+  try {
+    await emailHelper.sendActivationEmail(newUser.email, newUser.first_name || 'User', activationToken);
+  } catch (emailError) {
+    // Không ném lỗi ra ngoài làm hỏng luồng đăng ký, chỉ ghi log để tránh ngắt quãng luồng
+    logger.error('Lỗi gửi email kích hoạt trong register service:', emailError);
+  }
+
+  return newUser;
+};
+
+/**
+ * Xác thực token kích hoạt tài khoản
+ * @param {string} token 
+ * @returns {Promise<Object>}
+ */
+export const activateAccount = async (token) => {
+  if (!token) {
+    const error = new Error('Token kích hoạt không được để trống');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  let decoded;
+  try {
+    decoded = jwt.verify(token, process.env.JWT_SECRET || 'scientific_journal_secret_key');
+  } catch (err) {
+    const error = new Error('Token kích hoạt không hợp lệ hoặc đã hết hạn');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const { user_id } = decoded;
+
+  // Tìm thông tin trạng thái hiện tại của user trong database
+  const userQuery = `SELECT "user_id", "status" FROM "user" WHERE "user_id" = $1 LIMIT 1`;
+  const userResult = await pool.query(userQuery, [user_id]);
+  const user = userResult.rows[0];
+
+  if (!user) {
+    const error = new Error('Không tìm thấy tài khoản tương ứng với token này');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (user.status === 'ACTIVE') {
+    return { alreadyActive: true, email: user.email };
+  }
+
+  if (user.status === 'BANNED') {
+    const error = new Error('Tài khoản này đã bị khóa, không thể kích hoạt');
+    error.statusCode = 403;
+    throw error;
+  }
+
+  // Cập nhật trạng thái người dùng thành ACTIVE
+  const updateQuery = `UPDATE "user" SET "status" = 'ACTIVE' WHERE "user_id" = $1 RETURNING "email"`;
+  const updateResult = await pool.query(updateQuery, [user_id]);
+  const activatedEmail = updateResult.rows[0]?.email || user.email;
+
+  return { alreadyActive: false, email: activatedEmail };
 };

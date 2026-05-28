@@ -1,4 +1,5 @@
 import { loginWithEmailPassword } from '../services/login.service.js';
+import logger from '../utils/logger.js';
 
 const isValidEmail = (email) => {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -38,6 +39,9 @@ export const login = async (req, res) => {
       data
     });
   } catch (error) {
+    if (!error.statusCode || error.statusCode === 500) {
+      logger.error('Lỗi hệ thống trong controller đăng nhập:', error);
+    }
     return res.status(error.statusCode || 500).json({
       success: false,
       message: error.statusCode ? error.message : 'Có lỗi xảy ra ở server'
