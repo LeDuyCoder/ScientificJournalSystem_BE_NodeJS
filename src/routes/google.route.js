@@ -1,13 +1,13 @@
 import express from 'express';
-import { login } from '../controllers/login.controller.js';
+import { googleLogin } from '../controllers/google.controller.js';
 
 const router = express.Router();
 
 /**
  * @swagger
- * /api/v1/auth/login:
+ * /api/v1/auth/google:
  *   post:
- *     summary: Đăng nhập người dùng bằng email và mật khẩu
+ *     summary: Đăng nhập hoặc đăng ký tài khoản bằng Google ID Token
  *     tags:
  *       - Auth
  *     requestBody:
@@ -17,21 +17,15 @@ const router = express.Router();
  *           schema:
  *             type: object
  *             required:
- *               - email
- *               - password
+ *               - idToken
  *             properties:
- *               email:
+ *               idToken:
  *                 type: string
- *                 format: email
- *                 example: user@gmail.com
- *                 description: Email đăng nhập của người dùng
- *               password:
- *                 type: string
- *                 example: "123456"
- *                 description: Mật khẩu của người dùng
+ *                 description: ID Token nhận được từ Google Sign-in ở phía client (Mobile/Web)
+ *                 example: "eyJhbGciOiJSUzI1NiIsImtpZCI6IjFhMmIzY..."
  *     responses:
  *       200:
- *         description: Đăng nhập thành công, trả về JWT Token và thông tin người dùng
+ *         description: Đăng nhập/Đăng ký thành công bằng Google, trả về JWT Token và thông tin người dùng
  *         content:
  *           application/json:
  *             schema:
@@ -42,7 +36,7 @@ const router = express.Router();
  *                   example: true
  *                 message:
  *                   type: string
- *                   example: "Đăng nhập thành công"
+ *                   example: "Đăng nhập bằng Google thành công"
  *                 data:
  *                   type: object
  *                   properties:
@@ -58,7 +52,7 @@ const router = express.Router();
  *                           example: "a8e9c612-40db-4ff0-87a0-0f8b3b4f6cf7"
  *                         email:
  *                           type: string
- *                           example: "user@gmail.com"
+ *                           example: "cubinvinh@gmail.com"
  *                         role:
  *                           type: string
  *                           example: "STUDENT"
@@ -66,7 +60,7 @@ const router = express.Router();
  *                           type: string
  *                           example: "ACTIVE"
  *       400:
- *         description: Lỗi dữ liệu đầu vào không hợp lệ (thiếu email/password, sai định dạng email)
+ *         description: Lỗi Token không hợp lệ hoặc thiếu idToken
  *         content:
  *           application/json:
  *             schema:
@@ -77,22 +71,9 @@ const router = express.Router();
  *                   example: false
  *                 message:
  *                   type: string
- *                   example: "Email không được để trống"
- *       401:
- *         description: Sai thông tin đăng nhập (email không tồn tại hoặc sai mật khẩu)
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 message:
- *                   type: string
- *                   example: "Email hoặc mật khẩu không đúng"
+ *                   example: "idToken không được để trống"
  *       403:
- *         description: Tài khoản không được phép truy cập (bị khóa hoặc chưa kích hoạt)
+ *         description: Tài khoản này đã bị khóa (BANNED)
  *         content:
  *           application/json:
  *             schema:
@@ -105,23 +86,12 @@ const router = express.Router();
  *                   type: string
  *                   example: "Tài khoản đã bị khóa"
  *       500:
- *         description: Lỗi hệ thống server
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 message:
- *                   type: string
- *                   example: "Có lỗi xảy ra ở server"
+ *         description: Lỗi hệ thống server hoặc không kết nối được Google API
  */
 /**
- * Route POST /api/v1/auth/login
- * Đăng nhập người dùng bằng email và mật khẩu truyền thống
+ * Route POST /api/v1/auth/google
+ * Sử dụng Google ID Token để đăng nhập hoặc đăng ký tài khoản tự động
  */
-router.post('/login', login);
+router.post('/google', googleLogin);
 
 export default router;

@@ -4,7 +4,8 @@ import {
   getProjects,
   getProjectById,
   createProject,
-  updateProject
+  updateProject,
+  deleteProject
 } from '../controllers/project.controller.js';
 
 const router = express.Router();
@@ -54,6 +55,10 @@ const router = express.Router();
  *         description: Chưa xác thực hoặc token không hợp lệ
  *       500:
  *         description: Lỗi hệ thống server
+ */
+/**
+ * Route GET /api/v1/projects
+ * Lấy danh sách tất cả các dự án của người dùng hiện tại (Yêu cầu xác thực)
  */
 router.get('/', requireAuth, getProjects);
 
@@ -142,6 +147,10 @@ router.get('/', requireAuth, getProjects);
  *       500:
  *         description: Lỗi hệ thống
  */
+/**
+ * Route GET /api/v1/projects/:id
+ * Lấy chi tiết thông tin một dự án cụ thể theo ID (Yêu cầu xác thực)
+ */
 router.get('/:id', requireAuth, getProjectById);
 
 /**
@@ -215,6 +224,10 @@ router.get('/:id', requireAuth, getProjectById);
  *       500:
  *         description: Lỗi hệ thống
  */
+/**
+ * Route POST /api/v1/projects
+ * Tạo mới một dự án khoa học (Yêu cầu xác thực)
+ */
 router.post('/', requireAuth, createProject);
 
 /**
@@ -268,6 +281,55 @@ router.post('/', requireAuth, createProject);
  *       500:
  *         description: Lỗi hệ thống
  */
+/**
+ * Route PUT /api/v1/projects/:id
+ * Cập nhật thông tin dự án khoa học hiện tại (Yêu cầu xác thực)
+ */
 router.put('/:id', requireAuth, updateProject);
+
+/**
+ * @swagger
+ * /api/v1/projects/{id}:
+ *   delete:
+ *     summary: Xóa một dự án của người dùng
+ *     tags:
+ *       - Project
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID của dự án cần xóa
+ *     responses:
+ *       200:
+ *         description: Xóa dự án thành công
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Xóa dự án thành công"
+ *       400:
+ *         description: ID dự án không hợp lệ
+ *       401:
+ *         description: Chưa xác thực
+ *       404:
+ *         description: Không tìm thấy dự án hoặc không có quyền xóa
+ *       500:
+ *         description: Lỗi hệ thống
+ */
+/**
+ * Route DELETE /api/v1/projects/:id
+ * Xóa một dự án khoa học và các liên kết trung gian (Yêu cầu xác thực)
+ */
+router.delete('/:id', requireAuth, deleteProject);
 
 export default router;

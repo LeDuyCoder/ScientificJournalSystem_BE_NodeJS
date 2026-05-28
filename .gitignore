@@ -76,7 +76,7 @@ out/
 .next/
 .nuxt/
 .cache/
-.tests/
+tests/
 
 # ==========================================
 # 6. File cấu hình của các IDE / Code Editor

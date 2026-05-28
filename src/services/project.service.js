@@ -73,7 +73,11 @@ export const getProjectById = async (projectId, userId) => {
 };
 
 /**
- * Helper để kiểm tra ID có tồn tại trong bảng tương ứng
+ * Helper để kiểm tra danh sách ID có tồn tại trong bảng tương ứng hay không
+ * @param {Array<number|string>} ids - Danh sách ID cần kiểm tra
+ * @param {string} tableName - Tên bảng trong cơ sở dữ liệu
+ * @param {string} idColumnName - Tên cột ID của bảng cần kiểm tra
+ * @returns {Promise<boolean>} Trả về true nếu tất cả các ID đều tồn tại, ngược lại trả về false
  */
 const validateIdsExist = async (ids, tableName, idColumnName) => {
   if (!ids || ids.length === 0) return true;
@@ -91,7 +95,15 @@ const validateIdsExist = async (ids, tableName, idColumnName) => {
 };
 
 /**
- * Tạo project mới
+ * Tạo một dự án mới và thiết lập các liên kết chuyên ngành / tạp chí tương ứng
+ * @param {Object} projectData - Thông tin dự án cần tạo
+ * @param {string} projectData.userId - ID của người dùng sở hữu dự án
+ * @param {string} projectData.title - Tiêu đề của dự án
+ * @param {number|string} [projectData.subject_area] - ID của lĩnh vực nghiên cứu chính
+ * @param {Array<number|string>} [projectData.subject_category_ids] - Danh sách ID danh mục chuyên ngành liên kết
+ * @param {Array<number|string>} [projectData.journal_ids] - Danh sách ID tạp chí liên kết
+ * @returns {Promise<Object>} Trả về thông tin cơ bản của project vừa được tạo
+ * @throws {Error} Ném lỗi nếu Subject Area, Subject Category hoặc Journal không tồn tại
  */
 export const createProject = async ({ userId, title, subject_area, subject_category_ids = [], journal_ids = [] }) => {
   // 1. Kiểm tra sự tồn tại của subject_area
@@ -169,7 +181,16 @@ export const createProject = async ({ userId, title, subject_area, subject_categ
 };
 
 /**
- * Cập nhật thông tin project
+ * Cập nhật thông tin của dự án, bao gồm cập nhật liên kết chuyên ngành và tạp chí
+ * @param {string|number} projectId - ID của dự án cần cập nhật
+ * @param {string} userId - ID của người dùng sở hữu dự án (để xác thực quyền)
+ * @param {Object} updateData - Dữ liệu cập nhật
+ * @param {string} [updateData.title] - Tiêu đề mới của dự án
+ * @param {number|string} [updateData.subject_area] - ID mới của lĩnh vực nghiên cứu chính
+ * @param {Array<number|string>} [updateData.subject_category_ids] - Danh sách ID danh mục chuyên ngành mới
+ * @param {Array<number|string>} [updateData.journal_ids] - Danh sách ID tạp chí mới
+ * @returns {Promise<boolean|null>} Trả về true nếu cập nhật thành công, null nếu dự án không tồn tại hoặc không thuộc sở hữu của user
+ * @throws {Error} Ném lỗi nếu Subject Area, Subject Category hoặc Journal mới không tồn tại
  */
 export const updateProject = async (projectId, userId, { title, subject_area, subject_category_ids, journal_ids }) => {
   // 1. Kiểm tra xem project có tồn tại và thuộc sở hữu của user không
@@ -265,3 +286,53 @@ export const updateProject = async (projectId, userId, { title, subject_area, su
     client.release();
   }
 };
+
+/**
+ * Xóa một project
+ * @param {string|number} projectId
+ * @param {string} userId
+ * @returns {Promise<boolean>}
+ */
+export const deleteProject = async (projectId, userId) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // 1. Kiểm tra xem project có tồn tại và thuộc sở hữu của user hay không
+    const checkResult = await client.query(
+      `SELECT 1 FROM "Project" WHERE project_id = $1 AND user_id = $2`,
+      [projectId, userId]
+    );
+    if (checkResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return false;
+    }
+
+    // 2. Xóa các bản ghi liên quan trong Subject_Category_Project
+    await client.query(
+      `DELETE FROM "Subject_Category_Project" WHERE project_id = $1`,
+      [projectId]
+    );
+
+    // 3. Xóa các bản ghi liên quan trong Project_Journal
+    await client.query(
+      `DELETE FROM "Project_Journal" WHERE project_id = $1`,
+      [projectId]
+    );
+
+    // 4. Xóa project chính
+    await client.query(
+      `DELETE FROM "Project" WHERE project_id = $1 AND user_id = $2`,
+      [projectId, userId]
+    );
+
+    await client.query('COMMIT');
+    return true;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
