@@ -1,19 +1,85 @@
 import * as userService from '../services/user.service.js';
+import logger from '../utils/logger.js';
 
 export const getUserProfile = async (req, res) => {
-    try {
-        // Gọi xuống tầng Service để lấy logic xử lý dữ liệu
-        const data = await userService.getProfileData();
-        
-        return res.status(200).json({
-            success: true,
-            message: "Lấy thông tin thành công!",
-            data: data
-        });
-    } catch (error) {
-        return res.status(500).json({
-            success: false,
-            message: "Có lỗi xảy ra ở Server!"
-        });
+  try {
+    // Gọi xuống tầng Service để lấy logic xử lý dữ liệu
+    const data = await userService.getProfileData();
+    
+    return res.status(200).json({
+      success: true,
+      message: "Lấy thông tin thành công!",
+      data: data
+    });
+  } catch (error) {
+    logger.error('Lỗi lấy thông tin profile người dùng:', error);
+    return res.status(500).json({
+      success: false,
+      message: "Có lỗi xảy ra ở Server!"
+    });
+  }
+};
+
+/**
+ * Xử lý yêu cầu tự xóa tài khoản của người dùng
+ */
+export const deleteMe = async (req, res) => {
+  try {
+    // req.user được gán từ verifyToken middleware sau khi xác thực JWT thành công
+    const userId = req.user.user_id;
+
+    const deletedUser = await userService.deleteUserById(userId);
+
+    logger.info(`[User]: Xóa tài khoản thành công cho email: ${deletedUser.email} (ID: ${userId})`);
+
+    return res.status(200).json({
+      success: true,
+      message: `Xóa tài khoản ${deletedUser.email} thành công!`,
+      data: {
+        user_id: deletedUser.user_id
+      }
+    });
+  } catch (error) {
+    if (!error.statusCode || error.statusCode === 500) {
+      logger.error('Lỗi hệ thống khi tự xóa tài khoản:', error);
     }
+    return res.status(error.statusCode || 500).json({
+      success: false,
+      message: error.statusCode ? error.message : "Có lỗi xảy ra ở Server!"
+    });
+  }
+};
+
+/**
+ * Xử lý cập nhật thông tin cá nhân người dùng
+ */
+export const updateMe = async (req, res) => {
+  try {
+    const userId = req.user.user_id;
+    const { first_name, last_name, date_of_birth, gender, url_image } = req.body;
+
+    const updatedUser = await userService.updateUserProfile(userId, {
+      first_name,
+      last_name,
+      date_of_birth,
+      gender,
+      url_image
+    });
+
+    logger.info(`[User]: Cập nhật thông tin tài khoản thành công cho email: ${updatedUser.email} (ID: ${userId})`);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Cập nhật thông tin cá nhân thành công!',
+      data: updatedUser
+    });
+  } catch (error) {
+    if (!error.statusCode || error.statusCode === 500) {
+      logger.error('Lỗi hệ thống khi cập nhật thông tin cá nhân:', error);
+    }
+    return res.status(error.statusCode || 500).json({
+      success: false,
+      message: error.statusCode ? error.message : "Có lỗi xảy ra ở Server!"
+    });
+  }
 };
