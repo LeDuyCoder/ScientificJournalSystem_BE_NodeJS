@@ -2,7 +2,12 @@ import { loginOrCreateWithGoogle } from '../services/google.service.js';
 import logger from '../utils/logger.js';
 
 /**
- * API Đăng nhập / Đăng ký bằng Google ID Token
+ * API Đăng nhập hoặc Đăng ký tài khoản tự động bằng Google ID Token gửi từ phía Client
+ * @param {Object} req - Express request object
+ * @param {Object} req.body - Dữ liệu yêu cầu từ client
+ * @param {string} req.body.idToken - Google ID Token do client lấy sau khi người dùng đăng nhập Google
+ * @param {Object} res - Express response object
+ * @returns {Promise<Object>} JSON response chứa JWT token và thông tin tài khoản người dùng
  */
 export const googleLogin = async (req, res) => {
   try {

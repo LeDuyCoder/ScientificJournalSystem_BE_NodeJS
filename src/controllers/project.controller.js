@@ -2,7 +2,12 @@ import * as projectService from '../services/project.service.js';
 import logger from '../utils/logger.js';
 
 /**
- * Lấy danh sách dự án của người dùng hiện tại
+ * API Lấy danh sách dự án của người dùng hiện tại
+ * @param {Object} req - Express request object
+ * @param {Object} req.user - Thông tin người dùng đã xác thực
+ * @param {string} req.user.user_id - ID người dùng
+ * @param {Object} res - Express response object
+ * @returns {Promise<Object>} JSON response chứa danh sách dự án
  */
 export const getProjects = async (req, res) => {
   try {
@@ -24,7 +29,14 @@ export const getProjects = async (req, res) => {
 };
 
 /**
- * Lấy chi tiết dự án theo ID
+ * API Lấy chi tiết dự án theo ID và thuộc về người dùng hiện tại
+ * @param {Object} req - Express request object
+ * @param {Object} req.params - Các tham số trên URL
+ * @param {string} req.params.id - ID của dự án cần lấy thông tin
+ * @param {Object} req.user - Thông tin người dùng đã xác thực
+ * @param {string} req.user.user_id - ID người dùng
+ * @param {Object} res - Express response object
+ * @returns {Promise<Object>} JSON response chứa thông tin chi tiết dự án
  */
 export const getProjectById = async (req, res) => {
   try {
@@ -62,7 +74,18 @@ export const getProjectById = async (req, res) => {
 };
 
 /**
- * Tạo mới một dự án
+ * API Tạo mới một dự án khoa học kèm theo các chuyên ngành và tạp chí liên kết
+ * @param {Object} req - Express request object
+ * @param {Object} req.user - Thông tin người dùng đã xác thực
+ * @param {string} req.user.user_id - ID người dùng
+ * @param {Object} req.body - Dữ liệu dự án truyền từ client
+ * @param {string} req.body.title - Tiêu đề dự án
+ * @param {number|string} [req.body.subject_area] - ID lĩnh vực chính
+ * @param {number|string} [req.body.subject_area_id] - ID lĩnh vực chính (alternative)
+ * @param {Array<number|string>} [req.body.subject_category_ids] - Danh sách ID chuyên ngành
+ * @param {Array<number|string>} [req.body.journal_ids] - Danh sách ID tạp chí
+ * @param {Object} res - Express response object
+ * @returns {Promise<Object>} JSON response chứa thông tin dự án vừa tạo
  */
 export const createProject = async (req, res) => {
   try {
@@ -127,7 +150,20 @@ export const createProject = async (req, res) => {
 };
 
 /**
- * Cập nhật thông tin dự án
+ * API Cập nhật thông tin dự án và các mối quan hệ liên kết của nó
+ * @param {Object} req - Express request object
+ * @param {Object} req.params - Các tham số trên URL
+ * @param {string} req.params.id - ID của dự án cần cập nhật
+ * @param {Object} req.user - Thông tin người dùng đã xác thực
+ * @param {string} req.user.user_id - ID người dùng
+ * @param {Object} req.body - Dữ liệu cập nhật dự án
+ * @param {string} [req.body.title] - Tiêu đề mới của dự án
+ * @param {number|string} [req.body.subject_area] - ID mới của lĩnh vực chính
+ * @param {number|string} [req.body.subject_area_id] - ID mới của lĩnh vực chính (alternative)
+ * @param {Array<number|string>} [req.body.subject_category_ids] - Danh sách ID chuyên ngành mới
+ * @param {Array<number|string>} [req.body.journal_ids] - Danh sách ID tạp chí mới
+ * @param {Object} res - Express response object
+ * @returns {Promise<Object>} JSON response thông báo kết quả cập nhật
  */
 export const updateProject = async (req, res) => {
   try {
@@ -205,7 +241,14 @@ export const updateProject = async (req, res) => {
 };
 
 /**
- * Xóa một dự án
+ * API Xóa dự án khoa học và các mối quan hệ liên kết liên quan
+ * @param {Object} req - Express request object
+ * @param {Object} req.params - Các tham số trên URL
+ * @param {string} req.params.id - ID của dự án cần xóa
+ * @param {Object} req.user - Thông tin người dùng đã xác thực
+ * @param {string} req.user.user_id - ID người dùng
+ * @param {Object} res - Express response object
+ * @returns {Promise<Object>} JSON response thông báo kết quả xóa dự án
  */
 export const deleteProject = async (req, res) => {
   try {

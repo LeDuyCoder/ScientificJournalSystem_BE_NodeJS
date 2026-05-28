@@ -118,6 +118,10 @@ const router = express.Router();
  *                   type: string
  *                   example: "Có lỗi xảy ra ở server"
  */
+/**
+ * Route POST /api/v1/auth/login
+ * Đăng nhập người dùng bằng email và mật khẩu truyền thống
+ */
 router.post('/login', login);
 
 export default router;

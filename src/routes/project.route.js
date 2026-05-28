@@ -56,6 +56,10 @@ const router = express.Router();
  *       500:
  *         description: Lỗi hệ thống server
  */
+/**
+ * Route GET /api/v1/projects
+ * Lấy danh sách tất cả các dự án của người dùng hiện tại (Yêu cầu xác thực)
+ */
 router.get('/', requireAuth, getProjects);
 
 /**
@@ -143,6 +147,10 @@ router.get('/', requireAuth, getProjects);
  *       500:
  *         description: Lỗi hệ thống
  */
+/**
+ * Route GET /api/v1/projects/:id
+ * Lấy chi tiết thông tin một dự án cụ thể theo ID (Yêu cầu xác thực)
+ */
 router.get('/:id', requireAuth, getProjectById);
 
 /**
@@ -216,6 +224,10 @@ router.get('/:id', requireAuth, getProjectById);
  *       500:
  *         description: Lỗi hệ thống
  */
+/**
+ * Route POST /api/v1/projects
+ * Tạo mới một dự án khoa học (Yêu cầu xác thực)
+ */
 router.post('/', requireAuth, createProject);
 
 /**
@@ -269,6 +281,10 @@ router.post('/', requireAuth, createProject);
  *       500:
  *         description: Lỗi hệ thống
  */
+/**
+ * Route PUT /api/v1/projects/:id
+ * Cập nhật thông tin dự án khoa học hiện tại (Yêu cầu xác thực)
+ */
 router.put('/:id', requireAuth, updateProject);
 
 /**
@@ -309,6 +325,10 @@ router.put('/:id', requireAuth, updateProject);
  *         description: Không tìm thấy dự án hoặc không có quyền xóa
  *       500:
  *         description: Lỗi hệ thống
+ */
+/**
+ * Route DELETE /api/v1/projects/:id
+ * Xóa một dự án khoa học và các liên kết trung gian (Yêu cầu xác thực)
  */
 router.delete('/:id', requireAuth, deleteProject);
 

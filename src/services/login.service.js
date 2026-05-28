@@ -2,12 +2,22 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import pool from '../config/database.js';
 
+/**
+ * Tạo đối tượng lỗi phản hồi khi thông tin đăng nhập sai (Mã lỗi 401)
+ * @returns {Error} Lỗi với thông tin "Email hoặc mật khẩu không đúng" và status 401
+ */
 const buildLoginError = () => {
   const error = new Error('Email hoặc mật khẩu không đúng');
   error.statusCode = 401;
   return error;
 };
 
+/**
+ * Sinh token JWT chứa ID, email và vai trò của user phục vụ cho phiên đăng nhập
+ * @param {Object} user - Đối tượng user cần tạo token
+ * @returns {string} Chuỗi JWT token
+ * @throws {Error} Ném lỗi nếu chưa định nghĩa JWT_SECRET trong môi trường
+ */
 const signToken = (user) => {
   if (!process.env.JWT_SECRET) {
     throw new Error('Missing JWT_SECRET in environment variables');
@@ -26,6 +36,14 @@ const signToken = (user) => {
   );
 };
 
+/**
+ * Thực hiện xác thực đăng nhập người dùng bằng email và mật khẩu truyền thống
+ * @param {Object} credentials - Thông tin đăng nhập
+ * @param {string} credentials.email - Địa chỉ email đăng nhập
+ * @param {string} credentials.password - Mật khẩu đăng nhập
+ * @returns {Promise<Object>} Đối tượng chứa chuỗi JWT access token và thông tin chi tiết user
+ * @throws {Error} Ném lỗi 401 nếu sai mật khẩu/email, hoặc 403 nếu tài khoản bị khóa/chưa kích hoạt
+ */
 export const loginWithEmailPassword = async ({ email, password }) => {
   const normalizedEmail = email.trim().toLowerCase();
 

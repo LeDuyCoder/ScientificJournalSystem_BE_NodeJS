@@ -108,6 +108,10 @@ const router = express.Router();
  *       500:
  *         description: Lỗi hệ thống server
  */
+/**
+ * Route POST /api/v1/auth/register
+ * Đăng ký tài khoản người dùng mới (Trạng thái mặc định INACTIVE và gửi email kích hoạt)
+ */
 router.post('/register', register);
 
 /**
@@ -155,6 +159,10 @@ router.post('/register', register);
  *         description: Tài khoản đã bị khóa không thể kích hoạt
  *       500:
  *         description: Lỗi hệ thống server
+ */
+/**
+ * Route GET /api/v1/auth/verify
+ * Xác thực token gửi qua Email để kích hoạt tài khoản
  */
 router.get('/verify', verify);
 

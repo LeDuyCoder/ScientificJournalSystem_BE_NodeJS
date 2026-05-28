@@ -2,6 +2,15 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import pool from '../config/database.js';
 
+/**
+ * Tạo token JWT để duy trì phiên đăng nhập cho user
+ * @param {Object} user - Đối tượng user cần tạo token
+ * @param {string} user.user_id - ID của user
+ * @param {string} user.email - Email của user
+ * @param {string} user.role - Vai trò của user
+ * @returns {string} Chuỗi JWT token
+ * @throws {Error} Ném lỗi nếu chưa định nghĩa JWT_SECRET trong biến môi trường
+ */
 const signToken = (user) => {
   if (!process.env.JWT_SECRET) {
     throw new Error('Missing JWT_SECRET in environment variables');
@@ -21,9 +30,10 @@ const signToken = (user) => {
 };
 
 /**
- * Xác thực Google ID Token qua Google API
- * @param {string} idToken 
- * @returns {Promise<Object>}
+ * Xác thực Google ID Token gửi từ phía client bằng cách gọi trực tiếp Google Tokeninfo API
+ * @param {string} idToken - Chuỗi Google ID Token nhận từ phía client
+ * @returns {Promise<Object>} Trả về thông tin payload của user từ Google nếu token hợp lệ
+ * @throws {Error} Ném lỗi 400 nếu token không hợp lệ hoặc lỗi 500 nếu không thể kết nối tới Google API
  */
 export const verifyGoogleIdToken = async (idToken) => {
   try {
@@ -44,9 +54,10 @@ export const verifyGoogleIdToken = async (idToken) => {
 };
 
 /**
- * Đăng nhập hoặc tạo mới tài khoản khi đăng nhập bằng Google
- * @param {string} idToken 
- * @returns {Promise<Object>}
+ * Thực hiện đăng nhập hoặc đăng ký tài khoản tự động khi xác thực bằng Google ID Token
+ * @param {string} idToken - Chuỗi Google ID Token nhận từ phía client
+ * @returns {Promise<Object>} Trả về đối tượng chứa JWT access token và thông tin chi tiết người dùng
+ * @throws {Error} Ném lỗi 403 nếu tài khoản bị khóa (BANNED) hoặc lỗi validation khác
  */
 export const loginOrCreateWithGoogle = async (idToken) => {
   if (!idToken || !idToken.trim()) {

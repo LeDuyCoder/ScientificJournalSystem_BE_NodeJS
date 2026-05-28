@@ -88,6 +88,10 @@ const router = express.Router();
  *       500:
  *         description: Lỗi hệ thống server hoặc không kết nối được Google API
  */
+/**
+ * Route POST /api/v1/auth/google
+ * Sử dụng Google ID Token để đăng nhập hoặc đăng ký tài khoản tự động
+ */
 router.post('/google', googleLogin);
 
 export default router;

@@ -5,6 +5,19 @@ import pool from '../config/database.js';
 import { emailHelper } from '../utils/email.js';
 import logger from '../utils/logger.js';
 
+/**
+ * Đăng ký tài khoản người dùng mới bằng Email và Mật khẩu truyền thống
+ * @param {Object} userData - Thông tin tài khoản đăng ký
+ * @param {string} userData.email - Email đăng ký
+ * @param {string} userData.password - Mật khẩu đăng ký
+ * @param {string} [userData.first_name] - Tên người dùng
+ * @param {string} [userData.last_name] - Họ người dùng
+ * @param {string} [userData.date_of_birth] - Ngày sinh
+ * @param {boolean} [userData.gender] - Giới tính
+ * @param {string} [userData.role] - Vai trò
+ * @returns {Promise<Object>} Trả về thông tin người dùng vừa được tạo trong CSDL (status = INACTIVE)
+ * @throws {Error} Ném lỗi 409 nếu email đã tồn tại trong hệ thống
+ */
 export const registerWithEmailPassword = async ({
   email,
   password,
@@ -90,9 +103,10 @@ export const registerWithEmailPassword = async ({
 };
 
 /**
- * Xác thực token kích hoạt tài khoản
- * @param {string} token 
- * @returns {Promise<Object>}
+ * Xác thực token kích hoạt nhận được từ email và cập nhật trạng thái người dùng thành ACTIVE
+ * @param {string} token - Chuỗi Activation JWT Token lấy được từ email liên kết kích hoạt
+ * @returns {Promise<Object>} Đối tượng chứa thuộc tính alreadyActive biểu thị tài khoản đã kích hoạt từ trước hay chưa, và email tương ứng
+ * @throws {Error} Ném lỗi 400 nếu token hết hạn/không hợp lệ, hoặc lỗi 403 nếu tài khoản đã bị khóa (BANNED)
  */
 export const activateAccount = async (token) => {
   if (!token) {
