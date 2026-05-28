@@ -1,6 +1,8 @@
 import * as projectService from '../services/project.service.js';
 import logger from '../utils/logger.js';
 
+export const projectServiceRef = { ...projectService };
+
 /**
  * API Lấy danh sách dự án của người dùng hiện tại
  * @param {Object} req - Express request object
@@ -12,7 +14,7 @@ import logger from '../utils/logger.js';
 export const getProjects = async (req, res) => {
   try {
     const userId = req.user.user_id;
-    const projects = await projectService.getUserProjects(userId);
+    const projects = await projectServiceRef.getUserProjects(userId);
     
     return res.status(200).json({
       success: true,
@@ -51,7 +53,7 @@ export const getProjectById = async (req, res) => {
       });
     }
 
-    const project = await projectService.getProjectById(projectId, userId);
+    const project = await projectServiceRef.getProjectById(projectId, userId);
     if (!project) {
       return res.status(404).json({
         success: false,
@@ -116,7 +118,7 @@ export const createProject = async (req, res) => {
       });
     }
 
-    const newProject = await projectService.createProject({
+    const newProject = await projectServiceRef.createProject({
       userId,
       title: title.trim(),
       subject_area: finalSubjectArea,
@@ -204,7 +206,7 @@ export const updateProject = async (req, res) => {
       });
     }
 
-    const updated = await projectService.updateProject(projectId, userId, {
+    const updated = await projectServiceRef.updateProject(projectId, userId, {
       title: title ? title.trim() : undefined,
       subject_area: finalSubjectArea,
       subject_category_ids,
@@ -264,7 +266,7 @@ export const deleteProject = async (req, res) => {
       });
     }
 
-    const deleted = await projectService.deleteProject(projectId, userId);
+    const deleted = await projectServiceRef.deleteProject(projectId, userId);
     if (!deleted) {
       return res.status(404).json({
         success: false,
@@ -323,10 +325,10 @@ export const getRelatedArticles = async (req, res) => {
       });
     }
 
-    const journalIds = await projectService.getJournalIdsByProjectId(projectId);
-    const categoryIds = await projectService.getCategoryIdsByProjectId(projectId);
+    const journalIds = await projectServiceRef.getJournalIdsByProjectId(projectId);
+    const categoryIds = await projectServiceRef.getCategoryIdsByProjectId(projectId);
 
-    const relatedArticles = await projectService.getRelatedArticles(journalIds, categoryIds, { limit });
+    const relatedArticles = await projectServiceRef.getRelatedArticles(journalIds, categoryIds, { limit });
 
     return res.status(200).json({
       success: true,
