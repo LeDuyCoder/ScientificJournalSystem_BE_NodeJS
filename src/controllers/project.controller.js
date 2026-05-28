@@ -1,4 +1,5 @@
 import * as projectService from '../services/project.service.js';
+import logger from '../utils/logger.js';
 
 /**
  * Lấy danh sách dự án của người dùng hiện tại
@@ -14,6 +15,7 @@ export const getProjects = async (req, res) => {
       data: projects
     });
   } catch (error) {
+    logger.error('[Project Controller] Lỗi khi lấy danh sách dự án:', error);
     return res.status(500).json({
       success: false,
       message: 'Có lỗi xảy ra khi lấy danh sách dự án'
@@ -51,6 +53,7 @@ export const getProjectById = async (req, res) => {
       data: project
     });
   } catch (error) {
+    logger.error('[Project Controller] Lỗi khi lấy chi tiết dự án:', error);
     return res.status(500).json({
       success: false,
       message: 'Có lỗi xảy ra khi lấy chi tiết dự án'
@@ -115,6 +118,7 @@ export const createProject = async (req, res) => {
       });
     }
 
+    logger.error('[Project Controller] Lỗi khi tạo dự án:', error);
     return res.status(500).json({
       success: false,
       message: 'Có lỗi xảy ra ở server khi tạo dự án'
@@ -192,9 +196,48 @@ export const updateProject = async (req, res) => {
       });
     }
 
+    logger.error('[Project Controller] Lỗi khi cập nhật dự án:', error);
     return res.status(500).json({
       success: false,
       message: 'Có lỗi xảy ra ở server khi cập nhật dự án'
     });
   }
 };
+
+/**
+ * Xóa một dự án
+ */
+export const deleteProject = async (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const userId = req.user.user_id;
+
+    // Validate ID dự án
+    if (!/^\d+$/.test(projectId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'ID dự án không hợp lệ'
+      });
+    }
+
+    const deleted = await projectService.deleteProject(projectId, userId);
+    if (!deleted) {
+      return res.status(404).json({
+        success: false,
+        message: 'Không tìm thấy dự án hoặc bạn không có quyền xóa dự án này'
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Xóa dự án thành công'
+    });
+  } catch (error) {
+    logger.error('[Project Controller] Lỗi khi xóa dự án:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Có lỗi xảy ra ở server khi xóa dự án'
+    });
+  }
+};
+

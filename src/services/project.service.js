@@ -265,3 +265,53 @@ export const updateProject = async (projectId, userId, { title, subject_area, su
     client.release();
   }
 };
+
+/**
+ * Xóa một project
+ * @param {string|number} projectId
+ * @param {string} userId
+ * @returns {Promise<boolean>}
+ */
+export const deleteProject = async (projectId, userId) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // 1. Kiểm tra xem project có tồn tại và thuộc sở hữu của user hay không
+    const checkResult = await client.query(
+      `SELECT 1 FROM "Project" WHERE project_id = $1 AND user_id = $2`,
+      [projectId, userId]
+    );
+    if (checkResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return false;
+    }
+
+    // 2. Xóa các bản ghi liên quan trong Subject_Category_Project
+    await client.query(
+      `DELETE FROM "Subject_Category_Project" WHERE project_id = $1`,
+      [projectId]
+    );
+
+    // 3. Xóa các bản ghi liên quan trong Project_Journal
+    await client.query(
+      `DELETE FROM "Project_Journal" WHERE project_id = $1`,
+      [projectId]
+    );
+
+    // 4. Xóa project chính
+    await client.query(
+      `DELETE FROM "Project" WHERE project_id = $1 AND user_id = $2`,
+      [projectId, userId]
+    );
+
+    await client.query('COMMIT');
+    return true;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+

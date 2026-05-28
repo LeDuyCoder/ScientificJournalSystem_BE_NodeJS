@@ -4,7 +4,8 @@ import {
   getProjects,
   getProjectById,
   createProject,
-  updateProject
+  updateProject,
+  deleteProject
 } from '../controllers/project.controller.js';
 
 const router = express.Router();
@@ -269,5 +270,46 @@ router.post('/', requireAuth, createProject);
  *         description: Lỗi hệ thống
  */
 router.put('/:id', requireAuth, updateProject);
+
+/**
+ * @swagger
+ * /api/v1/projects/{id}:
+ *   delete:
+ *     summary: Xóa một dự án của người dùng
+ *     tags:
+ *       - Project
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID của dự án cần xóa
+ *     responses:
+ *       200:
+ *         description: Xóa dự án thành công
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Xóa dự án thành công"
+ *       400:
+ *         description: ID dự án không hợp lệ
+ *       401:
+ *         description: Chưa xác thực
+ *       404:
+ *         description: Không tìm thấy dự án hoặc không có quyền xóa
+ *       500:
+ *         description: Lỗi hệ thống
+ */
+router.delete('/:id', requireAuth, deleteProject);
 
 export default router;

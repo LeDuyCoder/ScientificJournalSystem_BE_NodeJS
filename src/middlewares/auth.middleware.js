@@ -1,6 +1,10 @@
 import jwt from 'jsonwebtoken';
 import logger from '../utils/logger.js';
 
+
+/**
+ * Middleware xác thực người dùng bằng JWT Token để có quyền thao tác với Project
+ */
 export const requireAuth = (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
@@ -56,7 +60,7 @@ export const verifyToken = (req, res, next) => {
     return res.status(401).json({
       success: false,
       message: 'Token đã hết hạn hoặc không hợp lệ. Vui lòng đăng nhập lại.'
-
     });
   }
 };
+
