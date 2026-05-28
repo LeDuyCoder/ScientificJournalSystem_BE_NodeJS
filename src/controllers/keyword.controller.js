@@ -1,5 +1,5 @@
 import keywordService from "../services/keyword.service.js";
-
+export const keywordServiceRef = keywordService;
 // Xử lý request GET /api/v1/projects/:id/keywords/trending
 const getTrendingKeywords = async (req, res) => {
   try {
@@ -23,7 +23,6 @@ const getTrendingKeywords = async (req, res) => {
 
     // Trả về kết quả thành công
     return res.status(200).json(result);
-
   } catch (error) {
     // Có lỗi không mong muốn → log ra terminal và trả về lỗi 500
     console.error("[getTrendingKeywords] Error:", error);

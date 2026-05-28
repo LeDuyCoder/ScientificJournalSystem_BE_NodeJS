@@ -8,15 +8,13 @@ import keywordRouter from "./keyword.route.js";
 const router = express.Router();
 
 // Gom router của user vào đường dẫn /users
-router.use("/users", userRouter);
+router.use('/users', userRouter);
+router.use('/projects', projectRouter);
 
 // Gom router của login, register và google vào đường dẫn /auth
-router.use("/auth", loginRouter);
-router.use("/auth", registerRouter);
-router.use("/auth", googleRouter);
-
-// Gom router của project vào đường dẫn /projects
-router.use("/projects", projectRouter);
+router.use('/auth', loginRouter);
+router.use('/auth', registerRouter);
+router.use('/auth', googleRouter);
 
 // Gom router của keyword vào đường dẫn /projects
 router.use("/projects", keywordRouter);
