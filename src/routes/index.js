@@ -18,7 +18,7 @@ router.use('/auth', googleRouter);
 
 // Gom router của project vào đường dẫn /projects
 router.use('/projects', projectRouter);
-// Gom router của user vào đường dẫn /article
+// Gom router của article vào đường dẫn /articles
 router.use('/articles', articleRouter);
 
 export default router;

@@ -1,14 +1,19 @@
 import express from 'express';
+import { requireAuth } from '../middlewares/auth.middleware.js';
 import { getArticlesByKeywords } from '../controllers/article.controller.js';
 
 const router = express.Router();
 
 /**
  * @swagger
- * /article:
+ * /api/v1/articles:
  *   get:
  *     summary: Tìm bài báo theo từ khóa trên toàn hệ thống
  *     description: Trả về danh sách bài báo chứa các từ khóa mà người dùng nhập qua query string
+ *     tags:
+ *       - Article
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: query
  *         name: keywords
@@ -74,9 +79,15 @@ const router = express.Router();
  *                           type: integer
  *       400:
  *         description: Thiếu tham số keywords
+ *       401:
+ *         description: Chưa xác thực hoặc token không hợp lệ
  *       500:
  *         description: Lỗi server
  */
-router.get('/', getArticlesByKeywords);
+/**
+ * Route GET /api/v1/articles
+ * Tìm bài báo theo từ khóa trên toàn hệ thống (Yêu cầu xác thực)
+ */
+router.get('/', requireAuth, getArticlesByKeywords);
 
 export default router;
