@@ -5,6 +5,7 @@ import registerRouter from './register.route.js';
 import projectRouter from './project.route.js';
 import articleRouter from './article.route.js';
 import googleRouter from './google.route.js';
+import keywordRouter from "./keyword.route.js";
 
 const router = express.Router();
 
@@ -19,5 +20,8 @@ router.use('/auth', googleRouter);
 
 // Gom router của article vào đường dẫn /articles
 router.use('/articles', articleRouter);
+
+// Gom router của keyword vào đường dẫn /projects
+router.use("/projects", keywordRouter);
 
 export default router;
