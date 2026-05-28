@@ -19,5 +19,5 @@ router.use("/auth", googleRouter);
 router.use("/projects", projectRouter);
 
 // Gom router của keyword vào đường dẫn /projects
-router.use("/projects", keywordRouter); // ← thêm dòng này
+router.use("/projects", keywordRouter);
 export default router;

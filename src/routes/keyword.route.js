@@ -1,5 +1,6 @@
 import express from "express";
 import keywordController from "../controllers/keyword.controller.js";
+import { requireAuth } from "../middlewares/auth.middleware.js";
 
 const router = express.Router();
 
@@ -93,6 +94,9 @@ const router = express.Router();
  */
 
 // GET /api/v1/projects/:id/keywords/trending?limit=20&sort_by=count
-router.get("/:id/keywords/trending", keywordController.getTrendingKeywords);
-
+router.get(
+  "/:id/keywords/trending",
+  requireAuth,
+  keywordController.getTrendingKeywords,
+);
 export default router;
