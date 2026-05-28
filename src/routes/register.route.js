@@ -1,5 +1,5 @@
 import express from 'express';
-import { register } from '../controllers/register.controller.js';
+import { register, verify } from '../controllers/register.controller.js';
 
 const router = express.Router();
 
@@ -48,7 +48,7 @@ const router = express.Router();
  *                 example: "STUDENT"
  *     responses:
  *       201:
- *         description: Đăng ký thành công, trả về thông tin tài khoản vừa tạo
+ *         description: Đăng ký thành công, trả về thông tin tài khoản dạng INACTIVE kèm chỉ thị kích hoạt email
  *         content:
  *           application/json:
  *             schema:
@@ -59,7 +59,7 @@ const router = express.Router();
  *                   example: true
  *                 message:
  *                   type: string
- *                   example: "Đăng ký tài khoản thành công"
+ *                   example: "Đăng ký tài khoản thành công. Vui lòng kiểm tra email để kích hoạt tài khoản."
  *                 data:
  *                   type: object
  *                   properties:
@@ -75,7 +75,7 @@ const router = express.Router();
  *                       example: "LOCAL"
  *                     status:
  *                       type: string
- *                       example: "ACTIVE"
+ *                       example: "INACTIVE"
  *                     role:
  *                       type: string
  *                       example: "STUDENT"
@@ -108,6 +108,62 @@ const router = express.Router();
  *       500:
  *         description: Lỗi hệ thống server
  */
+/**
+ * Route POST /api/v1/auth/register
+ * Đăng ký tài khoản người dùng mới (Trạng thái mặc định INACTIVE và gửi email kích hoạt)
+ */
 router.post('/register', register);
+
+/**
+ * @swagger
+ * /api/v1/auth/verify:
+ *   get:
+ *     summary: Xác thực kích hoạt tài khoản qua Token được gửi trong Email
+ *     tags:
+ *       - Auth
+ *     parameters:
+ *       - in: query
+ *         name: token
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Token xác thực được nhận qua email (định dạng JWT)
+ *     responses:
+ *       200:
+ *         description: Kích hoạt tài khoản thành công hoặc tài khoản đã kích hoạt từ trước
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Kích hoạt tài khoản thành công! Bây giờ bạn có thể đăng nhập."
+ *       400:
+ *         description: Token thiếu, không hợp lệ hoặc đã hết hạn
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "Token kích hoạt không hợp lệ hoặc đã hết hạn"
+ *       403:
+ *         description: Tài khoản đã bị khóa không thể kích hoạt
+ *       500:
+ *         description: Lỗi hệ thống server
+ */
+/**
+ * Route GET /api/v1/auth/verify
+ * Xác thực token gửi qua Email để kích hoạt tài khoản
+ */
+router.get('/verify', verify);
 
 export default router;
