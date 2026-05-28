@@ -1,4 +1,5 @@
 import pool from '../config/database.js';
+import logger from '../utils/logger.js';
 
 /**
  * Lấy danh sách các project của một user
@@ -336,3 +337,97 @@ export const deleteProject = async (projectId, userId) => {
   }
 };
 
+
+/**
+ * Lấy danh sách journal_id thuộc về một dự án.
+ *
+ * @async
+ * @param {(number|string)} projectId - ID của dự án cần truy vấn.
+ * @returns {Promise<number[]>} Mảng các journal_id.
+ */
+export const getJournalIdsByProjectId = async (projectId) => {
+    try {
+        const queryText = `
+            SELECT pj.journal_id
+            FROM "Project_Journal" pj
+            WHERE pj.project_id = $1;
+        `;
+
+        const res = await pool.query(queryText, [Number(projectId)]);
+
+        // Chỉ trả về mảng số
+        return res.rows.map(row => Number(row.journal_id));
+    } catch (error) {
+        logger.error('Lỗi khi lấy journal_id của dự án:', error);
+        throw error;
+    }
+};
+
+/**
+ * Lấy danh sách subject_category_id thuộc về các journal trong dự án.
+ *
+ * @async
+ * @param {(number|string)} projectId - ID của dự án.
+ * @returns {Promise<number[]>} Mảng các subject_category_id (không trùng).
+ */
+export const getCategoryIdsByProjectId = async (projectId) => {
+    try {
+        const queryText = `
+            SELECT DISTINCT jsc.subject_category_id
+            FROM "Project_Journal" pj
+            JOIN "Journal_Subject_Category" jsc 
+                ON pj.journal_id = jsc.journal_id
+            WHERE pj.project_id = $1;
+        `;
+
+        const res = await pool.query(queryText, [Number(projectId)]);
+
+        return res.rows.map(row => Number(row.subject_category_id));
+    } catch (error) {
+        logger.error('Lỗi khi lấy subject_category_id của dự án:', error);
+        throw error;
+    }
+};
+
+/**
+ * Lấy danh sách các bài viết liên quan dựa trên mảng ID tạp chí và mảng ID danh mục.
+ *
+ * @async
+ * @param {(number[]|string[])} journalIds - Mảng chứa các ID của tạp chí cần lọc.
+ * @param {(number[]|string[])} categoryIds - Mảng chứa các ID của danh mục cần lọc.
+ * @param {Object} options - Cấu hình tùy chọn cho truy vấn.
+ * @param {number} [options.limit=5] - Số lượng bài viết tối đa muốn lấy (mặc định là 5).
+ * @returns {Promise<Array<{article_id: (number|string), title: string, abstract: string, publication_year: number, doi: string, journal_id: (number|string)}>>} Mảng chứa danh sách các bài viết liên quan tìm được.
+ * @throws {Error} Ném ra lỗi nếu có sai sót trong quá trình truy vấn Database.
+ */
+export const getRelatedArticles = async (journalIds, categoryIds, { limit = 5 }) => {
+    try {
+        const queryText = `
+            SELECT DISTINCT
+                a.article_id,
+                a.title,
+                a.abstract,
+                a.publication_year,
+                a.doi,
+                v.journal_id 
+            FROM "Article" a
+            JOIN "Issue" i ON a.issue_id = i.issue_id
+            JOIN "Volume" v ON i.volume_id = v.volume_id
+            JOIN "Journal_Subject_Category" jc ON v.journal_id = jc.journal_id
+            WHERE v.journal_id = ANY($1) 
+              AND jc.subject_category_id = ANY($2) 
+            ORDER BY a.publication_year DESC, a.article_id DESC
+            LIMIT $3;
+        `;
+
+        const values = [journalIds, categoryIds, limit];
+
+        const res = await pool.query(queryText, values);
+
+        return res.rows; 
+        
+    } catch (error) {
+        logger.error('Lỗi khi lấy bài viết liên quan:', error);
+        throw error;
+    }
+}

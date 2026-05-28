@@ -65,7 +65,6 @@ export const getProjectById = async (req, res) => {
       data: project
     });
   } catch (error) {
-    logger.error('[Project Controller] Lỗi khi lấy chi tiết dự án:', error);
     return res.status(500).json({
       success: false,
       message: 'Có lỗi xảy ra khi lấy chi tiết dự án'
@@ -131,6 +130,8 @@ export const createProject = async (req, res) => {
       data: newProject
     });
   } catch (error) {
+    logger.error('Lỗi khi tạo dự án mới:', error);
+
     if (error.message && (
       error.message.includes('không tồn tại') || 
       error.message.includes('chưa tồn tại')
@@ -284,3 +285,60 @@ export const deleteProject = async (req, res) => {
   }
 };
 
+
+/**
+ * Controller xử lý yêu cầu lấy danh sách bài viết liên quan của một dự án.
+ * * - Hàm này sẽ bóc tách `projectId` từ URL params và `limit` từ query string.
+ * - Sau đó tự động phối hợp các dịch vụ để lấy danh sách các Journal IDs và Category IDs thuộc dự án,
+ * rồi truy vấn ra các bài viết liên quan mới nhất.
+ *
+ * @async
+ * @param {import('express').Request} req - Đối tượng Request của Express.
+ * @param {Object} req.params - Các tham số định tuyến trên URL.
+ * @param {string} req.params.id - ID của dự án (sẽ được ép kiểu sang số nguyên).
+ * @param {Object} req.query - Các tham số truy vấn (Query String) trên URL.
+ * @param {string} [req.query.limit] - Số lượng bài viết tối đa muốn lấy (mặc định hệ thống tự nhận là 5).
+ * * @param {import('express').Response} res - Đối tượng Response của Express dùng để trả về dữ liệu cho Client.
+ * * @returns {Promise<import('express').Response>} Trả về phản hồi HTTP JSON:
+ * - **200 (OK):** Lấy danh sách bài viết thành công kèm theo mảng dữ liệu.
+ * - **400 (Bad Request):** ID dự án hoặc giá trị limit không đúng định dạng số nguyên dương.
+ * - **500 (Internal Server Error):** Lỗi hệ thống hoặc lỗi phát sinh tại máy chủ Database.
+ */
+export const getRelatedArticles = async (req, res) => {
+  try {
+    const projectId = Number(req.params.id);
+    const limit = Number(req.query.limit) || 5;
+
+    if (!Number.isInteger(projectId) || projectId <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'ID dự án không hợp lệ'
+      });
+    }
+
+    if (!Number.isInteger(limit) || limit <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Giá trị limit không hợp lệ'
+      });
+    }
+
+    const journalIds = await projectService.getJournalIdsByProjectId(projectId);
+    const categoryIds = await projectService.getCategoryIdsByProjectId(projectId);
+
+    const relatedArticles = await projectService.getRelatedArticles(journalIds, categoryIds, { limit });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Lấy bài viết liên quan thành công',
+      data: relatedArticles
+    });
+  } catch (error) {
+
+    logger.error('Lỗi khi lấy bài viết liên quan:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Có lỗi xảy ra ở server khi lấy bài viết liên quan'
+    });
+  }
+};
