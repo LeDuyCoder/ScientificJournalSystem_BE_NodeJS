@@ -89,6 +89,12 @@ export const getWatchedKeywordArticles = async (req, res) => {
       },
     });
   } catch (error) {
+    if (error.statusCode === 400) {
+      return res.status(400).json({
+        success: false,
+        message: error.message,
+      });
+    }
     logger.error(
       "[Keyword Controller] Lỗi khi lấy watched keyword articles:",
       error,

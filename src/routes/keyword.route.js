@@ -171,7 +171,7 @@ router.get("/:id/keywords/trending", requireAuth, getTrendingKeywords);
  *                       type: integer
  *                       example: 10
  *       400:
- *         description: ID dự án không hợp lệ
+ *         description: ID dự án không hợp lệ, ProjectID không tồn tại
  *       401:
  *         description: Chưa xác thực hoặc token không hợp lệ
  *       500:

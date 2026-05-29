@@ -57,6 +57,18 @@ const getWatchedKeywordArticles = async (projectId, userId, queryParams) => {
   const limit = Math.min(parseInt(queryParams.limit) || 10, 50);
   const offset = (page - 1) * limit;
 
+  const projectCheck = await pool.query(
+    `SELECT project_id FROM "Project" WHERE project_id = $1 AND user_id = $2`,
+    [projectId, userId],
+  );
+
+  if (!projectCheck.rows.length) {
+    const error = new Error(
+      "Project không tồn tại hoặc không thuộc quyền sở hữu",
+    );
+    error.statusCode = 400;
+    throw error;
+  }
   const countQuery = `
     SELECT COUNT(DISTINCT a.article_id) AS total
     FROM "Project_Keyword" pk
