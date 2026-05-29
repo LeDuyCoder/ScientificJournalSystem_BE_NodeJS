@@ -1,8 +1,6 @@
-import keywordService from "../services/keyword.service.js";
+import { syncWatchedKeywords, validateKeywordIds } from "../services/keyword.service.js";
 import logger from "../utils/logger.js";
 import pool from "../config/database.js";
-
-export const keywordServiceRef = { ...keywordService };
 
 /**
  * API Lấy Top 20 từ khóa trending của project
@@ -13,7 +11,7 @@ export const keywordServiceRef = { ...keywordService };
  * @param {Object} res - Express response object
  * @returns {Promise<Object>} JSON response chứa danh sách keywords trending
  */
-const getTrendingKeywords = async (req, res) => {
+export const getTrendingKeywords = async (req, res) => {
   try {
     // Lấy projectId từ URL và chuyển sang số nguyên
     const projectId = parseInt(req.params.id);
@@ -27,7 +25,7 @@ const getTrendingKeywords = async (req, res) => {
     }
 
     // Gọi service xử lý logic
-    const result = await keywordServiceRef.getTrendingKeywords(
+    const result = await getTrendingKeywords(
       projectId,
       req.query,
     );
@@ -74,7 +72,7 @@ export const getWatchedKeywordArticles = async (req, res) => {
     const userId = req.user.user_id;
 
     // Gọi service xử lý logic
-    const result = await keywordServiceRef.getWatchedKeywordArticles(
+    const result = await getWatchedKeywordArticles(
       projectId,
       userId,
       req.query,
@@ -109,14 +107,14 @@ export const getWatchedKeywordArticles = async (req, res) => {
 
 
 // POST /api/v1/projects/:id/keywords/watch
-const watchKeywords = async (req, res) => {
+export const watchKeywords = async (req, res) => {
   try {
     const projectId = parseInt(req.params.id);
     if (isNaN(projectId)) {
       return res.status(400).json({ success: false, message: "ID dự án không hợp lệ" });
     }
 
-    const { keyword_ids } = req.body;
+    const { keyword_ids } = req.body || {};
 
     // Validate keyword_ids is an array
     if (!Array.isArray(keyword_ids)) {
@@ -144,14 +142,14 @@ const watchKeywords = async (req, res) => {
 
     // Check if keywords exist
     if (keyword_ids.length > 0) {
-      const keywordsExist = await keywordService.validateKeywordIds(keyword_ids);
+      const keywordsExist = await validateKeywordIds(keyword_ids);
       if (!keywordsExist) {
         return res.status(400).json({ success: false, message: "Một hoặc nhiều Keyword ID không tồn tại trong hệ thống" });
       }
     }
 
     // Sync keywords
-    await keywordService.syncWatchedKeywords(projectId, keyword_ids);
+    await syncWatchedKeywords(projectId, keyword_ids);
 
     return res.status(201).json({
       success: true,
@@ -164,4 +162,4 @@ const watchKeywords = async (req, res) => {
   }
 };
 
-export default { getTrendingKeywords, watchKeywords };
+

@@ -3,6 +3,7 @@ import { requireAuth } from "../middlewares/auth.middleware.js";
 import {
   getTrendingKeywords,
   getWatchedKeywordArticles,
+  watchKeywords,
 } from "../controllers/keyword.controller.js";
 
 const router = express.Router();
@@ -263,7 +264,7 @@ router.get(
 router.post(
   "/:id/keywords/watch",
   requireAuth,
-  keywordController.watchKeywords
+  watchKeywords
 );
 
 export default router;
