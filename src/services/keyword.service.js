@@ -56,4 +56,60 @@ const getTrendingKeywords = async (projectId, queryParams) => {
   };
 };
 
-export default { getTrendingKeywords };
+/**
+ * Kiểm tra xem các keyword_ids có tồn tại trong bảng Keyword hay không
+ * @param {Array<number|string>} keywordIds
+ * @returns {Promise<boolean>}
+ */
+const validateKeywordIds = async (keywordIds) => {
+  if (!keywordIds || keywordIds.length === 0) return true;
+  
+  const uniqueIds = [...new Set(keywordIds)];
+  
+  const query = `
+    SELECT keyword_id
+    FROM "Keyword"
+    WHERE keyword_id = ANY($1::bigint[])
+  `;
+  const result = await pool.query(query, [uniqueIds]);
+  return result.rows.length === uniqueIds.length;
+};
+
+/**
+ * Cập nhật danh sách từ khóa theo dõi của dự án (Sync logic)
+ * @param {string|number} projectId 
+ * @param {Array<number|string>} keywordIds 
+ */
+const syncWatchedKeywords = async (projectId, keywordIds) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // 1. Xóa tất cả các keyword cũ của project
+    await client.query(
+      `DELETE FROM "Project_Keyword" WHERE project_id = $1`,
+      [projectId]
+    );
+
+    // 2. Chèn lại các keyword mới
+    if (keywordIds && keywordIds.length > 0) {
+      const uniqueIds = [...new Set(keywordIds)];
+      for (const kwId of uniqueIds) {
+        await client.query(
+          `INSERT INTO "Project_Keyword" (project_id, keyword_id) VALUES ($1, $2)`,
+          [projectId, kwId]
+        );
+      }
+    }
+
+    await client.query('COMMIT');
+    return true;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
+export default { getTrendingKeywords, validateKeywordIds, syncWatchedKeywords };
