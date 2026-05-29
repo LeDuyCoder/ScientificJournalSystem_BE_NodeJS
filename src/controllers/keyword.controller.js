@@ -1,4 +1,9 @@
-import { syncWatchedKeywords, validateKeywordIds } from "../services/keyword.service.js";
+import {
+  getTrendingKeywords as getTrendingKeywordsService,
+  getWatchedKeywordArticles as getWatchedKeywordArticlesService,
+  syncWatchedKeywords,
+  validateKeywordIds,
+} from "../services/keyword.service.js";
 import logger from "../utils/logger.js";
 import pool from "../config/database.js";
 
@@ -25,7 +30,7 @@ export const getTrendingKeywords = async (req, res) => {
     }
 
     // Gọi service xử lý logic
-    const result = await getTrendingKeywords(
+    const result = await getTrendingKeywordsService(
       projectId,
       req.query,
     );
@@ -72,7 +77,7 @@ export const getWatchedKeywordArticles = async (req, res) => {
     const userId = req.user.user_id;
 
     // Gọi service xử lý logic
-    const result = await getWatchedKeywordArticles(
+    const result = await getWatchedKeywordArticlesService(
       projectId,
       userId,
       req.query,

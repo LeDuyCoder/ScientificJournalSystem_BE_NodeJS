@@ -52,7 +52,7 @@ export const getTrendingKeywords = async (projectId, queryParams) => {
 /**
  * Lấy danh sách bài báo mới nhất từ các từ khóa đang theo dõi trong project
  */
-const getWatchedKeywordArticles = async (projectId, userId, queryParams) => {
+export const getWatchedKeywordArticles = async (projectId, userId, queryParams) => {
   const page = Math.max(parseInt(queryParams.page) || 1, 1);
   const limit = Math.min(parseInt(queryParams.limit) || 10, 50);
   const offset = (page - 1) * limit;
