@@ -1,4 +1,5 @@
 import * as authorService from "../services/author.service.js";
+import logger from "../utils/logger.js";
 
 export const authorServiceRef = { ...authorService };
 
@@ -42,7 +43,7 @@ export const getAuthorAreasBreakdown = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('getArticlesByKeywords error:', error);
+        logger.error('Lỗi phân tích lĩnh vực nghiên cứu của tác giả:', error);
         return res.status(500).json({
             success: false,
             message: "Có lỗi xảy ra ở Server!"
@@ -66,9 +67,10 @@ export const getAuthorAreasBreakdown = async (req, res) => {
 export const getAuthorArticles = async (req, res) => {
     try {
         const authorId = Number(req.params.id);
-        const limit = Number(req.query.limit) || 0;
-        const page = Number(req.query.page) || 1;
-        
+        const limit = req.query.limit !== undefined ? Number(req.query.limit) : 10;
+        const page = req.query.page !== undefined ? Number(req.query.page) : 1;
+        const safeLimit = limit === 0 ? 10 : limit;
+        const safePage = page;
 
         if (!Number.isInteger(authorId) || authorId <= 0) {
             return res.status(400).json({
@@ -76,6 +78,53 @@ export const getAuthorArticles = async (req, res) => {
                 message: 'ID tác giả không hợp lệ'
             });
         }
+
+        if (!Number.isInteger(safeLimit) || safeLimit < 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'Giá trị limit không hợp lệ'
+            });
+        }
+
+        if (!Number.isInteger(safePage) || safePage < 1) {
+            return res.status(400).json({
+                success: false,
+                message: 'Giá trị page không hợp lệ'
+            });
+        }
+
+        const articles = await authorServiceRef.getAuthorArticlesService(authorId, safeLimit, safePage);
+
+        return res.status(200).json({
+            success: true,
+            message: "Lấy bài viết của tác giả thành công",
+            pagination: {
+                page: safePage,
+                limit: safeLimit,
+                total: articles.length,
+            },
+            data: [...articles]
+        });
+    } catch (error) {
+        logger.error('Lỗi lấy bài viết của tác giả:', error);
+        return res.status(500).json({
+            success: false,
+            message: "Có lỗi xảy ra ở Server!"
+        });
+    }
+}
+
+/**
+ * Lấy bảng xếp hạng tác giả có phân trang.
+ *
+ * @param {import('express').Request} req - Express request object.
+ * @param {import('express').Response} res - Express response object.
+ * @returns {Promise<import('express').Response>}
+ */
+export const getAuthorLeaderboard = async (req, res) => {
+    try {
+        const limit = Number(req.query.limit) || 10;
+        const page = Number(req.query.page) || 1;
 
         if (!Number.isInteger(limit) || limit < 0) {
             return res.status(400).json({
@@ -91,20 +140,15 @@ export const getAuthorArticles = async (req, res) => {
             });
         }
 
-        const articles = await authorServiceRef.getAuthorArticlesService(authorId);
+        const leaderboard = await authorServiceRef.getAuthorLeaderboardService(limit, page);
 
         return res.status(200).json({
             success: true,
-            message: "Lấy bài viết của tác giả thành công",
-            pagination: {
-                page,
-                limit,
-                total: articles.length,
-            },
-            data: [...articles]
+            message: "Lấy bảng xếp hạng tác giả thành công",
+            data: leaderboard
         });
-    } catch (error) {
-        logger.error('Lỗi lấy bài viết của tác giả:', error);
+    }catch(error){
+        logger.error('Lỗi lấy bảng xếp hạng tác giả:', error);
         return res.status(500).json({
             success: false,
             message: "Có lỗi xảy ra ở Server!"

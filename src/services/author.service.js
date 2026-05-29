@@ -108,3 +108,48 @@ export const getAuthorArticlesService = async (authorId, limit, page) => {
         throw error;
     }
 }
+
+/**
+ * Lấy bảng xếp hạng tác giả với phân trang.
+ *
+ * @param {number|string} [limit=10] - Số lượng bản ghi trên mỗi trang.
+ * @param {number|string} [page=1] - Số trang bắt đầu từ 1.
+ * @returns {Promise<Array<Object>>} Danh sách tác giả và chỉ số xếp hạng.
+ */
+export const getAuthorLeaderboardService = async (limit, page) => {
+    try{
+        const queryText = `
+            SELECT 
+                author_id,
+                orcid,
+                display_name,
+                url_image,
+                -- Nếu NULL thì hiển thị là 0 cho đẹp mắt trên giao diện
+                COALESCE(works_count, 0) AS works_count,
+                COALESCE(cited_by_count, 0) AS cited_by_count,
+                COALESCE(h_index, 0) AS h_index,
+                COALESCE(i10_index, 0) AS i10_index,
+                -- Tính toán số hạng từ hạng 1 trở xuống
+                ROW_NUMBER() OVER (
+                    ORDER BY 
+                        h_index DESC NULLS LAST, 
+                        cited_by_count DESC NULLS LAST, 
+                        i10_index DESC NULLS LAST, 
+                        works_count DESC NULLS LAST
+                ) AS final_rank
+            FROM "Author"
+            ORDER BY final_rank ASC
+            LIMIT $1 OFFSET $2;
+        `;
+
+        const safeLimit = Math.max(1, parseInt(limit) || 10);
+        const safePage = Math.max(1, parseInt(page) || 1);
+        const safeOffset = (safePage - 1) * safeLimit;
+
+        const res = await pool.query(queryText, [safeLimit, safeOffset]);
+        return res.rows;
+    }catch (error) {
+        logger.error('Lỗi khi lấy bảng xếp hạng tác giả:', error);
+        throw error;
+    }
+}

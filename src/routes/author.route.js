@@ -1,5 +1,5 @@
 import express from 'express';
-import { getAuthorAreasBreakdown, getAuthorArticles } from '../controllers/author.controller.js';
+import { getAuthorAreasBreakdown, getAuthorArticles, getAuthorLeaderboard } from '../controllers/author.controller.js';
 import { requireAuth } from '../middlewares/auth.middleware.js';
 
 const router = express.Router();
@@ -241,5 +241,91 @@ router.get('/:id/areas-breakdown', requireAuth, getAuthorAreasBreakdown);
  *         description: Lỗi hệ thống server
  */
 router.get('/:id/articles', requireAuth, getAuthorArticles);
+
+/**
+ * @swagger
+ * /api/v1/author/leaderboard:
+ *   get:
+ *     summary: Lấy bảng xếp hạng tác giả
+ *     tags:
+ *       - Author
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: limit
+ *         required: false
+ *         schema:
+ *           type: integer
+ *           minimum: 0
+ *           default: 10
+ *         description: Số lượng tác giả tối đa trên mỗi trang
+ *       - in: query
+ *         name: page
+ *         required: false
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           default: 1
+ *         description: Trang thứ mấy
+ *     responses:
+ *       200:
+ *         description: Thành công
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               required:
+ *                 - success
+ *                 - message
+ *                 - data
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Lấy bảng xếp hạng tác giả thành công"
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       author_id:
+ *                         type: integer
+ *                         example: 123
+ *                       orcid:
+ *                         type: string
+ *                         example: "https://orcid.org/0000-0002-1824-2337"
+ *                       display_name:
+ *                         type: string
+ *                         example: "Jason R. Westin"
+ *                       url_image:
+ *                         type: string
+ *                         nullable: true
+ *                         example: null
+ *                       works_count:
+ *                         type: integer
+ *                         example: 655
+ *                       cited_by_count:
+ *                         type: integer
+ *                         example: 29763
+ *                       h_index:
+ *                         type: integer
+ *                         example: 57
+ *                       i10_index:
+ *                         type: integer
+ *                         example: 195
+ *                       final_rank:
+ *                         type: integer
+ *                         example: 1
+ *       400:
+ *         description: Dữ liệu đầu vào không hợp lệ
+ *       401:
+ *         description: Chưa xác thực hoặc token không hợp lệ
+ *       500:
+ *         description: Lỗi hệ thống server
+ */
+router.get("/leaderboard", requireAuth,  getAuthorLeaderboard);
 
 export default router;
