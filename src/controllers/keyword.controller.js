@@ -3,9 +3,9 @@ import {
   getWatchedKeywordArticles as getWatchedKeywordArticlesService,
   syncWatchedKeywords,
   validateKeywordIds,
+  checkProjectOwnership,
 } from "../services/keyword.service.js";
 import logger from "../utils/logger.js";
-import pool from "../config/database.js";
 
 /**
  * API Lấy Top 20 từ khóa trending của project
@@ -136,12 +136,9 @@ export const watchKeywords = async (req, res) => {
 
     // Check project ownership
     const userId = req.user.user_id;
-    const projectCheck = await pool.query(
-      `SELECT 1 FROM "Project" WHERE project_id = $1 AND user_id = $2`,
-      [projectId, userId]
-    );
+    const isOwner = await checkProjectOwnership(projectId, userId);
 
-    if (projectCheck.rows.length === 0) {
+    if (!isOwner) {
       return res.status(404).json({ success: false, message: "Không tìm thấy dự án hoặc bạn không có quyền truy cập dự án này" });
     }
 
