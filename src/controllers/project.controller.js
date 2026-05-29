@@ -67,6 +67,7 @@ export const getProjectById = async (req, res) => {
       data: project
     });
   } catch (error) {
+    logger.error('[Project Controller] Lỗi khi lấy chi tiết dự án:', error);
     return res.status(500).json({
       success: false,
       message: 'Có lỗi xảy ra khi lấy chi tiết dự án'
@@ -309,7 +310,6 @@ export const deleteProject = async (req, res) => {
 export const getRelatedArticles = async (req, res) => {
   try {
     const projectId = Number(req.params.id);
-    const limit = Number(req.query.limit) || 5;
 
     if (!Number.isInteger(projectId) || projectId <= 0) {
       return res.status(400).json({
@@ -318,11 +318,15 @@ export const getRelatedArticles = async (req, res) => {
       });
     }
 
-    if (!Number.isInteger(limit) || limit <= 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Giá trị limit không hợp lệ'
-      });
+    let limit = 5;
+    if (req.query.limit !== undefined) {
+      limit = Number(req.query.limit);
+      if (!Number.isInteger(limit) || limit <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Giá trị limit không hợp lệ'
+        });
+      }
     }
 
     const journalIds = await projectServiceRef.getJournalIdsByProjectId(projectId);

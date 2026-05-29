@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert';
 import { mock } from 'node:test';
-import pool from '../../../config/database.js';
-import { getArticlesByKeywords, countArticlesByKeywords } from '../../../services/article.service.js';
+import pool from '../config/database.js';
+import { getArticlesByKeywords, countArticlesByKeywords } from '../services/article.service.js';
 
 test.after(async () => {
   await pool.end();
