@@ -4,7 +4,7 @@ import logger from "../utils/logger.js";
 /**
  * Lấy Top 20 từ khóa trending của project
  */
-const getTrendingKeywords = async (projectId, queryParams) => {
+export const getTrendingKeywords = async (projectId, queryParams) => {
   const limit = Math.min(parseInt(queryParams.limit) || 20, 100);
   const sortBy = ["count", "score"].includes(queryParams.sort_by)
     ? queryParams.sort_by
@@ -52,7 +52,7 @@ const getTrendingKeywords = async (projectId, queryParams) => {
 /**
  * Lấy danh sách bài báo mới nhất từ các từ khóa đang theo dõi trong project
  */
-const getWatchedKeywordArticles = async (projectId, userId, queryParams) => {
+export const getWatchedKeywordArticles = async (projectId, userId, queryParams) => {
   const page = Math.max(parseInt(queryParams.page) || 1, 1);
   const limit = Math.min(parseInt(queryParams.limit) || 10, 50);
   const offset = (page - 1) * limit;
@@ -121,4 +121,80 @@ const getWatchedKeywordArticles = async (projectId, userId, queryParams) => {
   };
 };
 
-export default { getTrendingKeywords, getWatchedKeywordArticles };
+/**
+ * Kiểm tra xem các keyword_ids có tồn tại trong bảng Keyword hay không
+ * @param {Array<number|string>} keywordIds
+ * @returns {Promise<boolean>}
+ */
+export const validateKeywordIds = async (keywordIds) => {
+  if (!keywordIds || keywordIds.length === 0) return true;
+  
+  const uniqueIds = [...new Set(keywordIds)];
+  
+  const query = `
+    SELECT keyword_id
+    FROM "Keyword"
+    WHERE keyword_id = ANY($1::bigint[])
+  `;
+  const result = await pool.query(query, [uniqueIds]);
+  return result.rows.length === uniqueIds.length;
+};
+
+/**
+ * Cập nhật danh sách từ khóa theo dõi của dự án (chỉ thêm, không xóa)
+ * @param {string|number} projectId 
+ * @param {Array<number|string>} keywordIds 
+ */
+export const syncWatchedKeywords = async (projectId, keywordIds) => {
+  if (!keywordIds || keywordIds.length === 0) return true;
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // 1. Loại bỏ duplicate từ input
+    const uniqueIds = [...new Set(keywordIds)];
+
+    // 2. Lấy danh sách keywords đã tồn tại cho project này
+    const existingResult = await client.query(
+      `SELECT keyword_id FROM "Project_Keyword" WHERE project_id = $1`,
+      [projectId]
+    );
+    const existingIds = new Set(existingResult.rows.map(row => Number(row.keyword_id)));
+
+    // 3. Lọc ra keywords mới (chưa tồn tại)
+    const newKeywordIds = uniqueIds.filter(id => !existingIds.has(id));
+
+    if (newKeywordIds.length === 0) {
+      await client.query('COMMIT');
+      return true; // Không có keywords mới để thêm
+    }
+
+    // 4. Validate keywords tồn tại trong bảng Keyword
+    const validationResult = await client.query(
+      `SELECT keyword_id FROM "Keyword" WHERE keyword_id = ANY($1::bigint[])`,
+      [newKeywordIds]
+    );
+    const validIds = new Set(validationResult.rows.map(row => Number(row.keyword_id)));
+
+    // 5. Chỉ INSERT những keywords hợp lệ
+    const idsToInsert = newKeywordIds.filter(id => validIds.has(id));
+    
+    if (idsToInsert.length > 0) {
+      for (const kwId of idsToInsert) {
+        await client.query(
+          `INSERT INTO "Project_Keyword" (project_id, keyword_id) VALUES ($1, $2)`,
+          [projectId, kwId]
+        );
+      }
+    }
+
+    await client.query('COMMIT');
+    return true;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+};

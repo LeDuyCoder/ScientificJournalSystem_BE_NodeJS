@@ -3,6 +3,7 @@ import { requireAuth } from "../middlewares/auth.middleware.js";
 import {
   getTrendingKeywords,
   getWatchedKeywordArticles,
+  watchKeywords,
 } from "../controllers/keyword.controller.js";
 
 const router = express.Router();
@@ -182,4 +183,88 @@ router.get(
   requireAuth,
   getWatchedKeywordArticles,
 );
+
+/**
+ * @swagger
+ * /api/v1/projects/{id}/keywords/watch:
+ *   post:
+ *     summary: Cập nhật danh sách từ khóa mà dự án theo dõi
+ *     tags: [Keywords]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID của project
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - keyword_ids
+ *             properties:
+ *               keyword_ids:
+ *                 type: array
+ *                 items:
+ *                   type: integer
+ *                 description: Mảng chứa các ID của từ khóa muốn theo dõi
+ *                 example: [1, 5, 12]
+ *     responses:
+ *       201:
+ *         description: Thành công
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Cập nhật danh sách từ khóa theo dõi thành công
+ *       400:
+ *         description: Dữ liệu đầu vào không hợp lệ (ID dự án, định dạng keyword_ids, hoặc keyword ID không tồn tại)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: keyword_ids phải là một mảng
+ *       401:
+ *         description: Chưa xác thực (Missing/Invalid Token)
+ *       404:
+ *         description: Project không tồn tại hoặc không thuộc quyền sở hữu của user
+ *       500:
+ *         description: Lỗi server
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: Có lỗi xảy ra ở Server!
+ */
+
+// POST /api/v1/projects/:id/keywords/watch
+router.post(
+  "/:id/keywords/watch",
+  requireAuth,
+  watchKeywords
+);
+
 export default router;
