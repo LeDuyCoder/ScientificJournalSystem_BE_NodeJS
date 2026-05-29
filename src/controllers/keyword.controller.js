@@ -32,7 +32,13 @@ const getTrendingKeywords = async (req, res) => {
   }
 };
 
-// POST /api/v1/projects/:id/keywords/watch
+/**
+ * API Handler: Cập nhật danh sách từ khóa theo dõi của một dự án
+ * Method: POST /api/v1/projects/:id/keywords/watch
+ * @param {import('express').Request} req - Đối tượng Request của Express (chứa req.params.id, req.body.keyword_ids, req.user)
+ * @param {import('express').Response} res - Đối tượng Response của Express
+ * @returns {Promise<import('express').Response>} Trả về JSON thông báo kết quả cập nhật
+ */
 const watchKeywords = async (req, res) => {
   try {
     const projectId = parseInt(req.params.id);
