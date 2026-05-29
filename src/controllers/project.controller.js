@@ -67,6 +67,7 @@ export const getProjectById = async (req, res) => {
       data: project
     });
   } catch (error) {
+    logger.error('[Project Controller] Lỗi khi lấy chi tiết dự án:', error);
     return res.status(500).json({
       success: false,
       message: 'Có lỗi xảy ra khi lấy chi tiết dự án'
