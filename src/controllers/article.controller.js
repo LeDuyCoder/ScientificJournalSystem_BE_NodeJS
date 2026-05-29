@@ -1,5 +1,12 @@
 import * as articleService from '../services/article.service.js';
 
+/**
+ * API Handler: Tìm kiếm bài báo dựa trên danh sách từ khóa
+ * Method: GET /api/v1/articles?keywords=...&limit=...&page=...
+ * @param {import('express').Request} req - Đối tượng Request của Express (chứa req.query.keywords, limit, page)
+ * @param {import('express').Response} res - Đối tượng Response của Express
+ * @returns {Promise<import('express').Response>} Trả về JSON chứa danh sách bài báo và thông tin phân trang
+ */
 export const getArticlesByKeywords = async (req, res) => {
     try {
         // 1. Lấy keywords từ query string

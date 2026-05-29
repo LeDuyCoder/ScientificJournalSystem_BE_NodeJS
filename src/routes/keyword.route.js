@@ -182,5 +182,4 @@ router.get(
   requireAuth,
   getWatchedKeywordArticles,
 );
-
 export default router;
