@@ -1,5 +1,5 @@
 import * as zoneService from '../services/zone.service.js';
-import { logger } from '../utils/logger.js';
+import logger from '../utils/logger.js';
 
 /**
  * Controller lấy danh sách thống kê sản lượng bài viết của tất cả quốc gia (có phân trang).

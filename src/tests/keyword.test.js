@@ -1,9 +1,10 @@
 import { test, describe, beforeEach, afterEach } from "node:test";
 import assert from "node:assert";
 
-import { getTrendingKeywords } from "../../../services/keyword.service.js";
-import pool from "../../../config/database.js";
-import logger from "../../../utils/logger.js";
+import keywordService from "../services/keyword.service.js";
+const { getTrendingKeywords } = keywordService;
+import pool from "../config/database.js";
+import logger from "../utils/logger.js";
 
 describe("Keyword Service - getTrendingKeywords() Unit Test Suite", () => {
   let originalQuery;
