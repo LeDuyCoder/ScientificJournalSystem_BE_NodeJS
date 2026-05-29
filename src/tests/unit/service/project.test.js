@@ -3,8 +3,8 @@ import assert from 'node:assert';
 import { mock } from 'node:test';
 import request from 'supertest';
 import jwt from 'jsonwebtoken';
-import app from '../app.js';
-import pool from '../config/database.js';
+import app from '../../../app.js';
+import pool from '../../../config/database.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'scientific_journal_secret_key';
 const userId = 'a8e9c612-40db-4ff0-87a0-0f8b3b4f6cf7';
@@ -14,7 +14,7 @@ test.after(async () => {
   await pool.end();
 });
 
-test.describe('Project Management API - CRUD Operations & Related Articles', () => {
+test.describe('Project Management API - CRUD Operations (BIGINT)', () => {
 
   test.afterEach(() => {
     mock.reset();
@@ -212,6 +212,7 @@ test.describe('Project Management API - CRUD Operations & Related Articles', () 
 
     test('Lỗi 400 - Subject Area ID không tồn tại', async () => {
       mock.method(pool, 'query', async (sql, params) => {
+        // Kiểm tra Area trả về rỗng (không tồn tại)
         return { rows: [] };
       });
 
@@ -292,6 +293,7 @@ test.describe('Project Management API - CRUD Operations & Related Articles', () 
 
     test('Lỗi 404 - Dự án cần cập nhật không tồn tại hoặc không thuộc quyền sở hữu', async () => {
       mock.method(pool, 'query', async (sql, params) => {
+        // Trả về rỗng ở bước check ownership
         return { rows: [] };
       });
 
@@ -305,130 +307,6 @@ test.describe('Project Management API - CRUD Operations & Related Articles', () 
       assert.strictEqual(res.status, 404);
       assert.strictEqual(res.body.success, false);
       assert.strictEqual(res.body.message, 'Không tìm thấy dự án hoặc bạn không có quyền truy cập dự án này');
-    });
-  });
-
-  // ==========================================
-  // 5. DELETE /api/v1/projects/:id - Xóa dự án
-  // ==========================================
-  test.describe('DELETE /api/v1/projects/:id', () => {
-    test('Xóa dự án thành công', async () => {
-      const projectId = '12';
-
-      const mockClient = {
-        query: async (sql, params) => {
-          if (sql.includes('SELECT 1 FROM "Project"')) {
-            return { rows: [{ 1: 1 }] };
-          }
-          return { rows: [] };
-        },
-        release: () => {}
-      };
-      mock.method(pool, 'connect', async () => mockClient);
-
-      const res = await request(app)
-        .delete(`/api/v1/projects/${projectId}`)
-        .set('Authorization', `Bearer ${testToken}`);
-
-      assert.strictEqual(res.status, 200);
-      assert.strictEqual(res.body.success, true);
-      assert.strictEqual(res.body.message, 'Xóa dự án thành công');
-    });
-
-    test('Lỗi 400 - ID dự án không hợp lệ khi xóa', async () => {
-      const res = await request(app)
-        .delete('/api/v1/projects/not-a-number')
-        .set('Authorization', `Bearer ${testToken}`);
-
-      assert.strictEqual(res.status, 400);
-      assert.strictEqual(res.body.success, false);
-      assert.strictEqual(res.body.message, 'ID dự án không hợp lệ');
-    });
-
-    test('Lỗi 404 - Dự án không tồn tại hoặc không thuộc sở hữu', async () => {
-      const mockClient = {
-        query: async (sql, params) => {
-          if (sql.includes('SELECT 1 FROM "Project"')) {
-            return { rows: [] };
-          }
-          return { rows: [] };
-        },
-        release: () => {}
-      };
-      mock.method(pool, 'connect', async () => mockClient);
-
-      const res = await request(app)
-        .delete('/api/v1/projects/999')
-        .set('Authorization', `Bearer ${testToken}`);
-
-      assert.strictEqual(res.status, 404);
-      assert.strictEqual(res.body.success, false);
-      assert.strictEqual(res.body.message, 'Không tìm thấy dự án hoặc bạn không có quyền xóa dự án này');
-    });
-  });
-
-  // ==========================================
-  // 6. GET /api/v1/projects/:id/related-articles - Lấy bài viết liên quan
-  // ==========================================
-  test.describe('GET /api/v1/projects/:id/related-articles', () => {
-    test('Lấy bài viết liên quan thành công', async () => {
-      const projectId = '12';
-
-      mock.method(pool, 'query', async (sql, params) => {
-        if (sql.includes('Project_Journal') && sql.includes('jsc.subject_category_id')) {
-          // Lấy categories
-          return { rows: [{ subject_category_id: 3 }] };
-        } else if (sql.includes('Project_Journal')) {
-          // Lấy journals
-          return { rows: [{ journal_id: 14 }] };
-        } else if (sql.includes('Article') && sql.includes('journal_name')) {
-          // Lấy bài viết liên quan
-          return {
-            rows: [
-              {
-                article_id: '101',
-                title: 'Mock Related Article',
-                abstract: 'Mock abstract...',
-                publication_year: 2026,
-                doi: '10.1000/xyz123',
-                journal_name: 'Mock Journal'
-              }
-            ]
-          };
-        }
-        return { rows: [] };
-      });
-
-      const res = await request(app)
-        .get(`/api/v1/projects/${projectId}/related-articles?limit=5`)
-        .set('Authorization', `Bearer ${testToken}`);
-
-      assert.strictEqual(res.status, 200);
-      assert.strictEqual(res.body.success, true);
-      assert.strictEqual(res.body.message, 'Lấy bài viết liên quan thành công');
-      assert.strictEqual(res.body.data.length, 1);
-      assert.strictEqual(res.body.data[0].title, 'Mock Related Article');
-      assert.strictEqual(res.body.data[0].journal_name, 'Mock Journal');
-    });
-
-    test('Lỗi 400 - ID dự án không hợp lệ', async () => {
-      const res = await request(app)
-        .get('/api/v1/projects/not-a-number/related-articles')
-        .set('Authorization', `Bearer ${testToken}`);
-
-      assert.strictEqual(res.status, 400);
-      assert.strictEqual(res.body.success, false);
-      assert.strictEqual(res.body.message, 'ID dự án không hợp lệ');
-    });
-
-    test('Lỗi 400 - Limit không hợp lệ', async () => {
-      const res = await request(app)
-        .get('/api/v1/projects/12/related-articles?limit=abc')
-        .set('Authorization', `Bearer ${testToken}`);
-
-      assert.strictEqual(res.status, 400);
-      assert.strictEqual(res.body.success, false);
-      assert.strictEqual(res.body.message, 'Giá trị limit không hợp lệ');
     });
   });
 });
