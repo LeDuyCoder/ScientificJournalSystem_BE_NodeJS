@@ -195,7 +195,7 @@ test.describe('Zone & Geography Trends API', () => {
       mock.method(pool, 'query', async (sql, params) => {
         queryCallCount++;
         if (queryCallCount === 1) {
-          return { rows: [{ zone_id: '89', name: 'Viet Nam' }] };
+          return { rows: [{ zone_id: '89', code: 'VN', name: 'Viet Nam', iso_code: 'VNM' }] };
         } else {
           return {
             rows: [
@@ -217,9 +217,11 @@ test.describe('Zone & Geography Trends API', () => {
 
       assert.strictEqual(res.status, 200);
       assert.strictEqual(res.body.success, true);
-      assert.strictEqual(res.body.message, "Lấy danh sách phân vùng của quốc gia 'VN' thành công");
-      assert.strictEqual(res.body.data.length, 1);
-      assert.strictEqual(res.body.data[0].name, 'Asiatic Region');
+      assert.strictEqual(res.body.message, 'Lấy thống kê region theo quốc gia thành công');
+      assert.strictEqual(res.body.data.country.name, 'Viet Nam');
+      assert.strictEqual(res.body.data.country.code, 'VN');
+      assert.strictEqual(res.body.data.regions.length, 1);
+      assert.strictEqual(res.body.data.regions[0].name, 'Asiatic Region');
     });
 
     test('Lỗi 404 - Mã quốc gia trên URL không tồn tại', async () => {

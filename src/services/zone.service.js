@@ -113,3 +113,53 @@ export const getRegionStats = async ({ countryCode } = {}) => {
   const statsResult = await pool.query(globalRegionStatsQuery);
   return statsResult.rows;
 };
+
+/**
+ * Lấy danh sách phân vùng nội bộ (Region) của một quốc gia cụ thể kèm theo thông tin chi tiết của quốc gia đó.
+ *
+ * @async
+ * @param {string} countryCode - Mã quốc gia (ví dụ: 'US', 'VN') dùng để truy vấn.
+ * @returns {Promise<{ country: Object, regions: Array<Object> }>} Thông tin quốc gia và danh sách phân vùng kèm sản lượng.
+ * @throws {Error} Ném ra lỗi 404 nếu quốc gia không tồn tại.
+ */
+export const getCountryRegionsStats = async (countryCode) => {
+  // 1. Kiểm tra sự tồn tại và lấy thông tin chi tiết của quốc gia
+  const countryCheckQuery = `
+    SELECT zone_id, code, name, iso_code
+    FROM "Zone" 
+    WHERE type = 'COUNTRY' AND (UPPER(code) = UPPER($1) OR UPPER(iso_code) = UPPER($1))
+  `;
+  const countryCheckResult = await pool.query(countryCheckQuery, [countryCode]);
+  
+  if (countryCheckResult.rows.length === 0) {
+    const error = new Error(`Quốc gia có mã '${countryCode}' không tồn tại`);
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const country = countryCheckResult.rows[0];
+
+  // 2. Lấy thống kê theo phân vùng của quốc gia đó
+  const regionStatsQuery = `
+    SELECT 
+      zr.zone_id,
+      zr.code,
+      zr.name,
+      zr.iso_code,
+      COUNT(a.article_id)::integer AS article_count
+    FROM "Zone" zr
+    INNER JOIN "Journal" j ON j.region = zr.zone_id
+    INNER JOIN "Volume" v ON v.journal_id = j.journal_id
+    INNER JOIN "Issue" i ON i.volume_id = v.volume_id
+    LEFT JOIN "Article" a ON a.issue_id = i.issue_id
+    WHERE zr.type = 'REGION' AND j.country = $1
+    GROUP BY zr.zone_id, zr.code, zr.name, zr.iso_code
+    ORDER BY article_count DESC, zr.name ASC
+  `;
+  const statsResult = await pool.query(regionStatsQuery, [country.zone_id]);
+
+  return {
+    country,
+    regions: statsResult.rows
+  };
+};

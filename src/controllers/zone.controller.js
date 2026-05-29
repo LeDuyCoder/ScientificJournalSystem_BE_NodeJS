@@ -122,12 +122,15 @@ export const getCountryRegionsStats = async (req, res) => {
       });
     }
 
-    const regions = await zoneService.getRegionStats({ countryCode: code.trim() });
+    const result = await zoneService.getCountryRegionsStats(code.trim());
 
     return res.status(200).json({
       success: true,
-      message: `Lấy danh sách phân vùng của quốc gia '${code}' thành công`,
-      data: regions
+      message: 'Lấy thống kê region theo quốc gia thành công',
+      data: {
+        country: result.country,
+        regions: result.regions
+      }
     });
   } catch (error) {
     logger.error(`Lỗi khi lấy thống kê phân vùng cho quốc gia ${req.params?.code}:`, error);
