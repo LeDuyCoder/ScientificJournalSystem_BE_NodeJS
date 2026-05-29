@@ -1,9 +1,6 @@
 import express from "express";
 import { requireAuth } from "../middlewares/auth.middleware.js";
-import {
-  getTrendingKeywords,
-  getWatchedKeywordArticles,
-} from "../controllers/keyword.controller.js";
+import keywordController from "../controllers/keyword.controller.js";
 
 const router = express.Router();
 
@@ -94,7 +91,11 @@ const router = express.Router();
  *       500:
  *         description: Lỗi hệ thống server
  */
-router.get("/:id/keywords/trending", requireAuth, getTrendingKeywords);
+router.get(
+  "/:id/keywords/trending",
+  requireAuth,
+  keywordController.getTrendingKeywords,
+);
 
 /**
  * @swagger
@@ -180,7 +181,7 @@ router.get("/:id/keywords/trending", requireAuth, getTrendingKeywords);
 router.get(
   "/:id/keywords/watch/articles",
   requireAuth,
-  getWatchedKeywordArticles,
+  keywordController.getWatchedKeywordArticles,
 );
 
 /**
