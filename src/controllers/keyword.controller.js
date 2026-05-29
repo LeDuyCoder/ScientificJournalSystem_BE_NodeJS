@@ -40,7 +40,7 @@ const watchKeywords = async (req, res) => {
       return res.status(400).json({ success: false, message: "ID dự án không hợp lệ" });
     }
 
-    const { keyword_ids } = req.body;
+    const { keyword_ids } = req.body || {};
 
     // Validate keyword_ids is an array
     if (!Array.isArray(keyword_ids)) {

@@ -95,7 +95,7 @@ const syncWatchedKeywords = async (projectId, keywordIds) => {
       `SELECT keyword_id FROM "Project_Keyword" WHERE project_id = $1`,
       [projectId]
     );
-    const existingIds = new Set(existingResult.rows.map(row => row.keyword_id));
+    const existingIds = new Set(existingResult.rows.map(row => Number(row.keyword_id)));
 
     // 3. Lọc ra keywords mới (chưa tồn tại)
     const newKeywordIds = uniqueIds.filter(id => !existingIds.has(id));
@@ -110,7 +110,7 @@ const syncWatchedKeywords = async (projectId, keywordIds) => {
       `SELECT keyword_id FROM "Keyword" WHERE keyword_id = ANY($1::bigint[])`,
       [newKeywordIds]
     );
-    const validIds = new Set(validationResult.rows.map(row => row.keyword_id));
+    const validIds = new Set(validationResult.rows.map(row => Number(row.keyword_id)));
 
     // 5. Chỉ INSERT những keywords hợp lệ
     const idsToInsert = newKeywordIds.filter(id => validIds.has(id));
