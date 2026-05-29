@@ -129,6 +129,117 @@ const router = express.Router();
  */
 router.get('/:id/areas-breakdown', requireAuth, getAuthorAreasBreakdown);
 
+/**
+ * @swagger
+ * /api/v1/author/{id}/articles:
+ *   get:
+ *     summary: Lấy danh sách bài viết của tác giả theo ID
+ *     tags:
+ *       - Author
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *         description: ID của tác giả
+ *       - in: query
+ *         name: limit
+ *         required: false
+ *         schema:
+ *           type: integer
+ *           minimum: 0
+ *           default: 10
+ *         description: Số lượng bài viết tối đa trên một trang (0 hoặc không cung cấp sử dụng giá trị mặc định 10)
+ *       - in: query
+ *         name: page
+ *         required: false
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           default: 1
+ *         description: Trang thứ mấy (bắt đầu từ 1)
+ *     responses:
+ *       200:
+ *         description: Thành công
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               required:
+ *                 - success
+ *                 - message
+ *                 - pagination
+ *                 - data
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Lấy bài viết của tác giả thành công"
+ *                 pagination:
+ *                   type: object
+ *                   required:
+ *                     - page
+ *                     - limit
+ *                     - total
+ *                   properties:
+ *                     page:
+ *                       type: integer
+ *                       example: 1
+ *                     limit:
+ *                       type: integer
+ *                       example: 10
+ *                     total:
+ *                       type: integer
+ *                       example: 25
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     required:
+ *                       - article_id
+ *                       - title
+ *                       - abstract
+ *                       - publication_year
+ *                       - doi
+ *                       - primary_topic
+ *                       - created_at
+ *                     properties:
+ *                       article_id:
+ *                         type: string
+ *                         example: "123"
+ *                       title:
+ *                         type: string
+ *                         example: "Advances in Cancer Immunotherapy"
+ *                       abstract:
+ *                         type: string
+ *                         example: "This study explores novel approaches to cancer immunotherapy..."
+ *                       publication_year:
+ *                         type: integer
+ *                         example: 2025
+ *                       doi:
+ *                         type: string
+ *                         example: "10.1038/s41591-025-02134-z"
+ *                       primary_topic:
+ *                         type: string
+ *                         nullable: true
+ *                         example: "Oncology"
+ *                       created_at:
+ *                         type: string
+ *                         format: date-time
+ *                         example: "2026-05-27T11:19:56.643Z"
+ *       400:
+ *         description: Dữ liệu đầu vào không hợp lệ (ID tác giả, limit, hoặc page không hợp lệ)
+ *       401:
+ *         description: Chưa xác thực hoặc token không hợp lệ
+ *       500:
+ *         description: Lỗi hệ thống server
+ */
 router.get('/:id/articles', requireAuth, getAuthorArticles);
 
 export default router;
