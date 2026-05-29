@@ -1,5 +1,6 @@
 import keywordService from "../services/keyword.service.js";
 import logger from "../utils/logger.js";
+import pool from "../config/database.js";
 
 export const keywordServiceRef = { ...keywordService };
 
@@ -12,7 +13,7 @@ export const keywordServiceRef = { ...keywordService };
  * @param {Object} res - Express response object
  * @returns {Promise<Object>} JSON response chứa danh sách keywords trending
  */
-export const getTrendingKeywords = async (req, res) => {
+const getTrendingKeywords = async (req, res) => {
   try {
     // Lấy projectId từ URL và chuyển sang số nguyên
     const projectId = parseInt(req.params.id);
@@ -105,3 +106,62 @@ export const getWatchedKeywordArticles = async (req, res) => {
     });
   }
 };
+
+
+// POST /api/v1/projects/:id/keywords/watch
+const watchKeywords = async (req, res) => {
+  try {
+    const projectId = parseInt(req.params.id);
+    if (isNaN(projectId)) {
+      return res.status(400).json({ success: false, message: "ID dự án không hợp lệ" });
+    }
+
+    const { keyword_ids } = req.body;
+
+    // Validate keyword_ids is an array
+    if (!Array.isArray(keyword_ids)) {
+      return res.status(400).json({ success: false, message: "keyword_ids phải là một mảng" });
+    }
+
+    // Validate all elements are positive integers
+    if (keyword_ids.length > 0) {
+      const isValid = keyword_ids.every(id => Number.isInteger(id) && id > 0);
+      if (!isValid) {
+        return res.status(400).json({ success: false, message: "Các phần tử trong keyword_ids phải là số nguyên dương" });
+      }
+    }
+
+    // Check project ownership
+    const userId = req.user.user_id;
+    const projectCheck = await pool.query(
+      `SELECT 1 FROM "Project" WHERE project_id = $1 AND user_id = $2`,
+      [projectId, userId]
+    );
+
+    if (projectCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, message: "Không tìm thấy dự án hoặc bạn không có quyền truy cập dự án này" });
+    }
+
+    // Check if keywords exist
+    if (keyword_ids.length > 0) {
+      const keywordsExist = await keywordService.validateKeywordIds(keyword_ids);
+      if (!keywordsExist) {
+        return res.status(400).json({ success: false, message: "Một hoặc nhiều Keyword ID không tồn tại trong hệ thống" });
+      }
+    }
+
+    // Sync keywords
+    await keywordService.syncWatchedKeywords(projectId, keyword_ids);
+
+    return res.status(201).json({
+      success: true,
+      message: "Cập nhật danh sách từ khóa theo dõi thành công"
+    });
+
+  } catch (error) {
+    console.error("[watchKeywords] Error:", error);
+    return res.status(500).json({ success: false, message: "Có lỗi xảy ra ở Server!" });
+  }
+};
+
+export default { getTrendingKeywords, watchKeywords };
