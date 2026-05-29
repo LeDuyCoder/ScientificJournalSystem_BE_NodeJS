@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert';
 import { mock } from 'node:test';
 import request from 'supertest';
+import jwt from 'jsonwebtoken';
 import app from '../app.js';
 import pool from '../config/database.js';
 
@@ -10,6 +11,12 @@ test.after(async () => {
 });
 
 test.describe('Zone & Geography Trends API', () => {
+  const testToken = jwt.sign(
+    { user_id: 'a8e9c612-40db-4ff0-87a0-0f8b3b4f6cf7', email: 'tester_zone@gmail.com' },
+    process.env.JWT_SECRET || 'scientific_journal_secret_key',
+    { expiresIn: '1h' }
+  );
+
   test.afterEach(() => {
     mock.reset();
   });
@@ -49,7 +56,8 @@ test.describe('Zone & Geography Trends API', () => {
       });
 
       const res = await request(app)
-        .get('/api/v1/zones/countries/stats?page=1&limit=2');
+        .get('/api/v1/zones/countries/stats?page=1&limit=2')
+        .set('Authorization', `Bearer ${testToken}`);
 
       assert.strictEqual(res.status, 200);
       assert.strictEqual(res.body.success, true);
@@ -65,7 +73,8 @@ test.describe('Zone & Geography Trends API', () => {
 
     test('Lỗi 400 - Page không phải số nguyên dương', async () => {
       const res = await request(app)
-        .get('/api/v1/zones/countries/stats?page=abc');
+        .get('/api/v1/zones/countries/stats?page=abc')
+        .set('Authorization', `Bearer ${testToken}`);
 
       assert.strictEqual(res.status, 400);
       assert.strictEqual(res.body.success, false);
@@ -74,11 +83,20 @@ test.describe('Zone & Geography Trends API', () => {
 
     test('Lỗi 400 - Limit không phải số nguyên dương', async () => {
       const res = await request(app)
-        .get('/api/v1/zones/countries/stats?limit=-10');
+        .get('/api/v1/zones/countries/stats?limit=-10')
+        .set('Authorization', `Bearer ${testToken}`);
 
       assert.strictEqual(res.status, 400);
       assert.strictEqual(res.body.success, false);
       assert.strictEqual(res.body.message, 'Số lượng phần tử mỗi trang phải là số nguyên dương');
+    });
+
+    test('Lỗi 401 khi không truyền token xác thực', async () => {
+      const res = await request(app)
+        .get('/api/v1/zones/countries/stats');
+
+      assert.strictEqual(res.status, 401);
+      assert.strictEqual(res.body.success, false);
     });
   });
 
@@ -109,7 +127,8 @@ test.describe('Zone & Geography Trends API', () => {
       });
 
       const res = await request(app)
-        .get('/api/v1/zones/regions/stats');
+        .get('/api/v1/zones/regions/stats')
+        .set('Authorization', `Bearer ${testToken}`);
 
       assert.strictEqual(res.status, 200);
       assert.strictEqual(res.body.success, true);
@@ -142,7 +161,8 @@ test.describe('Zone & Geography Trends API', () => {
       });
 
       const res = await request(app)
-        .get('/api/v1/zones/regions/stats?country_code=US');
+        .get('/api/v1/zones/regions/stats?country_code=US')
+        .set('Authorization', `Bearer ${testToken}`);
 
       assert.strictEqual(res.status, 200);
       assert.strictEqual(res.body.success, true);
@@ -157,7 +177,8 @@ test.describe('Zone & Geography Trends API', () => {
       });
 
       const res = await request(app)
-        .get('/api/v1/zones/regions/stats?country_code=INVALID');
+        .get('/api/v1/zones/regions/stats?country_code=INVALID')
+        .set('Authorization', `Bearer ${testToken}`);
 
       assert.strictEqual(res.status, 404);
       assert.strictEqual(res.body.success, false);
@@ -191,7 +212,8 @@ test.describe('Zone & Geography Trends API', () => {
       });
 
       const res = await request(app)
-        .get('/api/v1/zones/countries/VN/regions/stats');
+        .get('/api/v1/zones/countries/VN/regions/stats')
+        .set('Authorization', `Bearer ${testToken}`);
 
       assert.strictEqual(res.status, 200);
       assert.strictEqual(res.body.success, true);
@@ -206,7 +228,8 @@ test.describe('Zone & Geography Trends API', () => {
       });
 
       const res = await request(app)
-        .get('/api/v1/zones/countries/XYZ/regions/stats');
+        .get('/api/v1/zones/countries/XYZ/regions/stats')
+        .set('Authorization', `Bearer ${testToken}`);
 
       assert.strictEqual(res.status, 404);
       assert.strictEqual(res.body.success, false);

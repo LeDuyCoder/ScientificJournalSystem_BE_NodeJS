@@ -1,4 +1,5 @@
 import express from 'express';
+import { requireAuth } from '../middlewares/auth.middleware.js';
 import {
   getCountryStats,
   getRegionStats,
@@ -15,6 +16,8 @@ const router = express.Router();
  *     description: Trả về danh sách các quốc gia cùng tổng số lượng bài báo khoa học được xuất bản, hỗ trợ phân trang.
  *     tags:
  *       - Zone
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: query
  *         name: page
@@ -84,7 +87,7 @@ const router = express.Router();
  *       500:
  *         description: Lỗi hệ thống
  */
-router.get('/countries/stats', getCountryStats);
+router.get('/countries/stats', requireAuth, getCountryStats);
 
 /**
  * @swagger
@@ -94,6 +97,8 @@ router.get('/countries/stats', getCountryStats);
  *     description: Trả về danh sách các phân vùng (Vùng địa lý lớn như Western Europe, Latin America...) kèm theo tổng số bài báo. Hỗ trợ lọc theo mã quốc gia thông qua Query Parameter.
  *     tags:
  *       - Zone
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: query
  *         name: country_code
@@ -139,7 +144,7 @@ router.get('/countries/stats', getCountryStats);
  *       500:
  *         description: Lỗi hệ thống
  */
-router.get('/regions/stats', getRegionStats);
+router.get('/regions/stats', requireAuth, getRegionStats);
 
 /**
  * @swagger
@@ -149,6 +154,8 @@ router.get('/regions/stats', getRegionStats);
  *     description: Lấy danh sách các phân vùng lớn liên kết với tạp chí của quốc gia dựa trên mã quốc gia (ví dụ US, VN) trên URL.
  *     tags:
  *       - Zone
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: code
@@ -197,6 +204,6 @@ router.get('/regions/stats', getRegionStats);
  *       500:
  *         description: Lỗi hệ thống
  */
-router.get('/countries/:code/regions/stats', getCountryRegionsStats);
+router.get('/countries/:code/regions/stats', requireAuth, getCountryRegionsStats);
 
 export default router;
