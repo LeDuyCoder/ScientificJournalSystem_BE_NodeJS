@@ -7,6 +7,7 @@ import articleRouter from './article.route.js';
 import googleRouter from './google.route.js';
 import zoneRouter from './zone.route.js';
 import keywordRouter from "./keyword.route.js";
+import catalogRouter from './catalog.route.js';
 
 const router = express.Router();
 
@@ -14,6 +15,7 @@ const router = express.Router();
 router.use('/users', userRouter);
 router.use('/projects', projectRouter);
 router.use('/zones', zoneRouter);
+router.use('/catalog', catalogRouter);
 
 // Gom router của login, register và google vào đường dẫn /auth
 router.use('/auth', loginRouter);
