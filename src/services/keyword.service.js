@@ -76,25 +76,47 @@ const validateKeywordIds = async (keywordIds) => {
 };
 
 /**
- * Cập nhật danh sách từ khóa theo dõi của dự án (Sync logic)
+ * Cập nhật danh sách từ khóa theo dõi của dự án (chỉ thêm, không xóa)
  * @param {string|number} projectId 
  * @param {Array<number|string>} keywordIds 
  */
 const syncWatchedKeywords = async (projectId, keywordIds) => {
+  if (!keywordIds || keywordIds.length === 0) return true;
+
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
 
-    // 1. Xóa tất cả các keyword cũ của project
-    await client.query(
-      `DELETE FROM "Project_Keyword" WHERE project_id = $1`,
+    // 1. Loại bỏ duplicate từ input
+    const uniqueIds = [...new Set(keywordIds)];
+
+    // 2. Lấy danh sách keywords đã tồn tại cho project này
+    const existingResult = await client.query(
+      `SELECT keyword_id FROM "Project_Keyword" WHERE project_id = $1`,
       [projectId]
     );
+    const existingIds = new Set(existingResult.rows.map(row => row.keyword_id));
 
-    // 2. Chèn lại các keyword mới
-    if (keywordIds && keywordIds.length > 0) {
-      const uniqueIds = [...new Set(keywordIds)];
-      for (const kwId of uniqueIds) {
+    // 3. Lọc ra keywords mới (chưa tồn tại)
+    const newKeywordIds = uniqueIds.filter(id => !existingIds.has(id));
+
+    if (newKeywordIds.length === 0) {
+      await client.query('COMMIT');
+      return true; // Không có keywords mới để thêm
+    }
+
+    // 4. Validate keywords tồn tại trong bảng Keyword
+    const validationResult = await client.query(
+      `SELECT keyword_id FROM "Keyword" WHERE keyword_id = ANY($1::bigint[])`,
+      [newKeywordIds]
+    );
+    const validIds = new Set(validationResult.rows.map(row => row.keyword_id));
+
+    // 5. Chỉ INSERT những keywords hợp lệ
+    const idsToInsert = newKeywordIds.filter(id => validIds.has(id));
+    
+    if (idsToInsert.length > 0) {
+      for (const kwId of idsToInsert) {
         await client.query(
           `INSERT INTO "Project_Keyword" (project_id, keyword_id) VALUES ($1, $2)`,
           [projectId, kwId]
