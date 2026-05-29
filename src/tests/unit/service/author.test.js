@@ -2,7 +2,7 @@ import { test, describe, mock, afterEach } from 'node:test';
 import assert from 'node:assert';
 
 import pool from '../../../config/database.js';
-import { getAuthorById, getAuthorAreasBreakdownService } from '../../../services/author.service.js';
+import { getAuthorById, getAuthorAreasBreakdownService, getAuthorArticlesService } from '../../../services/author.service.js';
 
 describe('Author Service Unit Test Suite', () => {
   afterEach(() => {
@@ -61,6 +61,58 @@ describe('Author Service Unit Test Suite', () => {
 
     await assert.rejects(async () => {
       await getAuthorAreasBreakdownService(321);
+    }, {
+      message: 'DB failed'
+    });
+  });
+
+  test('getAuthorArticlesService() trả về danh sách bài viết với limit và page (chuỗi)', async () => {
+    const mockRows = [
+      {
+        article_id: 101,
+        title: 'Sample Article',
+        abstract: 'Abstract',
+        publication_year: 2024,
+        doi: '10.1234/example',
+        primary_topic: 'Test',
+        created_at: '2024-01-01T00:00:00.000Z'
+      }
+    ];
+
+    const mockQuery = mock.method(pool, 'query', async () => ({ rows: mockRows }));
+
+    const result = await getAuthorArticlesService(321, '5', '2');
+
+    assert.deepStrictEqual(result, mockRows);
+    assert.strictEqual(mockQuery.mock.calls.length, 1);
+    const [sql, values] = mockQuery.mock.calls[0].arguments;
+    assert.strictEqual(values[0], 321);
+    assert.strictEqual(values[1], 5); // limit parsed
+    assert.strictEqual(values[2], 5); // offset = (2-1)*5
+    assert.match(sql, /FROM "Article"/);
+  });
+
+  test('getAuthorArticlesService() dùng giá trị mặc định khi không truyền limit/page', async () => {
+    const mockRows = [];
+    const mockQuery = mock.method(pool, 'query', async () => ({ rows: mockRows }));
+
+    const result = await getAuthorArticlesService(321);
+
+    assert.deepStrictEqual(result, mockRows);
+    assert.strictEqual(mockQuery.mock.calls.length, 1);
+    const [sql, values] = mockQuery.mock.calls[0].arguments;
+    assert.strictEqual(values[0], 321);
+    assert.strictEqual(values[1], 10); // default limit
+    assert.strictEqual(values[2], 0); // default offset
+  });
+
+  test('getAuthorArticlesService() ném lỗi khi query thất bại', async () => {
+    mock.method(pool, 'query', async () => {
+      throw new Error('DB failed');
+    });
+
+    await assert.rejects(async () => {
+      await getAuthorArticlesService(321, 10, 1);
     }, {
       message: 'DB failed'
     });

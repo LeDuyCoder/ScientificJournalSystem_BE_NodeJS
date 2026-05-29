@@ -1,5 +1,5 @@
 import express from 'express';
-import { getAuthorAreasBreakdown } from '../controllers/author.controller.js';
+import { getAuthorAreasBreakdown, getAuthorArticles } from '../controllers/author.controller.js';
 import { requireAuth } from '../middlewares/auth.middleware.js';
 
 const router = express.Router();
@@ -128,5 +128,7 @@ const router = express.Router();
  *         description: Lỗi hệ thống server
  */
 router.get('/:id/areas-breakdown', requireAuth, getAuthorAreasBreakdown);
+
+router.get('/:id/articles', requireAuth, getAuthorArticles);
 
 export default router;
