@@ -4,6 +4,7 @@ import loginRouter from './login.route.js';
 import registerRouter from './register.route.js';
 import projectRouter from './project.route.js';
 import googleRouter from './google.route.js';
+import zoneRouter from './zone.route.js';
 
 
 const router = express.Router();
@@ -11,6 +12,7 @@ const router = express.Router();
 // Gom router của user vào đường dẫn /users
 router.use('/users', userRouter);
 router.use('/projects', projectRouter);
+router.use('/zones', zoneRouter);
 
 // Gom router của login, register và google vào đường dẫn /auth
 router.use('/auth', loginRouter);
