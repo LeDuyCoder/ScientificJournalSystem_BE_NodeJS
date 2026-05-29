@@ -52,48 +52,55 @@ test.describe('Keyword Service - Watched Keywords Unit Test Suite', () => {
   // 2. syncWatchedKeywords
   // ==========================================
   test.describe('syncWatchedKeywords()', () => {
-    test('Xóa keyword cũ và thêm keyword mới thành công', async () => {
+    test('Trả về true ngay lập tức nếu keywordIds rỗng', async () => {
+      const mockClient = { query: mock.fn(), release: mock.fn() };
+      mock.method(pool, 'connect', async () => mockClient);
+      const result = await keywordService.syncWatchedKeywords(123, []);
+      assert.strictEqual(result, true);
+      assert.strictEqual(mockClient.query.mock.calls.length, 0); // Không gọi DB
+    });
+
+    test('Chỉ chèn các keyword mới và hợp lệ', async () => {
       const mockClient = {
-        query: mock.fn(async () => ({ rows: [] })),
+        query: mock.fn(async (sql) => {
+          if (sql === 'BEGIN' || sql === 'COMMIT' || sql.includes('INSERT')) return { rows: [] };
+          if (sql.includes('SELECT keyword_id FROM "Project_Keyword"')) return { rows: [{ keyword_id: '1' }] }; // Đã tồn tại 1
+          if (sql.includes('SELECT keyword_id FROM "Keyword"')) return { rows: [{ keyword_id: '5' }] }; // Chỉ có 5 là hợp lệ, 999 không hợp lệ
+          return { rows: [] };
+        }),
         release: mock.fn()
       };
       mock.method(pool, 'connect', async () => mockClient);
 
-      const result = await keywordService.syncWatchedKeywords(123, [1, 5]);
+      // Input: 1 (đã có), 5 (mới, hợp lệ), 999 (mới, không hợp lệ), 5 (trùng input)
+      const result = await keywordService.syncWatchedKeywords(123, [1, 5, 999, 5]);
 
       assert.strictEqual(result, true);
-      assert.strictEqual(mockClient.query.mock.calls.length, 5); // BEGIN, DELETE, 2x INSERT, COMMIT
+      // Calls: BEGIN, SELECT (existing), SELECT (valid), INSERT (5), COMMIT => 5 calls
+      assert.strictEqual(mockClient.query.mock.calls.length, 5);
       assert.strictEqual(mockClient.query.mock.calls[0].arguments[0], 'BEGIN');
-      assert.ok(mockClient.query.mock.calls[1].arguments[0].includes('DELETE FROM "Project_Keyword"'));
-      assert.ok(mockClient.query.mock.calls[2].arguments[0].includes('INSERT INTO "Project_Keyword"'));
-      assert.deepStrictEqual(mockClient.query.mock.calls[2].arguments[1], [123, 1]);
+      assert.ok(mockClient.query.mock.calls[1].arguments[0].includes('Project_Keyword'));
+      assert.ok(mockClient.query.mock.calls[2].arguments[0].includes('Keyword'));
+      assert.ok(mockClient.query.mock.calls[3].arguments[0].includes('INSERT'));
       assert.deepStrictEqual(mockClient.query.mock.calls[3].arguments[1], [123, 5]);
       assert.strictEqual(mockClient.query.mock.calls[4].arguments[0], 'COMMIT');
     });
 
-    test('Dedupe keyword_ids khi thêm mới', async () => {
+    test('Không làm gì và COMMIT nếu tất cả keywords đã tồn tại', async () => {
       const mockClient = {
-        query: mock.fn(async () => ({ rows: [] })),
+        query: mock.fn(async (sql) => {
+          if (sql === 'BEGIN' || sql === 'COMMIT') return { rows: [] };
+          if (sql.includes('Project_Keyword')) return { rows: [{ keyword_id: '1' }, { keyword_id: '5' }] };
+          return { rows: [] };
+        }),
         release: mock.fn()
       };
       mock.method(pool, 'connect', async () => mockClient);
 
-      await keywordService.syncWatchedKeywords(123, [5, 5, 5]);
+      await keywordService.syncWatchedKeywords(123, [1, 5]);
 
-      assert.strictEqual(mockClient.query.mock.calls.length, 4); // BEGIN, DELETE, 1x INSERT, COMMIT
-      assert.deepStrictEqual(mockClient.query.mock.calls[2].arguments[1], [123, 5]);
-    });
-
-    test('Chỉ xóa keyword cũ nếu truyền mảng rỗng', async () => {
-      const mockClient = {
-        query: mock.fn(async () => ({ rows: [] })),
-        release: mock.fn()
-      };
-      mock.method(pool, 'connect', async () => mockClient);
-
-      await keywordService.syncWatchedKeywords(123, []);
-
-      assert.strictEqual(mockClient.query.mock.calls.length, 3); // BEGIN, DELETE, COMMIT
+      // Calls: BEGIN, SELECT (existing), COMMIT => 3 calls
+      assert.strictEqual(mockClient.query.mock.calls.length, 3);
       assert.strictEqual(mockClient.query.mock.calls[2].arguments[0], 'COMMIT');
     });
 
@@ -112,7 +119,8 @@ test.describe('Keyword Service - Watched Keywords Unit Test Suite', () => {
         { message: 'DB Error' }
       );
 
-      assert.strictEqual(mockClient.query.mock.calls[2].arguments[0], 'ROLLBACK');
+      // Phải có lệnh ROLLBACK
+      assert.ok(mockClient.query.mock.calls.some(call => call.arguments[0] === 'ROLLBACK'));
     });
   });
 
