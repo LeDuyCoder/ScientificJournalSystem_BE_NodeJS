@@ -2,7 +2,7 @@ import { test, describe, mock, afterEach } from 'node:test';
 import assert from 'node:assert';
 
 import pool from '../../../config/database.js';
-import { getAuthorById, getAuthorAreasBreakdownService, getAuthorArticlesService } from '../../../services/author.service.js';
+import { getAuthorById, getAuthorAreasBreakdownService, getAuthorArticlesService, getAuthorLeaderboardService } from '../../../services/author.service.js';
 
 describe('Author Service Unit Test Suite', () => {
   afterEach(() => {
@@ -113,6 +113,45 @@ describe('Author Service Unit Test Suite', () => {
 
     await assert.rejects(async () => {
       await getAuthorArticlesService(321, 10, 1);
+    }, {
+      message: 'DB failed'
+    });
+  });
+
+  test('getAuthorLeaderboardService() trả về danh sách xếp hạng với phân trang', async () => {
+    const mockRows = [
+      {
+        author_id: 321,
+        orcid: 'https://orcid.org/0000-0002-1824-2337',
+        display_name: 'Jason R. Westin',
+        url_image: null,
+        works_count: 655,
+        cited_by_count: 29763,
+        h_index: 57,
+        i10_index: 195,
+        final_rank: 1
+      }
+    ];
+
+    const mockQuery = mock.method(pool, 'query', async () => ({ rows: mockRows }));
+
+    const result = await getAuthorLeaderboardService('5', '2');
+
+    assert.deepStrictEqual(result, mockRows);
+    assert.strictEqual(mockQuery.mock.calls.length, 1);
+    const [sql, values] = mockQuery.mock.calls[0].arguments;
+    assert.strictEqual(values[0], 5);
+    assert.strictEqual(values[1], 5); // offset = (2-1)*5
+    assert.match(sql, /FROM "Author"/);
+  });
+
+  test('getAuthorLeaderboardService() ném lỗi khi query thất bại', async () => {
+    mock.method(pool, 'query', async () => {
+      throw new Error('DB failed');
+    });
+
+    await assert.rejects(async () => {
+      await getAuthorLeaderboardService(10, 1);
     }, {
       message: 'DB failed'
     });
