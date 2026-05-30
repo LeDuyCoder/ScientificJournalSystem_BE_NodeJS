@@ -198,3 +198,17 @@ export const syncWatchedKeywords = async (projectId, keywordIds) => {
     client.release();
   }
 };
+
+/**
+ * Kiểm tra xem người dùng có quyền sở hữu dự án hay không
+ * @param {string|number} projectId 
+ * @param {string|number} userId 
+ * @returns {Promise<boolean>}
+ */
+export const checkProjectOwnership = async (projectId, userId) => {
+  const result = await pool.query(
+    `SELECT 1 FROM "Project" WHERE project_id = $1 AND user_id = $2`,
+    [projectId, userId]
+  );
+  return result.rows.length > 0;
+};
