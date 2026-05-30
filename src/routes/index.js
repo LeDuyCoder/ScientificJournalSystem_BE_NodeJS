@@ -9,6 +9,7 @@ import zoneRouter from './zone.route.js';
 import keywordRouter from "./keyword.route.js";
 import catalogRouter from './catalog.route.js';
 import authorRouter from "./author.route.js";
+import topicRouter from "./topic.route.js";
 
 const router = express.Router();
 
@@ -30,5 +31,8 @@ router.use('/articles', articleRouter);
 router.use("/projects", keywordRouter);
 
 router.use("/author", authorRouter);
+
+// Gom router của topic vào đường dẫn /topics
+router.use('/topics', topicRouter);
 
 export default router;
