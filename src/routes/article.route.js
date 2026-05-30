@@ -1,6 +1,6 @@
 import express from 'express';
 import { requireAuth } from '../middlewares/auth.middleware.js';
-import { getArticle, getArticlesByKeywords } from '../controllers/article.controller.js';
+import { getArticle, getArticleById, getArticlesByKeywords } from '../controllers/article.controller.js';
 
 const router = express.Router();
 
@@ -102,5 +102,60 @@ const router = express.Router();
  * Tìm bài báo theo từ khóa trên toàn hệ thống (Yêu cầu xác thực)
  */
 router.get('/', requireAuth, getArticle);
+
+/**
+ * @swagger
+ * /api/v1/articles/{id}:
+ *   get:
+ *     summary: Get details article by id
+ *     description: Get detailed information of an article by its `article_id`
+ *     tags:
+ *       - Article
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID của bài báo cần lấy
+ *         example: 123
+ *     responses:
+ *       200:
+ *         description: Thành công
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     article_id:
+ *                       type: integer
+ *                     title:
+ *                       type: string
+ *                     abstract:
+ *                       type: string
+ *                     publication_year:
+ *                       type: integer
+ *                     doi:
+ *                       type: string
+ *                     primary_topic:
+ *                       type: string
+ *                     created_at:
+ *                       type: string
+ *                       format: date-time
+ *       401:
+ *         description: Chưa xác thực hoặc token không hợp lệ
+ *       404:
+ *         description: Không tìm thấy bài báo
+ *       500:
+ *         description: Lỗi server
+ */
+router.get('/:id', requireAuth, getArticleById);
 
 export default router;

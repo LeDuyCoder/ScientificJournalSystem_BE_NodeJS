@@ -104,3 +104,28 @@ export const getAllArticles = async (limit = 20, offset = 0, sortBy = 'created_a
         throw error;
     }
 }
+
+export const getArticleById = async (articleId) => {
+    try {
+        const query = `
+            SELECT 
+                article_id,
+                version,
+                issue_id,
+                title,
+                abstract,
+                publication_year,
+                doi,
+                primary_topic,
+                created_at
+            FROM "Article"
+            WHERE "article_id" = $1;
+        `;
+
+        const result = await pool.query(query, [articleId]);
+        return result.rows[0];
+    } catch (error) {
+        logger.error('Lỗi khi lấy thông tin bài báo theo ID:', error);
+        throw error;
+    }
+}

@@ -133,3 +133,29 @@ export const getArticle = async (req, res) => {
         return getArticlesByKeywords(req, res);
     }
 }
+
+export const getArticleById = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const article = await articleService.getArticleById(id);
+
+        if (!article) {
+            return res.status(404).json({
+                success: false,
+                message: "Bài báo không tồn tại!"
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: "Lấy thông tin bài báo thành công!",
+            data: article
+        });
+    } catch (error) {
+        logger.error('Lỗi khi lấy thông tin bài báo theo ID:', error);
+        return res.status(500).json({
+            success: false,
+            message: "Có lỗi xảy ra ở Server!"
+        });
+    }
+}
