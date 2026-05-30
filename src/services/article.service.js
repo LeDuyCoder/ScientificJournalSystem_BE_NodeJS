@@ -56,3 +56,67 @@ export const countArticlesByKeywords = async (keywords) => {
     const result = await pool.query(query, values);
     return parseInt(result.rows[0].total);
 };
+
+/**
+ * Lấy danh sách bài báo toàn hệ thống với phân trang và tìm kiếm theo title.
+ *
+ * Luồng JOIN: Article → Issue → Volume → Journal
+ *
+ * @param {Object} params - Tham số truy vấn.
+ * @param {number} params.limit - Số bài tối đa trả về.
+ * @param {number} params.offset - Vị trí bắt đầu (phân trang).
+ * @param {string} [params.search] - Từ khóa tìm kiếm theo title (không phân biệt hoa/thường).
+ * @returns {Promise<Array<Object>>} Danh sách bài báo kèm thông tin journal.
+ */
+export const getAllArticles = async ({ limit = 10, offset = 0, search = '' }) => {
+    let query = `
+        SELECT
+            a."article_id",
+            a."title",
+            a."abstract",
+            a."publication_year",
+            a."doi",
+            j."journal_id",
+            j."display_name" AS "journal_name"
+        FROM "Article" a
+        LEFT JOIN "Issue" i   ON i."issue_id"   = a."issue_id"
+        LEFT JOIN "Volume" v  ON v."volume_id"  = i."volume_id"
+        LEFT JOIN "Journal" j ON j."journal_id" = v."journal_id"
+    `;
+
+    const values = [];
+    let paramIndex = 1;
+
+    if (search) {
+        query += ` WHERE a."title" ILIKE $${paramIndex}`;
+        values.push(`%${search}%`);
+        paramIndex++;
+    }
+
+    query += ` ORDER BY a."publication_year" DESC NULLS LAST, a."article_id" DESC`;
+    query += ` LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+    values.push(limit, offset);
+
+    const result = await pool.query(query, values);
+    return result.rows;
+};
+
+/**
+ * Đếm tổng số bài báo (có thể lọc theo title).
+ *
+ * @param {Object} params - Tham số truy vấn.
+ * @param {string} [params.search] - Từ khóa tìm kiếm theo title.
+ * @returns {Promise<number>} Tổng số bài báo.
+ */
+export const countAllArticles = async ({ search = '' }) => {
+    let query = `SELECT COUNT(*) AS "total" FROM "Article" a`;
+    const values = [];
+
+    if (search) {
+        query += ` WHERE a."title" ILIKE $1`;
+        values.push(`%${search}%`);
+    }
+
+    const result = await pool.query(query, values);
+    return parseInt(result.rows[0].total);
+};
