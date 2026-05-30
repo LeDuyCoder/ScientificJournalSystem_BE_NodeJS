@@ -1,0 +1,67 @@
+import pool from '../config/database.js';
+import logger from '../utils/logger.js';
+
+/**
+ * Tìm Topic theo ID.
+ *
+ * @async
+ * @param {number|string} topicId - ID của topic cần tra cứu.
+ * @returns {Promise<Object|null>} Đối tượng topic hoặc null nếu không tìm thấy.
+ */
+export const getTopicById = async (topicId) => {
+    const query = `SELECT "topic_id", "display_name" FROM "Topic" WHERE "topic_id" = $1`;
+    const result = await pool.query(query, [topicId]);
+    return result.rows[0] || null;
+};
+
+/**
+ * Lấy danh sách bài báo thuộc một topic (qua primary_topic hoặc Sub_Topic).
+ *
+ * Luồng JOIN:
+ *   - Article.primary_topic = topic_id  (bài báo có primary topic trùng)
+ *   - Sub_Topic(article_id, topic_id)   (bài báo được gắn sub-topic)
+ *
+ * @async
+ * @param {number} topicId - ID của topic.
+ * @param {number} limit   - Số bài tối đa trả về.
+ * @param {number} offset  - Vị trí bắt đầu (phân trang).
+ * @returns {Promise<Array<Object>>} Danh sách bài báo.
+ */
+export const getArticlesByTopicId = async (topicId, limit = 10, offset = 0) => {
+    const query = `
+        SELECT DISTINCT
+            a."article_id",
+            a."title",
+            a."publication_year",
+            a."doi"
+        FROM "Article" a
+        LEFT JOIN "Sub_Topic" st ON st."article_id" = a."article_id"
+        WHERE a."primary_topic" = $1
+           OR st."topic_id" = $1
+        ORDER BY a."publication_year" DESC NULLS LAST, a."article_id" DESC
+        LIMIT $2 OFFSET $3
+    `;
+
+    const result = await pool.query(query, [topicId, limit, offset]);
+    return result.rows;
+};
+
+/**
+ * Đếm tổng số bài báo thuộc một topic.
+ *
+ * @async
+ * @param {number} topicId - ID của topic.
+ * @returns {Promise<number>} Tổng số bài báo.
+ */
+export const countArticlesByTopicId = async (topicId) => {
+    const query = `
+        SELECT COUNT(DISTINCT a."article_id") AS "total"
+        FROM "Article" a
+        LEFT JOIN "Sub_Topic" st ON st."article_id" = a."article_id"
+        WHERE a."primary_topic" = $1
+           OR st."topic_id" = $1
+    `;
+
+    const result = await pool.query(query, [topicId]);
+    return parseInt(result.rows[0].total);
+};
