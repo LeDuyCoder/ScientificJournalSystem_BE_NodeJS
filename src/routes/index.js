@@ -8,6 +8,7 @@ import googleRouter from './google.route.js';
 import zoneRouter from './zone.route.js';
 import keywordRouter from "./keyword.route.js";
 import catalogRouter from './catalog.route.js';
+import authorRouter from "./author.route.js";
 
 const router = express.Router();
 
@@ -27,5 +28,7 @@ router.use('/articles', articleRouter);
 
 // Gom router của keyword vào đường dẫn /projects
 router.use("/projects", keywordRouter);
+
+router.use("/author", authorRouter);
 
 export default router;
