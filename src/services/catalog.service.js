@@ -183,8 +183,8 @@ export const getJournalRankings = async (journalId, filters = {}) => {
 
   const res = await pool.query(query, values);
 
-  // 3. Định dạng lại trường value dựa theo metric_type
-  return res.rows.map(row => {
+  // 3. Định dạng lại trường value dựa theo metric_type và nhóm theo năm
+  const list = res.rows.map(row => {
     let value = null;
     if (row.metric_type === 'QUARTILE') {
       value = row.value_txt;
@@ -213,4 +213,14 @@ export const getJournalRankings = async (journalId, filters = {}) => {
       } : null
     };
   });
+
+  const grouped = {};
+  for (const item of list) {
+    const yr = String(item.year);
+    if (!grouped[yr]) {
+      grouped[yr] = [];
+    }
+    grouped[yr].push(item);
+  }
+  return grouped;
 };

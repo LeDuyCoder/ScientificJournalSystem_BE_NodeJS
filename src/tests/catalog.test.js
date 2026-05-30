@@ -273,24 +273,25 @@ test.describe('Catalog & Search API Suite', () => {
       assert.strictEqual(res.status, 200);
       assert.strictEqual(res.body.success, true);
       assert.strictEqual(res.body.message, 'Lấy lịch sử ranking của journal thành công');
-      assert.strictEqual(res.body.data.length, 3);
+      assert.ok(res.body.data['2025']);
+      assert.strictEqual(res.body.data['2025'].length, 3);
 
       // Score type
-      assert.strictEqual(res.body.data[0].metric_code, 'SJR');
-      assert.strictEqual(res.body.data[0].value, 5.4);
-      assert.deepStrictEqual(res.body.data[0].subject_category, {
+      assert.strictEqual(res.body.data['2025'][0].metric_code, 'SJR');
+      assert.strictEqual(res.body.data['2025'][0].value, 5.4);
+      assert.deepStrictEqual(res.body.data['2025'][0].subject_category, {
         subject_category_id: '101',
         display_name: 'Oncology'
       });
 
       // Quartile type
-      assert.strictEqual(res.body.data[1].metric_code, 'SJR_BEST_QUARTILE');
-      assert.strictEqual(res.body.data[1].value, 'Q1');
-      assert.strictEqual(res.body.data[1].subject_category, null);
+      assert.strictEqual(res.body.data['2025'][1].metric_code, 'SJR_BEST_QUARTILE');
+      assert.strictEqual(res.body.data['2025'][1].value, 'Q1');
+      assert.strictEqual(res.body.data['2025'][1].subject_category, null);
 
       // Integer type
-      assert.strictEqual(res.body.data[2].metric_code, 'H_INDEX');
-      assert.strictEqual(res.body.data[2].value, 120);
+      assert.strictEqual(res.body.data['2025'][2].metric_code, 'H_INDEX');
+      assert.strictEqual(res.body.data['2025'][2].value, 120);
     });
 
     test('Lỗi 404 - Journal không tồn tại', async () => {
