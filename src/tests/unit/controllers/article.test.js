@@ -239,7 +239,7 @@ test.describe('Article Controller - GET /api/v1/articles Unit Test Suite', () =>
   // 6. Public API (getArticles)
   // ==========================================
   test.describe('Public API - GET /api/v1/articles', () => {
-    test('Thành công: Lấy danh sách bài báo toàn hệ thống (không cần token)', async () => {
+    test('Thành công: Lấy danh sách bài báo (không cần token, có search query)', async () => {
       const mockArticles = [
         {
           article_id: 1,
@@ -260,7 +260,7 @@ test.describe('Article Controller - GET /api/v1/articles Unit Test Suite', () =>
       });
 
       const res = await request(app)
-        .get('/api/v1/articles');
+        .get('/api/v1/articles?search=test');
 
       assert.strictEqual(res.status, 200);
       assert.strictEqual(res.body.success, true);
@@ -269,6 +269,21 @@ test.describe('Article Controller - GET /api/v1/articles Unit Test Suite', () =>
       assert.strictEqual(res.body.data.pagination.page, 1);
       assert.strictEqual(res.body.data.pagination.limit, 10);
       assert.strictEqual(res.body.data.pagination.total, 1);
+    });
+
+    test('Thành công: Trả về mảng rỗng (không gọi DB) nếu bỏ trống search query', async () => {
+      // Mock db query để đảm bảo nó KHÔNG được gọi
+      const queryMock = mock.method(pool, 'query', async () => {
+        throw new Error('Should not call DB if search is empty');
+      });
+
+      const res = await request(app)
+        .get('/api/v1/articles');
+
+      assert.strictEqual(res.status, 200);
+      assert.strictEqual(res.body.success, true);
+      assert.deepStrictEqual(res.body.data.items, []);
+      assert.strictEqual(queryMock.mock.callCount(), 0);
     });
 
     test('Thành công: Trả về mảng rỗng nếu không có dữ liệu', async () => {
@@ -299,16 +314,16 @@ test.describe('Article Controller - GET /api/v1/articles Unit Test Suite', () =>
       });
 
       const res = await request(app)
-        .get('/api/v1/articles?page=abc&limit=-5');
+        .get('/api/v1/articles?page=abc&limit=-5&search=test');
 
       assert.strictEqual(res.status, 200);
       assert.strictEqual(res.body.success, true);
       assert.strictEqual(res.body.data.pagination.page, 1);
       assert.strictEqual(res.body.data.pagination.limit, 10);
       
-      // params truyền vào SQL: limit ($1) = 10, offset ($2) = 0
-      assert.strictEqual(capturedParams[0], 10);
-      assert.strictEqual(capturedParams[1], 0);
+      // params truyền vào SQL: search ($1), limit ($2) = 10, offset ($3) = 0
+      assert.strictEqual(capturedParams[1], 10);
+      assert.strictEqual(capturedParams[2], 0);
     });
   });
 });

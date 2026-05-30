@@ -91,6 +91,17 @@ export const getArticles = async (req, res) => {
         // 2. Lấy search query (có thể rỗng)
         const search = (req.query.search || '').trim();
 
+        if (!search) {
+            return res.status(200).json({
+                success: true,
+                message: "Lấy danh sách bài báo thành công",
+                data: {
+                    items: [],
+                    pagination: { page, limit, total: 0 }
+                }
+            });
+        }
+
         // 3. Gọi service song song
         const [articles, total] = await Promise.all([
             articleService.getAllArticles({ limit, offset, search }),
