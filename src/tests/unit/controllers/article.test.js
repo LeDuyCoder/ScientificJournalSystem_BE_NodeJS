@@ -4,14 +4,12 @@ import { mock } from 'node:test';
 import request from 'supertest';
 import jwt from 'jsonwebtoken';
 
-// Đảm bảo JWT_SECRET luôn có giá trị khi chạy test
-process.env.JWT_SECRET = process.env.JWT_SECRET || 'scientific_journal_secret_key';
-
 import app from '../../../app.js';
 import pool from '../../../config/database.js';
+import * as articleService from '../../../services/article.service.js';
 
 const JWT_SECRET = process.env.JWT_SECRET;
-const userId = 'a8e9c612-40db-4ff0-87a0-0f8b3b4f6cf7';
+const userId = '11111111-1111-1111-1111-111111111111';
 const testToken = jwt.sign({ user_id: userId, role: 'STUDENT', email: 'test@example.com' }, JWT_SECRET);
 
 test.after(async () => {
