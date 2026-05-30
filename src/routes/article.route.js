@@ -187,7 +187,7 @@ const router = express.Router();
  * - Nếu không → liệt kê bài báo toàn hệ thống (public)
  */
 router.get('/', (req, res, next) => {
-    if (req.query.keywords) {
+    if (req.query.keywords !== undefined) {
         // Có keywords → yêu cầu auth rồi gọi getArticlesByKeywords
         return requireAuth(req, res, () => getArticlesByKeywords(req, res));
     }

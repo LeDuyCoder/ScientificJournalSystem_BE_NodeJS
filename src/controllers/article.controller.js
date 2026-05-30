@@ -76,27 +76,14 @@ export const getArticlesByKeywords = async (req, res) => {
 export const getArticles = async (req, res) => {
     try {
         // 1. Phân trang
-        let page = 1;
-        let limit = 10;
-
-        if (req.query.page !== undefined) {
-            page = Number(req.query.page);
-            if (!Number.isInteger(page) || page <= 0) {
-                return res.status(400).json({
-                    success: false,
-                    message: "page phải là số nguyên dương."
-                });
-            }
+        let page = parseInt(req.query.page, 10);
+        if (isNaN(page) || page <= 0) {
+            page = 1;
         }
 
-        if (req.query.limit !== undefined) {
-            limit = Number(req.query.limit);
-            if (!Number.isInteger(limit) || limit <= 0) {
-                return res.status(400).json({
-                    success: false,
-                    message: "limit phải là số nguyên dương."
-                });
-            }
+        let limit = parseInt(req.query.limit, 10);
+        if (isNaN(limit) || limit <= 0) {
+            limit = 10;
         }
 
         const offset = (page - 1) * limit;
