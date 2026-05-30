@@ -1,45 +1,118 @@
-import keywordService from "../services/keyword.service.js";
-import pool from "../config/database.js";
+import {
+  getTrendingKeywords as getTrendingKeywordsService,
+  getWatchedKeywordArticles as getWatchedKeywordArticlesService,
+  syncWatchedKeywords,
+  validateKeywordIds,
+  checkProjectOwnership,
+} from "../services/keyword.service.js";
+import logger from "../utils/logger.js";
 
-export const keywordServiceRef = keywordService;
-// Xử lý request GET /api/v1/projects/:id/keywords/trending
-const getTrendingKeywords = async (req, res) => {
+/**
+ * API Lấy Top 20 từ khóa trending của project
+ * @param {Object} req - Express request object
+ * @param {Object} req.params - Các tham số trên URL
+ * @param {string} req.params.id - ID của project
+ * @param {Object} req.query - Query params (limit, sort_by)
+ * @param {Object} res - Express response object
+ * @returns {Promise<Object>} JSON response chứa danh sách keywords trending
+ */
+export const getTrendingKeywords = async (req, res) => {
   try {
     // Lấy projectId từ URL và chuyển sang số nguyên
-    // VD: /projects/1/keywords/trending → projectId = 1
     const projectId = parseInt(req.params.id);
 
     // Kiểm tra projectId có hợp lệ không
-    // VD: /projects/abc → parseInt("abc") = NaN → trả về lỗi 400
-    if (isNaN(projectId)) {
-      return res.status(400).json({ error: "Invalid project ID" });
+    if (isNaN(projectId) || projectId <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "ID dự án không hợp lệ",
+      });
     }
 
-    // Gọi service xử lý logic, truyền vào:
-    // - projectId: id của project cần lấy keyword
-    // - req.query: các query params (limit, sort_by)
-    const result = await keywordService.getTrendingKeywords(
+    // Gọi service xử lý logic
+    const result = await getTrendingKeywordsService(
       projectId,
       req.query,
     );
 
-    // Trả về kết quả thành công
-    return res.status(200).json(result);
+    return res.status(200).json({
+      success: true,
+      message: "Lấy danh sách từ khóa trending thành công",
+      data: result,
+    });
   } catch (error) {
-    // Có lỗi không mong muốn → log ra terminal và trả về lỗi 500
-    console.error("[getTrendingKeywords] Error:", error);
-    return res.status(500).json({ error: "Internal server error" });
+    logger.error("[Keyword Controller] Lỗi khi lấy trending keywords:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Có lỗi xảy ra ở server khi lấy trending keywords",
+    });
   }
 };
 
 /**
- * API Handler: Cập nhật danh sách từ khóa theo dõi của một dự án
- * Method: POST /api/v1/projects/:id/keywords/watch
- * @param {import('express').Request} req - Đối tượng Request của Express (chứa req.params.id, req.body.keyword_ids, req.user)
- * @param {import('express').Response} res - Đối tượng Response của Express
- * @returns {Promise<import('express').Response>} Trả về JSON thông báo kết quả cập nhật
+ * API Lấy luồng bài báo mới nhất từ các từ khóa đang theo dõi
+ * @param {Object} req - Express request object
+ * @param {Object} req.params - Các tham số trên URL
+ * @param {string} req.params.id - ID của project
+ * @param {Object} req.user - Thông tin user từ JWT token
+ * @param {string} req.user.user_id - ID của user
+ * @param {Object} req.query - Query params (page, limit)
+ * @param {Object} res - Express response object
+ * @returns {Promise<Object>} JSON response chứa danh sách bài báo
  */
-const watchKeywords = async (req, res) => {
+export const getWatchedKeywordArticles = async (req, res) => {
+  try {
+    // Lấy projectId từ URL
+    const projectId = parseInt(req.params.id);
+
+    // Kiểm tra projectId có hợp lệ không
+    if (isNaN(projectId) || projectId <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "ID dự án không hợp lệ",
+      });
+    }
+
+    // Lấy userId từ JWT token (đã được decode bởi requireAuth)
+    const userId = req.user.user_id;
+
+    // Gọi service xử lý logic
+    const result = await getWatchedKeywordArticlesService(
+      projectId,
+      userId,
+      req.query,
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Lấy luồng bài báo từ từ khóa theo dõi thành công",
+      data: result.data,
+      pagination: {
+        page: result.page,
+        limit: result.limit,
+      },
+    });
+  } catch (error) {
+    if (error.statusCode === 400) {
+      return res.status(400).json({
+        success: false,
+        message: error.message,
+      });
+    }
+    logger.error(
+      "[Keyword Controller] Lỗi khi lấy watched keyword articles:",
+      error,
+    );
+    return res.status(500).json({
+      success: false,
+      message: "Có lỗi xảy ra ở server khi lấy bài báo theo dõi",
+    });
+  }
+};
+
+
+// POST /api/v1/projects/:id/keywords/watch
+export const watchKeywords = async (req, res) => {
   try {
     const projectId = parseInt(req.params.id);
     if (isNaN(projectId)) {
@@ -63,25 +136,22 @@ const watchKeywords = async (req, res) => {
 
     // Check project ownership
     const userId = req.user.user_id;
-    const projectCheck = await pool.query(
-      `SELECT 1 FROM "Project" WHERE project_id = $1 AND user_id = $2`,
-      [projectId, userId]
-    );
+    const isOwner = await checkProjectOwnership(projectId, userId);
 
-    if (projectCheck.rows.length === 0) {
+    if (!isOwner) {
       return res.status(404).json({ success: false, message: "Không tìm thấy dự án hoặc bạn không có quyền truy cập dự án này" });
     }
 
     // Check if keywords exist
     if (keyword_ids.length > 0) {
-      const keywordsExist = await keywordService.validateKeywordIds(keyword_ids);
+      const keywordsExist = await validateKeywordIds(keyword_ids);
       if (!keywordsExist) {
         return res.status(400).json({ success: false, message: "Một hoặc nhiều Keyword ID không tồn tại trong hệ thống" });
       }
     }
 
     // Sync keywords
-    await keywordService.syncWatchedKeywords(projectId, keyword_ids);
+    await syncWatchedKeywords(projectId, keyword_ids);
 
     return res.status(201).json({
       success: true,
@@ -94,4 +164,4 @@ const watchKeywords = async (req, res) => {
   }
 };
 
-export default { getTrendingKeywords, watchKeywords };
+

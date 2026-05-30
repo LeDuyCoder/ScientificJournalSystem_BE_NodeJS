@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "nodemon server.js",
     "start": "node server.js",
-    "test": "node --test src/tests/*.test.js"
+    "test": "node --test src/tests/unit/**/*.test.js",
+    "test:controller": "node --test src/tests/unit/controllers/*.test.js",
+    "test:service": "node --test src/tests/unit/service/*.test.js"
   },
   "keywords": [],
   "author": "",
