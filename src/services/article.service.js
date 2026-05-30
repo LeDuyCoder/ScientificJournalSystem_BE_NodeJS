@@ -1,4 +1,5 @@
 import pool from '../config/database.js';
+import logger from '../utils/logger.js';
 
 /**
  * Tìm các bài báo có chứa các keyword người dùng nhập vào trên toàn hệ thống
@@ -56,3 +57,50 @@ export const countArticlesByKeywords = async (keywords) => {
     const result = await pool.query(query, values);
     return parseInt(result.rows[0].total);
 };
+
+export const getTotalArticles = async () => {
+    try {
+        const query = `
+            SELECT COUNT(*) AS total
+            FROM "Article";
+        `;
+
+        const result = await pool.query(query);
+
+        return parseInt(result.rows[0].total, 10);
+    } catch (error) {
+        logger.error('Lỗi khi đếm tổng số bài báo:', error);
+        throw error;
+    }
+};
+
+export const getAllArticles = async (limit = 20, offset = 0, sortBy = 'created_at', sortOrder = 'DESC') => {
+    try {
+        // Whitelist allowed columns to prevent SQL injection
+        const allowedColumns = ['article_id', 'title', 'publication_year', 'created_at', 'doi'];
+        const column = allowedColumns.includes(sortBy) ? sortBy : 'created_at';
+        const order = ['ASC', 'DESC'].includes(sortOrder) ? sortOrder : 'DESC';
+
+        const query = `
+            SELECT 
+                article_id,
+                version,
+                issue_id,
+                title,
+                abstract,
+                publication_year,
+                doi,
+                primary_topic,
+                created_at
+            FROM "Article"
+            ORDER BY "${column}" ${order}
+            LIMIT $1 OFFSET $2;
+        `
+
+        const result = await pool.query(query, [limit, offset]);
+        return result.rows;
+    }catch (error) {
+        logger.error('Lỗi khi lấy tất cả bài báo:', error);
+        throw error;
+    }
+}

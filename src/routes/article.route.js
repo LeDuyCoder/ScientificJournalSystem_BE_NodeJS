@@ -1,6 +1,6 @@
 import express from 'express';
 import { requireAuth } from '../middlewares/auth.middleware.js';
-import { getArticlesByKeywords } from '../controllers/article.controller.js';
+import { getArticle, getArticlesByKeywords } from '../controllers/article.controller.js';
 
 const router = express.Router();
 
@@ -8,8 +8,8 @@ const router = express.Router();
  * @swagger
  * /api/v1/articles:
  *   get:
- *     summary: Tìm bài báo theo từ khóa trên toàn hệ thống
- *     description: Trả về danh sách bài báo chứa các từ khóa mà người dùng nhập qua query string
+ *     summary: Tìm bài báo theo từ khóa hoặc lấy tất cả bài báo
+ *     description: Trả về danh sách bài báo chứa các từ khóa nếu có, hoặc tất cả bài báo. Hỗ trợ sắp xếp và phân trang
  *     tags:
  *       - Article
  *     security:
@@ -17,10 +17,9 @@ const router = express.Router();
  *     parameters:
  *       - in: query
  *         name: keywords
- *         required: true
  *         schema:
  *           type: string
- *         description: Danh sách keyword cách nhau bởi dấu phẩy
+ *         description: Danh sách keyword cách nhau bởi dấu phẩy (không bắt buộc)
  *         example: Machine Learning,Deep Learning
  *       - in: query
  *         name: limit
@@ -34,6 +33,20 @@ const router = express.Router();
  *           type: integer
  *           default: 1
  *         description: Trang hiện tại
+ *       - in: query
+ *         name: sortBy
+ *         schema:
+ *           type: string
+ *           enum: [article_id, title, publication_year, created_at, doi]
+ *           default: created_at
+ *         description: Trường sắp xếp
+ *       - in: query
+ *         name: sortOrder
+ *         schema:
+ *           type: string
+ *           enum: [asc, desc]
+ *           default: desc
+ *         description: Thứ tự sắp xếp
  *     responses:
  *       200:
  *         description: Thành công
@@ -88,6 +101,6 @@ const router = express.Router();
  * Route GET /api/v1/articles
  * Tìm bài báo theo từ khóa trên toàn hệ thống (Yêu cầu xác thực)
  */
-router.get('/', requireAuth, getArticlesByKeywords);
+router.get('/', requireAuth, getArticle);
 
 export default router;
