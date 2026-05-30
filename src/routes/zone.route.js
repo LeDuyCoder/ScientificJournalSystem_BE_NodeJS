@@ -176,27 +176,45 @@ router.get('/regions/stats', requireAuth, getRegionStats);
  *                   example: true
  *                 message:
  *                   type: string
- *                   example: "Lấy danh sách phân vùng của quốc gia 'US' thành công"
+ *                   example: "Lấy thống kê region theo quốc gia thành công"
  *                 data:
- *                   type: array
- *                   items:
- *                     type: object
- *                     properties:
- *                       zone_id:
- *                         type: string
- *                         example: "10"
- *                       code:
- *                         type: string
- *                         example: "NA"
- *                       name:
- *                         type: string
- *                         example: "Northern America"
- *                       iso_code:
- *                         type: string
- *                         example: "NAM"
- *                       article_count:
- *                         type: integer
- *                         example: 320
+ *                   type: object
+ *                   properties:
+ *                     country:
+ *                       type: object
+ *                       properties:
+ *                         zone_id:
+ *                           type: string
+ *                           example: "89"
+ *                         code:
+ *                           type: string
+ *                           example: "VN"
+ *                         iso_code:
+ *                           type: string
+ *                           example: "VNM"
+ *                         name:
+ *                           type: string
+ *                           example: "Vietnam"
+ *                     regions:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           zone_id:
+ *                             type: string
+ *                             example: "10"
+ *                           code:
+ *                             type: string
+ *                             example: "HCM"
+ *                           name:
+ *                             type: string
+ *                             example: "Ho Chi Minh City"
+ *                           iso_code:
+ *                             type: string
+ *                             example: ""
+ *                           article_count:
+ *                             type: integer
+ *                             example: 120
  *       400:
  *         description: Mã quốc gia không hợp lệ hoặc để trống
  *       404:
