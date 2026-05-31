@@ -9,13 +9,6 @@ import logger from '../utils/logger.js';
  * @param {number} offset - Vị trí bắt đầu (dùng cho phân trang)
  * @returns {Array} Danh sách bài báo kèm keyword matched
  */
-/**
- * Get Articles By Keywords.
- * @param {any} keywords
- * @param {any} limit
- * @param {any} offset
- * @returns {Promise<any>}
- */
 export const getArticlesByKeywords = async (keywords, limit = 20, offset = 0) => {
     const keywordPlaceholders = keywords
         .map((_, index) => `$${index + 3}`)
@@ -35,6 +28,7 @@ export const getArticlesByKeywords = async (keywords, limit = 20, offset = 0) =>
         JOIN "Keyword_Article" ka ON ka."article_id" = a."article_id"
         JOIN "Keyword" k         ON k."keyword_id"   = ka."keyword_id"
         WHERE LOWER(k."display_name") IN (${keywordPlaceholders})
+          AND a."is_deleted" = false
         ORDER BY a."publication_year" DESC NULLS LAST, a."created_at" DESC
         LIMIT $1 OFFSET $2
     `;
@@ -44,9 +38,10 @@ export const getArticlesByKeywords = async (keywords, limit = 20, offset = 0) =>
 };
 
 /**
- * Count Articles By Keywords.
- * @param {any} keywords
- * @returns {Promise<any>}
+ * Đếm số bài báo khớp với danh sách từ khóa (case-insensitive).
+ *
+ * @param {string[]} keywords - Mảng tên keyword (sẽ được so sánh bằng LOWER)
+ * @returns {Promise<number>} Tổng số bài báo khớp
  */
 export const countArticlesByKeywords = async (keywords) => {
     const keywordPlaceholders = keywords
@@ -61,6 +56,7 @@ export const countArticlesByKeywords = async (keywords) => {
         JOIN "Keyword_Article" ka ON ka."article_id" = a."article_id"
         JOIN "Keyword" k         ON k."keyword_id"   = ka."keyword_id"
         WHERE LOWER(k."display_name") IN (${keywordPlaceholders})
+          AND a."is_deleted" = false
     `;
 
     const result = await pool.query(query, values);
@@ -72,17 +68,12 @@ export const countArticlesByKeywords = async (keywords) => {
  * @param {Object} params
  * @param {string} [params.search] - Từ khóa tìm kiếm theo title
  */
-/**
- * Count All Articles.
- * @param {any} { search
- * @returns {Promise<any>}
- */
 export const countAllArticles = async ({ search = '' }) => {
-    let query = `SELECT COUNT(*) AS "total" FROM "Article" a`;
+    let query = `SELECT COUNT(*) AS "total" FROM "Article" a WHERE a."is_deleted" = false`;
     const values = [];
 
     if (search) {
-        query += ` WHERE a."title" ILIKE $1`;
+        query += ` AND a."title" ILIKE $1`;
         values.push(`%${search}%`);
     }
 
@@ -91,15 +82,13 @@ export const countAllArticles = async ({ search = '' }) => {
 };
 
 /**
- * Đếm tổng số tất cả bài báo trong hệ thống (không kèm điều kiện lọc)
- */
-/**
- * Get Total Articles.
- * @returns {Promise<any>}
+ * Đếm tổng số bài báo chưa bị xóa trong hệ thống.
+ *
+ * @returns {Promise<number>} Tổng số bài báo
  */
 export const getTotalArticles = async () => {
     try {
-        const query = `SELECT COUNT(*) AS total FROM "Article";`;
+        const query = `SELECT COUNT(*) AS total FROM "Article" WHERE "is_deleted" = false;`;
         const result = await pool.query(query);
         return parseInt(result.rows[0].total, 10);
     } catch (error) {
@@ -109,18 +98,15 @@ export const getTotalArticles = async () => {
 };
 
 /**
- * HÀM GỘP THÔNG MINH: Lấy danh sách bài báo toàn hệ thống.
- * Hỗ trợ đồng thời cả 2 dạng gọi từ Controller:
- * 1. Gọi kiểu Object để Search: getAllArticles({ limit, offset, search })
- * 2. Gọi kiểu tham số rời để Sort: getAllArticles(limit, offset, sortBy, sortOrder)
- */
-/**
- * Get All Articles.
- * @param {any} firstParam
- * @param {any} offsetParam
- * @param {any} sortByParam
- * @param {any} sortOrderParam
- * @returns {Promise<any>}
+ * Lấy danh sách bài báo hỗ trợ hai kiểu gọi:
+ * 1) `getAllArticles({ limit, offset, search })` — dùng cho public search
+ * 2) `getAllArticles(limit, offset, sortBy, sortOrder)` — dùng cho admin/sort
+ *
+ * @param {Object|number} [firstParam={}] - Object chứa {limit, offset, search} hoặc numeric limit
+ * @param {number} [offsetParam=0] - Offset khi gọi theo tham số rời
+ * @param {string} [sortByParam='created_at'] - Trường sắp xếp khi gọi theo tham số rời
+ * @param {string} [sortOrderParam='DESC'] - Thứ tự sắp xếp (ASC|DESC)
+ * @returns {Promise<Array>} Mảng các bản ghi bài báo
  */
 export const getAllArticles = async (firstParam = {}, offsetParam = 0, sortByParam = 'created_at', sortOrderParam = 'DESC') => {
     try {
@@ -167,6 +153,7 @@ export const getAllArticles = async (firstParam = {}, offsetParam = 0, sortByPar
                 LEFT JOIN "Volume" v  ON v."volume_id"  = i."volume_id"
                 LEFT JOIN "Journal" j ON j."journal_id" = v."journal_id"
                 WHERE a."title" ILIKE $1
+                  AND a."is_deleted" = false
                 ORDER BY a."publication_year" DESC NULLS LAST, a."article_id" DESC
                 LIMIT $2 OFFSET $3;
             `;
@@ -185,6 +172,7 @@ export const getAllArticles = async (firstParam = {}, offsetParam = 0, sortByPar
                     primary_topic,
                     created_at
                 FROM "Article"
+                WHERE "is_deleted" = false
                 ORDER BY "${column}" ${order}
                 LIMIT $1 OFFSET $2;
             `;
@@ -201,12 +189,11 @@ export const getAllArticles = async (firstParam = {}, offsetParam = 0, sortByPar
 };
 
 /**
- * Lấy thông tin chi tiết bài báo theo ID
- */
-/**
- * Get Article By Id.
- * @param {any} articleId
- * @returns {Promise<any>}
+ * Lấy thông tin chi tiết một bài báo theo `article_id`.
+ * Lưu ý: Trả về cả bài báo đã bị xóa mềm (is_deleted = true).
+ *
+ * @param {number|string} articleId - ID bài báo
+ * @returns {Promise<Object|null>} Bản ghi bài báo hoặc `null` nếu không tồn tại
  */
 export const getArticleById = async (articleId) => {
     try {
@@ -220,6 +207,7 @@ export const getArticleById = async (articleId) => {
                 publication_year,
                 doi,
                 primary_topic,
+                is_deleted,
                 created_at
             FROM "Article"
             WHERE "article_id" = $1;
@@ -234,12 +222,16 @@ export const getArticleById = async (articleId) => {
 };
 
 /**
- * Tạo mới một bản ghi bài báo gốc (Dữ liệu thô)
- */
-/**
- * Create Article.
- * @param {any} articleData
- * @returns {Promise<any>}
+ * Tạo mới một bản ghi bài báo (dữ liệu thô) và trả về record vừa tạo.
+ *
+ * @param {Object} articleData - Dữ liệu bài báo
+ * @param {string} articleData.title - Tiêu đề (bắt buộc)
+ * @param {number} articleData.publication_year - Năm xuất bản (bắt buộc)
+ * @param {number} [articleData.issue_id]
+ * @param {string} [articleData.abstract]
+ * @param {string} [articleData.doi]
+ * @param {number|null} [articleData.primary_topic]
+ * @returns {Promise<Object>} Bản ghi bài báo vừa tạo
  */
 export const createArticle = async (articleData) => {
     try {
@@ -297,37 +289,25 @@ export const createArticle = async (articleData) => {
  * @param {Object} params.updateData - Object chứa các trường muốn thay đổi từ req.body
  * @returns {Promise<Object|null>} Bản ghi sau khi update thành công
  */
-/**
- * Update Article.
- * @param {any} { article_id
- * @param {any} ...updateData }
- * @returns {Promise<any>}
- */
 export const updateArticle = async ({ article_id, ...updateData }) => {
     try {
         if (!article_id) {
             throw new Error('Thiếu article_id khi gọi hàm updateArticle Service.');
         }
 
-        // 1. Lấy dữ liệu hiện tại trong DB để so sánh logic trùng lặp
         const currentQuery = `SELECT * FROM "Article" WHERE "article_id" = $1;`;
         const currentResult = await pool.query(currentQuery, [article_id]);
         const currentArticle = currentResult.rows[0];
 
         if (!currentArticle) {
-            return null; // Không tìm thấy bài báo
+            return null;
         }
 
-        // 2. Tách các trường dữ liệu đầu vào
         const { title, publication_year, version, issue_id, abstract, doi, primary_topic } = updateData;
 
-        // Khởi tạo các biến xây dựng câu lệnh SQL động
         const fieldsToSet = [];
-        const values = [article_id]; // $1 luôn là article_id
+        const values = [article_id];
 
-        // 3. KIỂM TRA LOGIC TỪNG TRƯỜNG DỮ LIỆU
-
-        // --- Trường: title ---
         if (title !== undefined) {
             const trimmedTitle = String(title).trim();
             if (trimmedTitle === '') {
@@ -339,7 +319,6 @@ export const updateArticle = async ({ article_id, ...updateData }) => {
             }
         }
 
-        // --- Trường: publication_year ---
         if (publication_year !== undefined) {
             const yearNum = Number(publication_year);
             if (isNaN(yearNum) || yearNum <= 0) {
@@ -351,25 +330,21 @@ export const updateArticle = async ({ article_id, ...updateData }) => {
             }
         }
 
-        // --- Trường: version ---
         if (version !== undefined && version !== currentArticle.version) {
             fieldsToSet.push('version');
             values.push(version);
         }
 
-        // --- Trường: abstract ---
         if (abstract !== undefined && abstract !== currentArticle.abstract) {
             fieldsToSet.push('abstract');
             values.push(abstract);
         }
 
-        // --- Trường: doi ---
         if (doi !== undefined && doi !== currentArticle.doi) {
             fieldsToSet.push('doi');
             values.push(doi);
         }
 
-        // --- Trường: issue_id ---
         if (issue_id !== undefined) {
             if (String(currentArticle.issue_id) === String(issue_id)) {
                 throw new Error('VALIDATION_ERROR: Không thể cập nhật cùng một mã issue.');
@@ -384,7 +359,6 @@ export const updateArticle = async ({ article_id, ...updateData }) => {
             values.push(issue_id);
         }
 
-        // --- Trường: primary_topic ---
         if (primary_topic !== undefined) {
             if (Number(primary_topic) === 0) {
                 if (currentArticle.primary_topic !== null) {
@@ -406,14 +380,12 @@ export const updateArticle = async ({ article_id, ...updateData }) => {
             }
         }
 
-        // 4. Nếu người dùng gửi dữ liệu lên nhưng không có bất kỳ thay đổi nào so với DB
         if (fieldsToSet.length === 0) {
-            return currentArticle; // Trả về luôn dữ liệu hiện tại, không cần chạy lệnh UPDATE
+            return currentArticle;
         }
 
-        // 5. Xây dựng chuỗi SET động cho SQL (Ví dụ: "title" = $2, "version" = $3)
         const setClause = fieldsToSet
-            .map((field, index) => `"${field}" = $${index + 2}`) // index + 2 vì $1 là article_id
+            .map((field, index) => `"${field}" = $${index + 2}`)
             .join(', ');
 
         // 6. Thực thi câu lệnh UPDATE xuống Postgres
@@ -438,5 +410,73 @@ export const updateArticle = async ({ article_id, ...updateData }) => {
 
     } catch (error) {
         throw error; // Quăng lỗi lên để Controller bắt lấy và trả về res.status
+    }
+};
+
+/**
+ * Xóa mềm một bản ghi bài báo dựa trên ID (Chuyển is_deleted thành TRUE).
+ *
+ * @param {number|string} articleId - ID của bài báo cần xóa mềm
+ * @returns {Promise<Object|null>} Bản ghi bài báo sau khi được cập nhật xóa mềm, hoặc null nếu không tìm thấy
+ */
+export const deleteArticle = async (articleId) => {
+    try {
+        // Kiểm tra đầu vào bắt buộc
+        if (!articleId) {
+            throw new Error('Article ID is required for deletion.');
+        }
+
+        const query = `
+            UPDATE "Article"
+            SET "is_deleted" = TRUE
+            WHERE "article_id" = $1 AND "is_deleted" = FALSE
+            RETURNING *;
+        `;
+
+        const values = [articleId];
+
+        const result = await pool.query(query, values);
+
+        // Nếu cập nhật thành công, result.rows[0] sẽ chứa thông tin bài báo kèm theo is_deleted = true
+        // Nếu bài báo đã bị xóa mềm từ trước hoặc không tồn tại, result.rows[0] sẽ là undefined
+        return result.rows[0] || null;
+
+    } catch (error) {
+        logger.error(`Error soft-deleting article with ID ${articleId}:`, error);
+        throw error;
+    }
+};
+
+/**
+ * Khôi phục một bài báo đã bị xóa mềm (Chuyển is_deleted thành FALSE).
+ *
+ * @param {number|string} articleId - ID của bài báo cần khôi phục
+ * @returns {Promise<Object|null>} Bản ghi bài báo sau khi khôi phục, hoặc null nếu không tìm thấy
+ */
+export const restoreArticle = async (articleId) => {
+    try {
+        // Kiểm tra đầu vào bắt buộc
+        if (!articleId) {
+            throw new Error('Article ID is required for restoration.');
+        }
+
+        const query = `
+            UPDATE "Article"
+            SET "is_deleted" = FALSE
+            WHERE "article_id" = $1 AND "is_deleted" = TRUE
+            RETURNING *;
+        `;
+
+        const values = [articleId];
+
+        const result = await pool.query(query, values);
+
+        // Nếu cập nhật thành công, result.rows[0] sẽ chứa thông tin bài báo kèm theo is_deleted = false
+        // Nếu bài báo không bị xóa hoặc không tồn tại, result.rows[0] sẽ là undefined
+        return result.rows[0] || null;
+
+    } catch (error) {
+        logger.error(`Error restoring article with ID ${articleId}:`, error);
+        throw error;
     }
 };

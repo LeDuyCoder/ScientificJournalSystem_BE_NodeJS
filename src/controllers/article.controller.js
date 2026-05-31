@@ -185,20 +185,17 @@ export const getArticle = async (req, res) => {
 };
 
 /**
- * Lấy chi tiết một bài báo theo `article_id`.
- *
- * Path params:
- * - `id` (number, required): ID bài báo.
- *
- * @param {import('express').Request} req
+ * Lấy chi tiết một bài báo theo article_id (Có hỗ trợ kiểm tra Xóa mềm).
+ * * @param {import('express').Request} req
  * @param {import('express').Response} res
- * @returns {Promise<import('express').Response>} JSON response với chi tiết bài báo hoặc 404
+ * @returns {Promise<import('express').Response>} JSON response với chi tiết bài báo hoặc thông báo lỗi
  */
 export const getArticleById = async (req, res) => {
     try {
         const { id } = req.params;
         const article = await articleService.getArticleById(id);
 
+        // Trường hợp 1: Không tìm thấy bất kỳ bản ghi nào trong Database ứng với ID này
         if (!article) {
             return res.status(404).json({
                 success: false,
@@ -206,11 +203,21 @@ export const getArticleById = async (req, res) => {
             });
         }
 
+        // Trường hợp 2: Tìm thấy bài báo nhưng bài báo này đã bị XÓA MỀM (is_deleted === true)
+        if (article.is_deleted === true) {
+            return res.status(410).json({ // Hoặc dùng 404 tùy cấu trúc dự án của bạn
+                success: false,
+                message: "Bài báo này đã bị xóa khỏi hệ thống!"
+            });
+        }
+
+        // Trường hợp 3: Bài báo tồn tại hợp lệ và chưa bị xóa
         return res.status(200).json({
             success: true,
             message: "Lấy thông tin bài báo thành công!",
             data: article
         });
+
     } catch (error) {
         logger.error('Lỗi khi lấy thông tin bài báo theo ID:', error);
         return res.status(500).json({
@@ -372,7 +379,7 @@ export const updateArticle = async (req, res) => {
     try {
         const article = await articleService.getArticleById(id);
         if (!article) {
-            return res.status(404).json({ success: false, message: 'Article not found' });
+            return res.status(404).json({ success: false, message: 'Article không tìm thấy' });
         }
         const updatedArticle = await articleService.updateArticle({ 
             article_id: article.article_id, 
@@ -442,10 +449,68 @@ export const updateArticle = async (req, res) => {
             });
         }
 
-        // TRƯỜNG HỢP 2: Lỗi hệ thống bất khả kháng (Rớt mạng DB, lỗi cú pháp, sập nguồn...)
         return res.status(500).json({ 
             success: false, 
-            message: 'Internal server error' // Giấu lỗi kỹ thuật với người dùng cuối để bảo mật
+            message: 'Internal server error'
         });
     }
 };
+
+export const deleteArticle = async (req, res) => {
+    const {id} = req.params;
+
+    try{
+        const article = await articleService.getArticleById(id);
+        if(!article){
+            return res.status(404).json({ success: false, message: 'Article không tìm thấy' });
+        }else{
+            await articleService.deleteArticle(id);
+            return res.status(200).json({
+                success: true,
+                message: 'Article đã xóa thành công',
+            });
+        }
+    }catch(error){
+        return res.status(500).json({ 
+            success: false, 
+            message: 'Internal server error' 
+        });
+    }
+};
+
+/**
+ * Khôi phục một bài báo đã bị xóa mềm (soft delete).
+ *
+ * Path params:
+ * - `id` (number, required): ID bài báo cần khôi phục
+ *
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ * @returns {Promise<import('express').Response>} 200 với bài báo đã khôi phục hoặc 404/500
+ */
+export const restoreArticle = async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        const restored = await articleService.restoreArticle(id);
+        
+        if (!restored) {
+            return res.status(404).json({
+                success: false,
+                message: 'Article không tìm thấy hoặc đã được khôi phục'
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: 'Article đã khôi phục thành công',
+            data: restored
+        });
+    } catch (error) {
+        logger.error(`Error restoring article ${id}:`, error);
+        return res.status(500).json({
+            success: false,
+            message: 'Internal server error'
+        });
+    }
+}

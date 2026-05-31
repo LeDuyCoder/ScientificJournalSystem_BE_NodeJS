@@ -6,7 +6,9 @@ import {
     getArticleById, 
     getArticlesByKeywords, 
     getArticles, 
-    updateArticle
+    updateArticle,
+    deleteArticle,
+    restoreArticle
 } from '../controllers/article.controller.js';
 
 const router = express.Router();
@@ -276,5 +278,85 @@ router.post('/', requireAuth, createArticle);
  *         description: Lỗi server
  */
 router.put('/:id', requireAuth, updateArticle);
+
+/**
+ * @swagger
+ * /api/v1/articles/{id}:
+ *   delete:
+ *     summary: Xóa mềm (soft delete) bài báo
+ *     description: Xóa mềm một bài báo bằng cách đánh dấu `is_deleted = true`. Bài báo sẽ không xuất hiện trong danh sách nhưng vẫn có thể lấy chi tiết nếu biết ID. Yêu cầu xác thực.
+ *     tags:
+ *       - Article
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID bài báo cần xóa
+ *     responses:
+ *       200:
+ *         description: Bài báo đã xóa thành công
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Article đã xóa thành công"
+ *       404:
+ *         description: Bài báo không tìm thấy
+ *       401:
+ *         description: Chưa xác thực hoặc token không hợp lệ
+ *       500:
+ *         description: Lỗi server
+ */
+router.delete('/:id', requireAuth, deleteArticle);
+
+/**
+ * @swagger
+ * /api/v1/articles/{id}/restore:
+ *   patch:
+ *     summary: Khôi phục bài báo đã bị xóa mềm
+ *     description: Khôi phục (restore) một bài báo đã bị xóa mềm. Yêu cầu xác thực.
+ *     tags:
+ *       - Article
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID bài báo cần khôi phục
+ *     responses:
+ *       200:
+ *         description: Bài báo đã khôi phục thành công
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *       404:
+ *         description: Bài báo không tìm thấy hoặc không bị xóa
+ *       401:
+ *         description: Chưa xác thực
+ *       500:
+ *         description: Lỗi server
+ */
+router.patch('/:id/restore', requireAuth, restoreArticle);
 
 export default router;
