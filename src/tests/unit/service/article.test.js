@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert';
 import { mock } from 'node:test';
 import pool from '../../../config/database.js';
-import { getArticlesByKeywords, countArticlesByKeywords } from '../../../services/article.service.js';
+import { getArticlesByKeywords, countArticlesByKeywords, getAllArticles, countAllArticles } from '../../../services/article.service.js';
 
 test.after(async () => {
   await pool.end();
@@ -195,6 +195,92 @@ test.describe('Article Service - getArticlesByKeywords() Unit Test Suite', () =>
         async () => await countArticlesByKeywords(['ai']),
         { message: 'Database timeout' }
       );
+    });
+  });
+
+  // ==========================================
+  // 3. getAllArticles
+  // ==========================================
+  test.describe('getAllArticles()', () => {
+
+    test('Trả về danh sách bài báo với các giá trị mặc định', async () => {
+      const mockArticles = [
+        {
+          article_id: 1,
+          title: 'Test Article',
+          abstract: 'Abstract',
+          publication_year: 2025,
+          doi: '10.test',
+          journal_id: 5,
+          journal_name: 'Test Journal'
+        }
+      ];
+
+      let capturedParams = null;
+      mock.method(pool, 'query', async (sql, params) => {
+        capturedParams = params;
+        return { rows: mockArticles };
+      });
+
+      const result = await getAllArticles({});
+
+      assert.strictEqual(result.length, 1);
+      assert.strictEqual(result[0].title, 'Test Article');
+      assert.strictEqual(result[0].journal_name, 'Test Journal');
+      assert.deepStrictEqual(capturedParams, [10, 0]);
+    });
+
+    test('Tìm kiếm theo title khi có tham số search', async () => {
+      let capturedSql = null;
+      let capturedParams = null;
+
+      mock.method(pool, 'query', async (sql, params) => {
+        capturedSql = sql;
+        capturedParams = params;
+        return { rows: [] };
+      });
+
+      await getAllArticles({ limit: 5, offset: 10, search: 'cancer' });
+
+      assert.ok(capturedSql.includes('WHERE a."title" ILIKE $1'));
+      assert.ok(capturedSql.includes('LIMIT $2 OFFSET $3'));
+      assert.deepStrictEqual(capturedParams, ['%cancer%', 5, 10]);
+    });
+  });
+
+  // ==========================================
+  // 4. countAllArticles
+  // ==========================================
+  test.describe('countAllArticles()', () => {
+
+    test('Đếm tổng số bài báo khi không có tham số search', async () => {
+      let capturedParams = null;
+      mock.method(pool, 'query', async (sql, params) => {
+        capturedParams = params;
+        return { rows: [{ total: '150' }] };
+      });
+
+      const total = await countAllArticles({});
+
+      assert.strictEqual(total, 150);
+      assert.deepStrictEqual(capturedParams, []);
+    });
+
+    test('Đếm bài báo với tham số search', async () => {
+      let capturedSql = null;
+      let capturedParams = null;
+
+      mock.method(pool, 'query', async (sql, params) => {
+        capturedSql = sql;
+        capturedParams = params;
+        return { rows: [{ total: '5' }] };
+      });
+
+      const total = await countAllArticles({ search: 'machine learning' });
+
+      assert.strictEqual(total, 5);
+      assert.ok(capturedSql.includes('WHERE a."title" ILIKE $1'));
+      assert.deepStrictEqual(capturedParams, ['%machine learning%']);
     });
   });
 });

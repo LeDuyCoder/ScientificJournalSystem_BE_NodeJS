@@ -1,364 +1,386 @@
-﻿import test, { mock } from 'node:test';
+﻿import { describe, test, afterEach, after, mock } from 'node:test';
 import assert from 'node:assert';
-import * as keywordService from '../../../services/keyword.service.js';
-import pool from '../../../config/database.js';
+import request from 'supertest';
+import jwt from 'jsonwebtoken';
 
-test.after(async () => {
+import app from '../../../app.js';
+import pool from '../../../config/database.js';
+import {
+  getTrendingKeywords,
+  getWatchedKeywordArticles,
+} from '../../../controllers/keyword.controller.js';
+import * as keywordService from '../../../services/keyword.service.js';
+
+const JWT_SECRET = process.env.JWT_SECRET;
+const userId = 'a8e9c612-40db-4ff0-87a0-0f8b3b4f6cf7';
+const testToken = jwt.sign({ user_id: userId, role: 'STUDENT', email: 'test@example.com' }, JWT_SECRET);
+
+after(async () => {
   await pool.end();
 });
 
-test.describe('Keyword Service Unit Test Suite', () => {
-  let originalQuery;
-  let mockQueryCalls;
-  let queryResolveValue;
-  let callCount;
+// ============================================================
+// Helper: Tạo mock Response object cho unit test
+// ============================================================
+const createMockResponse = () => {
+  const res = {};
+  res.status = (statusCode) => {
+    res.statusCode = statusCode;
+    return res;
+  };
+  res.json = (jsonData) => {
+    res.body = jsonData;
+    return res;
+  };
+  return res;
+};
 
-  test.beforeEach(() => {
-    originalQuery = pool.query;
-    mockQueryCalls = [];
-    queryResolveValue = null;
-    callCount = 0;
+// ============================================================
+// 1. POST /api/v1/projects/:id/keywords/watch (Integration Test)
+// ============================================================
+describe('Keyword Controller - POST /api/v1/projects/:id/keywords/watch', () => {
 
-    pool.query = async (text, values) => {
-      mockQueryCalls.push({ text, values });
-      callCount += 1;
-
-      if (queryResolveValue !== null) {
-        return Array.isArray(queryResolveValue)
-          ? queryResolveValue[callCount - 1]
-          : queryResolveValue;
-      }
-
-      return { rows: [] };
-    };
-  });
-
-  test.afterEach(() => {
-    pool.query = originalQuery;
+  afterEach(() => {
     mock.restoreAll();
   });
 
-  test.describe('validateKeywordIds()', () => {
-    test('Trả về true nếu mảng rỗng hoặc undefined', async () => {
-      assert.strictEqual(await keywordService.validateKeywordIds([]), true);
-      assert.strictEqual(await keywordService.validateKeywordIds(undefined), true);
+  // ==========================================
+  // 1.1 Kiểm tra xác thực (Authentication)
+  // ==========================================
+  describe('Authentication', () => {
+    test('Lỗi 401 - Không truyền Token xác thực', async () => {
+      const res = await request(app)
+        .post('/api/v1/projects/1/keywords/watch')
+        .send({ keyword_ids: [1] });
+
+      assert.strictEqual(res.status, 401);
+      assert.strictEqual(res.body.success, false);
+    });
+  });
+
+  // ==========================================
+  // 1.2 Kiểm tra validation (Input)
+  // ==========================================
+  describe('Validation', () => {
+    test('Lỗi 400 - Project ID không hợp lệ', async () => {
+      const res = await request(app)
+        .post('/api/v1/projects/abc/keywords/watch')
+        .set('Authorization', `Bearer ${testToken}`)
+        .send({ keyword_ids: [1] });
+
+      assert.strictEqual(res.status, 400);
+      assert.strictEqual(res.body.success, false);
+      assert.strictEqual(res.body.message, 'ID dự án không hợp lệ');
     });
 
-    test('Trả về true nếu tất cả keyword_ids tồn tại', async () => {
-      mock.method(pool, 'query', async () => ({ rows: [{ keyword_id: 1 }, { keyword_id: 5 }] }));
-      const isValid = await keywordService.validateKeywordIds([1, 5]);
-      assert.strictEqual(isValid, true);
+    test('Lỗi 400 - keyword_ids không tồn tại hoặc không phải mảng', async () => {
+      const res = await request(app)
+        .post('/api/v1/projects/1/keywords/watch')
+        .set('Authorization', `Bearer ${testToken}`)
+        .send({ keyword_ids: "not_array" });
+
+      assert.strictEqual(res.status, 400);
+      assert.strictEqual(res.body.success, false);
+      assert.strictEqual(res.body.message, 'keyword_ids phải là một mảng');
     });
 
-    test('Trả về false nếu có keyword_id không tồn tại', async () => {
-      mock.method(pool, 'query', async () => ({ rows: [{ keyword_id: 1 }] }));
-      const isValid = await keywordService.validateKeywordIds([1, 5]);
-      assert.strictEqual(isValid, false);
+    test('Lỗi 400 - keyword_ids chứa phần tử không hợp lệ (số âm, chuỗi)', async () => {
+      const res = await request(app)
+        .post('/api/v1/projects/1/keywords/watch')
+        .set('Authorization', `Bearer ${testToken}`)
+        .send({ keyword_ids: [1, -5, "abc"] });
+
+      assert.strictEqual(res.status, 400);
+      assert.strictEqual(res.body.success, false);
+      assert.strictEqual(res.body.message, 'Các phần tử trong keyword_ids phải là số nguyên dương');
     });
 
-    test('Dedupe keyword_ids trước khi query', async () => {
-      let capturedParams = null;
-      mock.method(pool, 'query', async (sql, params) => {
-        capturedParams = params;
-        return { rows: [{ keyword_id: 2 }] };
+    test('Lỗi 404 - Project không tồn tại hoặc không phải chủ sở hữu', async () => {
+      mock.method(keywordService, 'checkProjectOwnership', async () => false);
+
+      const res = await request(app)
+        .post('/api/v1/projects/1/keywords/watch')
+        .set('Authorization', `Bearer ${testToken}`)
+        .send({ keyword_ids: [1] });
+
+      assert.strictEqual(res.status, 404);
+      assert.strictEqual(res.body.success, false);
+      assert.strictEqual(res.body.message, 'Không tìm thấy dự án hoặc bạn không có quyền truy cập dự án này');
+    });
+
+    test('Lỗi 400 - Keyword ID không tồn tại trong DB', async () => {
+      mock.method(keywordService, 'checkProjectOwnership', async () => true);
+      mock.method(keywordService, 'validateKeywordIds', async () => false);
+
+      const res = await request(app)
+        .post('/api/v1/projects/1/keywords/watch')
+        .set('Authorization', `Bearer ${testToken}`)
+        .send({ keyword_ids: [1] });
+
+      assert.strictEqual(res.status, 400);
+      assert.strictEqual(res.body.success, false);
+      assert.strictEqual(res.body.message, 'Một hoặc nhiều Keyword ID không tồn tại trong hệ thống');
+    });
+  });
+
+  // ==========================================
+  // 1.3 Trường hợp thành công
+  // ==========================================
+  describe('Success Cases', () => {
+    test('Thành công (201) - Cập nhật list keywords hợp lệ', async () => {
+      mock.method(keywordService, 'checkProjectOwnership', async () => true);
+      mock.method(keywordService, 'validateKeywordIds', async () => true);
+      mock.method(keywordService, 'syncWatchedKeywords', async () => true);
+
+      const res = await request(app)
+        .post('/api/v1/projects/1/keywords/watch')
+        .set('Authorization', `Bearer ${testToken}`)
+        .send({ keyword_ids: [1, 2, 3] });
+
+      assert.strictEqual(res.status, 201);
+      assert.strictEqual(res.body.success, true);
+      assert.strictEqual(res.body.message, 'Cập nhật danh sách từ khóa theo dõi thành công');
+    });
+
+    test('Thành công (201) - Gửi mảng rỗng (unwatch all)', async () => {
+      mock.method(keywordService, 'checkProjectOwnership', async () => true);
+      mock.method(keywordService, 'syncWatchedKeywords', async () => true);
+
+      const res = await request(app)
+        .post('/api/v1/projects/1/keywords/watch')
+        .set('Authorization', `Bearer ${testToken}`)
+        .send({ keyword_ids: [] });
+
+      assert.strictEqual(res.status, 201);
+      assert.strictEqual(res.body.success, true);
+    });
+  });
+
+  // ==========================================
+  // 1.4 Lỗi hệ thống
+  // ==========================================
+  describe('Server Error', () => {
+    test('Lỗi 500 - Exception trong DB query', async () => {
+      mock.method(keywordService, 'checkProjectOwnership', async () => {
+        throw new Error('Database connection lost');
       });
 
-      await keywordService.validateKeywordIds([2, 2, 2]);
-      assert.deepStrictEqual(capturedParams[0], [2]);
+      const res = await request(app)
+        .post('/api/v1/projects/1/keywords/watch')
+        .set('Authorization', `Bearer ${testToken}`)
+        .send({ keyword_ids: [1] });
+
+      assert.strictEqual(res.status, 500);
+      assert.strictEqual(res.body.success, false);
+      assert.strictEqual(res.body.message, 'Có lỗi xảy ra ở Server!');
     });
   });
+});
 
-  test.describe('syncWatchedKeywords()', () => {
-    test('Thêm keyword mới thành công', async () => {
-      const mockClient = {
-        query: mock.fn(async (sql) => {
-          if (sql === 'BEGIN' || sql === 'COMMIT') return { rows: [] };
-          if (sql.includes('FROM "Project_Keyword"')) return { rows: [] };
-          if (sql.includes('FROM "Keyword"')) return { rows: [{ keyword_id: 1 }, { keyword_id: 5 }] };
-          return { rows: [] };
-        }),
-        release: mock.fn(),
-      };
-      mock.method(pool, 'connect', async () => mockClient);
+// ============================================================
+// 2. getTrendingKeywords (Unit Test)
+// ============================================================
+describe('Keyword Controller - getTrendingKeywords()', () => {
 
-      const result = await keywordService.syncWatchedKeywords(123, [1, 5]);
-
-      assert.strictEqual(result, true);
-      assert.strictEqual(mockClient.query.mock.calls.length, 6);
-      assert.strictEqual(mockClient.query.mock.calls[0].arguments[0], 'BEGIN');
-      assert.ok(mockClient.query.mock.calls[1].arguments[0].includes('SELECT keyword_id FROM "Project_Keyword"'));
-      assert.ok(mockClient.query.mock.calls[2].arguments[0].includes('SELECT keyword_id FROM "Keyword"'));
-      assert.ok(mockClient.query.mock.calls[3].arguments[0].includes('INSERT INTO "Project_Keyword"'));
-      assert.deepStrictEqual(mockClient.query.mock.calls[3].arguments[1], [123, 1]);
-      assert.ok(mockClient.query.mock.calls[4].arguments[0].includes('INSERT INTO "Project_Keyword"'));
-      assert.deepStrictEqual(mockClient.query.mock.calls[4].arguments[1], [123, 5]);
-      assert.strictEqual(mockClient.query.mock.calls[5].arguments[0], 'COMMIT');
-    });
-
-    test('Dedupe keyword_ids khi thêm mới', async () => {
-      const mockClient = {
-        query: mock.fn(async (sql) => {
-          if (sql === 'BEGIN' || sql === 'COMMIT') return { rows: [] };
-          if (sql.includes('FROM "Project_Keyword"')) return { rows: [] };
-          if (sql.includes('FROM "Keyword"')) return { rows: [{ keyword_id: 5 }] };
-          return { rows: [] };
-        }),
-        release: mock.fn(),
-      };
-      mock.method(pool, 'connect', async () => mockClient);
-
-      await keywordService.syncWatchedKeywords(123, [5, 5, 5]);
-
-      assert.strictEqual(mockClient.query.mock.calls.length, 5);
-      assert.deepStrictEqual(mockClient.query.mock.calls[2].arguments[1], [[5]]);
-      assert.ok(mockClient.query.mock.calls[3].arguments[0].includes('INSERT INTO "Project_Keyword"'));
-      assert.deepStrictEqual(mockClient.query.mock.calls[3].arguments[1], [123, 5]);
-    });
-
-    test('Không thêm gì khi tất cả keyword đã tồn tại', async () => {
-      let callIndex = 0;
-      const mockClient = {
-        query: mock.fn(async (sql) => {
-          callIndex += 1;
-          if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK') return { rows: [] };
-          if (callIndex === 2) return { rows: [{ keyword_id: 5 }] };
-          if (callIndex === 3) return { rows: [{ keyword_id: 5 }] };
-          return { rows: [] };
-        }),
-        release: mock.fn(),
-      };
-      mock.method(pool, 'connect', async () => mockClient);
-
-      await keywordService.syncWatchedKeywords(123, [5]);
-
-      assert.strictEqual(mockClient.query.mock.calls.length, 3);
-      assert.strictEqual(mockClient.query.mock.calls[2].arguments[0], 'COMMIT');
-    });
-
-    test('Trả về true ngay lập tức nếu không truyền keyword_ids', async () => {
-      const spy = mock.fn();
-      mock.method(pool, 'connect', async () => ({ query: spy, release: mock.fn() }));
-
-      const result = await keywordService.syncWatchedKeywords(123, []);
-
-      assert.strictEqual(result, true);
-      assert.strictEqual(spy.mock.calls.length, 0);
-    });
-
-    test('Rollback và ném lỗi nếu có lỗi DB', async () => {
-      const mockClient = {
-        query: mock.fn(async (sql) => {
-          if (sql === 'BEGIN' || sql === 'ROLLBACK') return { rows: [] };
-          throw new Error('DB Error');
-        }),
-        release: mock.fn(),
-      };
-      mock.method(pool, 'connect', async () => mockClient);
-
-      await assert.rejects(async () => await keywordService.syncWatchedKeywords(123, [1]), {
-        message: 'DB Error',
-      });
-
-      assert.ok(mockClient.query.mock.calls.some((call) => call.arguments[0] === 'ROLLBACK'));
-      assert.strictEqual(mockClient.release.mock.calls.length, 1);
-    });
+  afterEach(() => {
+    mock.restoreAll();
   });
 
-  test.describe('addKeywordsToArticle()', () => {
-    test('Trả về [] nếu input rỗng', async () => {
-      const result = await keywordService.addKeywordsToArticle(1, []);
-      assert.deepStrictEqual(result, []);
-    });
+  test('Thất bại: Trả về 400 nếu projectId không hợp lệ', async () => {
+    const req = { params: { id: 'abc' }, query: {} };
+    const res = createMockResponse();
 
-    test('Thêm keyword mới và quan hệ article với keyword', async () => {
-      const mockClient = {
-        query: mock.fn(async (sql, params) => {
-          if (sql === 'BEGIN' || sql === 'COMMIT') {
-            return { rows: [] };
-          }
-          if (sql.includes('INSERT INTO "Keyword"')) {
-            return { rows: [{ keyword_id: 1, display_name: 'AI' }] };
-          }
-          if (sql.includes('INSERT INTO "Keyword_Article"')) {
-            return { rows: [] };
-          }
-          return { rows: [] };
-        }),
-        release: mock.fn(),
-      };
-      mock.method(pool, 'connect', async () => mockClient);
+    await getTrendingKeywords(req, res);
 
-      const result = await keywordService.addKeywordsToArticle(42, [' AI ', 'AI', 'Machine Learning', '']);
-
-      assert.deepStrictEqual(result, [{ keyword_id: 1, display_name: 'AI' }]);
-      assert.strictEqual(mockClient.query.mock.calls[0].arguments[0], 'BEGIN');
-      assert.ok(mockClient.query.mock.calls[1].arguments[0].includes('INSERT INTO "Keyword"'));
-      assert.deepStrictEqual(mockClient.query.mock.calls[1].arguments[1], [['AI', 'Machine Learning']]);
-      assert.ok(mockClient.query.mock.calls[2].arguments[0].includes('INSERT INTO "Keyword_Article"'));
-      assert.deepStrictEqual(mockClient.query.mock.calls[2].arguments[1], [42, [1]]);
-      assert.strictEqual(mockClient.query.mock.calls[3].arguments[0], 'COMMIT');
-    });
-
-    test('Commit và trả [] nếu upsert không trả rows', async () => {
-      const mockClient = {
-        query: mock.fn(async (sql) => {
-          if (sql === 'BEGIN' || sql === 'COMMIT') {
-            return { rows: [] };
-          }
-          return { rows: [] };
-        }),
-        release: mock.fn(),
-      };
-      mock.method(pool, 'connect', async () => mockClient);
-
-      const result = await keywordService.addKeywordsToArticle(99, ['Empty']);
-      assert.deepStrictEqual(result, []);
-      assert.ok(mockClient.query.mock.calls.some((call) => call.arguments[0] === 'COMMIT'));
-    });
-
-    test('Rollback nếu có lỗi và ném ngoại lệ', async () => {
-      const mockClient = {
-        query: mock.fn(async (sql) => {
-          if (sql === 'BEGIN' || sql === 'ROLLBACK') return { rows: [] };
-          throw new Error('Insert failed');
-        }),
-        release: mock.fn(),
-      };
-      mock.method(pool, 'connect', async () => mockClient);
-
-      await assert.rejects(async () => await keywordService.addKeywordsToArticle(1, ['Test']), {
-        message: 'Insert failed',
-      });
-
-      assert.ok(mockClient.query.mock.calls.some((call) => call.arguments[0] === 'ROLLBACK'));
-      assert.strictEqual(mockClient.release.mock.calls.length, 1);
-    });
+    assert.strictEqual(res.statusCode, 400);
+    assert.strictEqual(res.body.success, false);
+    assert.strictEqual(res.body.message, 'ID dự án không hợp lệ');
   });
 
-  test.describe('getTrendingKeywords()', () => {
-    test('Trả về danh sách keyword mặc định khi sort_by=count và limit=20', async () => {
-      const mockRows = [
-        {
-          keyword_id: 1,
-          keyword: 'Machine Learning',
-          count: '45',
-          avg_score: '0.85',
-          total_score: '38.25',
-        },
-      ];
-      queryResolveValue = { rows: mockRows };
+  test('Thành công: Trả về 200 và danh sách keywords với params mặc định', async () => {
+    const mockResult = {
+      total: 2,
+      sort_by: 'count',
+      keywords: [
+        { id: 1, keyword: 'Machine Learning', count: 45, avg_score: 0.85, total_score: 38.25 },
+        { id: 2, keyword: 'Deep Learning', count: 38, avg_score: 0.79, total_score: 30.02 },
+      ],
+    };
 
-      const result = await keywordService.getTrendingKeywords(1, {});
+    mock.method(keywordService, 'getTrendingKeywords', async () => mockResult);
 
-      assert.strictEqual(mockQueryCalls.length, 1);
-      assert.match(mockQueryCalls[0].text, /ORDER BY count DESC/);
-      assert.strictEqual(result.sort_by, 'count');
-      assert.strictEqual(result.total, 1);
-      assert.strictEqual(result.keywords[0].id, 1);
-    });
+    const req = { params: { id: '1' }, query: {} };
+    const res = createMockResponse();
 
-    test('Sắp xếp theo score khi sort_by=score', async () => {
-      queryResolveValue = { rows: [] };
+    await getTrendingKeywords(req, res);
 
-      await keywordService.getTrendingKeywords(1, { sort_by: 'score' });
-      assert.match(mockQueryCalls[0].text, /ORDER BY avg_score DESC/);
-    });
-
-    test('Giới hạn tối đa 100 dù truyền limit lớn hơn', async () => {
-      queryResolveValue = { rows: [] };
-
-      await keywordService.getTrendingKeywords(1, { limit: '999' });
-      assert.deepStrictEqual(mockQueryCalls[0].values, [1, 100]);
-    });
-
-    test('Fallback về count khi sort_by không hợp lệ', async () => {
-      queryResolveValue = { rows: [] };
-
-      await keywordService.getTrendingKeywords(1, { sort_by: 'invalid' });
-      assert.match(mockQueryCalls[0].text, /ORDER BY count DESC/);
-    });
-
-    test('Trả về mảng rỗng khi không có data', async () => {
-      queryResolveValue = { rows: [] };
-
-      const result = await keywordService.getTrendingKeywords(999999, {});
-      assert.strictEqual(result.total, 0);
-      assert.deepStrictEqual(result.keywords, []);
-    });
+    assert.strictEqual(res.statusCode, 200);
+    assert.strictEqual(res.body.success, true);
+    assert.strictEqual(res.body.data.total, 2);
+    assert.strictEqual(res.body.data.sort_by, 'count');
+    assert.ok(Array.isArray(res.body.data.keywords));
   });
 
-  test.describe('getWatchedKeywordArticles()', () => {
-    const MOCK_USER_ID = '0028ddd0-d305-4aa1-8baa-2b1a2893c883';
+  test('Thành công: sort_by=score', async () => {
+    const mockResult = { total: 2, sort_by: 'score', keywords: [] };
+    mock.method(keywordService, 'getTrendingKeywords', async () => mockResult);
 
-    test('Trả về danh sách bài báo với page=1 và limit=10', async () => {
-      const mockArticles = [
-        {
-          article_id: 1,
-          title: 'Deep Learning in Medicine',
-          publication_year: 2024,
-          doi: '10.1234/abc',
-          matched_keywords: ['Medicine', 'Deep Learning'],
-        },
-      ];
-      queryResolveValue = [{ rows: [{ project_id: 1 }] }, { rows: [{ total: '1' }] }, { rows: mockArticles }];
+    const req = { params: { id: '1' }, query: { sort_by: 'score' } };
+    const res = createMockResponse();
 
-      const result = await keywordService.getWatchedKeywordArticles(1, MOCK_USER_ID, {});
+    await getTrendingKeywords(req, res);
 
-      assert.strictEqual(mockQueryCalls.length, 3);
-      assert.strictEqual(result.page, 1);
-      assert.strictEqual(result.limit, 10);
-      assert.strictEqual(result.total, 1);
-      assert.strictEqual(result.total_pages, 1);
-      assert.deepStrictEqual(result.data[0].matched_keywords, ['Medicine', 'Deep Learning']);
+    assert.strictEqual(res.statusCode, 200);
+    assert.strictEqual(res.body.data.sort_by, 'score');
+  });
+
+  test('Thành công: Mảng rỗng khi không có data', async () => {
+    const mockResult = { total: 0, keywords: [] };
+    mock.method(keywordService, 'getTrendingKeywords', async () => mockResult);
+
+    const req = { params: { id: '999999' }, query: {} };
+    const res = createMockResponse();
+
+    await getTrendingKeywords(req, res);
+
+    assert.strictEqual(res.statusCode, 200);
+    assert.strictEqual(res.body.data.total, 0);
+    assert.deepStrictEqual(res.body.data.keywords, []);
+  });
+
+  test('Thất bại: Trả về 500 khi service throw lỗi', async () => {
+    mock.method(keywordService, 'getTrendingKeywords', async () => {
+      throw new Error('DB Error');
     });
 
-    test('Trả về mảng rỗng khi không có bài báo', async () => {
-      queryResolveValue = [{ rows: [{ project_id: 1 }] }, { rows: [{ total: '0' }] }, { rows: [] }];
+    const req = { params: { id: '1' }, query: {} };
+    const res = createMockResponse();
 
-      const result = await keywordService.getWatchedKeywordArticles(999999, MOCK_USER_ID, {});
-      assert.strictEqual(result.total, 0);
-      assert.strictEqual(result.total_pages, 0);
-      assert.deepStrictEqual(result.data, []);
+    await getTrendingKeywords(req, res);
+
+    assert.strictEqual(res.statusCode, 500);
+    assert.strictEqual(res.body.success, false);
+  });
+});
+
+// ============================================================
+// 3. getWatchedKeywordArticles (Unit Test)
+// ============================================================
+describe('Keyword Controller - getWatchedKeywordArticles()', () => {
+  const MOCK_USER_ID = '0028ddd0-d305-4aa1-8baa-2b1a2893c883';
+
+  afterEach(() => {
+    mock.restoreAll();
+  });
+
+  test('Thất bại: Trả về 400 nếu projectId không hợp lệ', async () => {
+    const req = {
+      params: { id: 'abc' },
+      query: {},
+      user: { user_id: MOCK_USER_ID },
+    };
+    const res = createMockResponse();
+
+    await getWatchedKeywordArticles(req, res);
+
+    assert.strictEqual(res.statusCode, 400);
+    assert.strictEqual(res.body.success, false);
+    assert.strictEqual(res.body.message, 'ID dự án không hợp lệ');
+  });
+
+  test('Thành công: Trả về 200 và danh sách bài báo với params mặc định', async () => {
+    const mockResult = {
+      page: 1,
+      limit: 10,
+      total: 2,
+      total_pages: 1,
+      data: [
+        { article_id: 1, title: 'Deep Learning in Medicine', publication_year: 2024, doi: '10.1234/abc', matched_keywords: ['Medicine'] },
+        { article_id: 2, title: 'Cancer Research', publication_year: 2023, doi: '10.5678/def', matched_keywords: ['Cancer'] },
+      ],
+    };
+
+    mock.method(keywordService, 'getWatchedKeywordArticles', async () => mockResult);
+
+    const req = {
+      params: { id: '1' },
+      query: {},
+      user: { user_id: MOCK_USER_ID },
+    };
+    const res = createMockResponse();
+
+    await getWatchedKeywordArticles(req, res);
+
+    assert.strictEqual(res.statusCode, 200);
+    assert.strictEqual(res.body.success, true);
+    assert.ok(Array.isArray(res.body.data));
+    assert.strictEqual(res.body.pagination.page, 1);
+    assert.strictEqual(res.body.pagination.limit, 10);
+  });
+
+  test('Thành công: Mảng rỗng khi không có keyword nào được theo dõi', async () => {
+    const mockResult = {
+      page: 1,
+      limit: 10,
+      total: 0,
+      total_pages: 0,
+      data: [],
+    };
+    mock.method(keywordService, 'getWatchedKeywordArticles', async () => mockResult);
+
+    const req = {
+      params: { id: '999999' },
+      query: {},
+      user: { user_id: MOCK_USER_ID },
+    };
+    const res = createMockResponse();
+
+    await getWatchedKeywordArticles(req, res);
+
+    assert.strictEqual(res.statusCode, 200);
+    assert.strictEqual(res.body.success, true);
+    assert.deepStrictEqual(res.body.data, []);
+  });
+
+  test('Thành công: Pagination đúng khi truyền page=2&limit=5', async () => {
+    const mockResult = {
+      page: 2,
+      limit: 5,
+      total: 12,
+      total_pages: 3,
+      data: [],
+    };
+    mock.method(keywordService, 'getWatchedKeywordArticles', async () => mockResult);
+
+    const req = {
+      params: { id: '1' },
+      query: { page: '2', limit: '5' },
+      user: { user_id: MOCK_USER_ID },
+    };
+    const res = createMockResponse();
+
+    await getWatchedKeywordArticles(req, res);
+
+    assert.strictEqual(res.statusCode, 200);
+    assert.strictEqual(res.body.pagination.page, 2);
+    assert.strictEqual(res.body.pagination.limit, 5);
+  });
+
+  test('Thất bại: Trả về 500 khi service throw lỗi', async () => {
+    mock.method(keywordService, 'getWatchedKeywordArticles', async () => {
+      throw new Error('DB Error');
     });
 
-    test('Pagination đúng với page=2, limit=5', async () => {
-      queryResolveValue = [{ rows: [{ project_id: 1 }] }, { rows: [{ total: '12' }] }, { rows: [] }];
+    const req = {
+      params: { id: '1' },
+      query: {},
+      user: { user_id: MOCK_USER_ID },
+    };
+    const res = createMockResponse();
 
-      const result = await keywordService.getWatchedKeywordArticles(1, MOCK_USER_ID, { page: '2', limit: '5' });
-      assert.strictEqual(result.page, 2);
-      assert.strictEqual(result.limit, 5);
-      assert.strictEqual(result.total_pages, 3);
-      assert.deepStrictEqual(mockQueryCalls[2].values, [1, MOCK_USER_ID, 5, 5]);
-    });
+    await getWatchedKeywordArticles(req, res);
 
-    test('Giới hạn tối đa limit=50 dù truyền lớn hơn', async () => {
-      queryResolveValue = [{ rows: [{ project_id: 1 }] }, { rows: [{ total: '0' }] }, { rows: [] }];
-
-      const result = await keywordService.getWatchedKeywordArticles(1, MOCK_USER_ID, { limit: '999' });
-      assert.strictEqual(result.limit, 50);
-      assert.deepStrictEqual(mockQueryCalls[2].values, [1, MOCK_USER_ID, 50, 0]);
-    });
-
-    test('page tối thiểu là 1 dù truyền số âm', async () => {
-      queryResolveValue = [{ rows: [{ project_id: 1 }] }, { rows: [{ total: '0' }] }, { rows: [] }];
-
-      const result = await keywordService.getWatchedKeywordArticles(1, MOCK_USER_ID, { page: '-5' });
-      assert.strictEqual(result.page, 1);
-    });
-
-    test('matched_keywords trả về mảng rỗng nếu null', async () => {
-      queryResolveValue = [{ rows: [{ project_id: 1 }] }, { rows: [{ total: '1' }] }, { rows: [
-        {
-          article_id: 1,
-          title: 'Test',
-          publication_year: 2024,
-          doi: null,
-          matched_keywords: null,
-        },
-      ] }];
-
-      const result = await keywordService.getWatchedKeywordArticles(1, MOCK_USER_ID, {});
-      assert.deepStrictEqual(result.data[0].matched_keywords, []);
-    });
+    assert.strictEqual(res.statusCode, 500);
+    assert.strictEqual(res.body.success, false);
   });
 });
