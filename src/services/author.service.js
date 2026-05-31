@@ -153,3 +153,84 @@ export const getAuthorLeaderboardService = async (limit, page) => {
         throw error;
     }
 }
+
+export const isAuthorExists = async (authorId) => {
+    try {
+        const queryText = `SELECT 1 FROM "Author" WHERE "author_id" = $1`;
+        const res = await pool.query(queryText, [authorId]);
+        return res.rowCount > 0;
+    } catch (error) {
+        logger.error('Lỗi khi kiểm tra tồn tại của tác giả:', error);
+        throw error;
+    }
+}
+
+export const checkAuthorsExistence = async (authorIds) => {
+    try {
+        if (!authorIds || authorIds.length === 0) {
+            return [];
+        }
+
+        const queryText = `
+            SELECT author_id
+            FROM "Author"
+            WHERE author_id = ANY($1)
+        `;
+
+        const result = await pool.query(queryText, [authorIds]);
+
+        const existingAuthorIds = result.rows.map(
+            row => Number(row.author_id)
+        );
+
+        const normalizedAuthorIds = authorIds.map(
+            id => Number(id)
+        );
+
+        const nonExistingAuthorIds = normalizedAuthorIds.filter(
+            id => !existingAuthorIds.includes(id)
+        );
+
+        logger.info(
+            `Kiểm tra tồn tại của tác giả: ${normalizedAuthorIds.length} ID được kiểm tra, ${existingAuthorIds.length} tồn tại, ${nonExistingAuthorIds.length} không tồn tại.`
+        );
+
+        return nonExistingAuthorIds;
+
+    } catch (error) {
+        logger.error('Lỗi khi kiểm tra tồn tại của các tác giả:', error);
+        throw error;
+    }
+};
+
+export const createAuthorArticleRelationships = async (articleId, authorIds) => {
+    try {
+        if (!authorIds || authorIds.length === 0) {
+            return;
+        }
+        
+        // Loại bỏ trùng lặp và chuyển thành Number gọn gàng hơn với Set
+        const uniqueAuthorIds = [
+            ...new Set(authorIds.map(id => Number(id)))
+        ];
+
+        const query = `
+            INSERT INTO "Author_Article" (article_id, author_id)
+            SELECT $1, unnest($2::bigint[])
+            ON CONFLICT DO NOTHING
+        `;
+
+        await pool.query(query, [articleId, uniqueAuthorIds]);
+
+        logger.info(
+            `Đã tạo ${uniqueAuthorIds.length} quan hệ tác giả - bài báo`
+        );
+
+    } catch (error) {
+        logger.error(
+            'Lỗi khi tạo quan hệ tác giả - bài báo:',
+            error
+        );
+        throw error;
+    }
+};

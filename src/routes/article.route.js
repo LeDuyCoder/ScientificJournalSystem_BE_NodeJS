@@ -1,6 +1,6 @@
 import express from 'express';
 import { requireAuth } from '../middlewares/auth.middleware.js';
-import { getArticle, getArticleById, getArticlesByKeywords } from '../controllers/article.controller.js';
+import { createArticle, getArticle, getArticleById, getArticlesByKeywords } from '../controllers/article.controller.js';
 
 const router = express.Router();
 
@@ -107,8 +107,8 @@ router.get('/', requireAuth, getArticle);
  * @swagger
  * /api/v1/articles/{id}:
  *   get:
- *     summary: Get details article by id
- *     description: Get detailed information of an article by its `article_id`
+ *     summary: Lấy chi tiết bài báo theo ID
+ *     description: Lấy thông tin chi tiết của 1 bài báo theo `article_id`
  *     tags:
  *       - Article
  *     security:
@@ -157,5 +157,90 @@ router.get('/', requireAuth, getArticle);
  *         description: Lỗi server
  */
 router.get('/:id', requireAuth, getArticleById);
+
+/**
+ * @swagger
+ * /api/v1/articles:
+ *   post:
+ *     summary: Tạo mới một bài báo
+ *     description: Tạo một bài báo mới trong hệ thống. Yêu cầu dữ liệu bài báo, danh sách tác giả và từ khóa nếu có.
+ *     tags:
+ *       - Article
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               title:
+ *                 type: string
+ *               abstract:
+ *                 type: string
+ *               publication_year:
+ *                 type: integer
+ *               issue_id:
+ *                 type: integer
+ *               doi:
+ *                 type: string
+ *               primary_topic:
+ *                 type: string
+ *               sub_topic:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *               authors:
+ *                 type: array
+ *                 items:
+ *                   type: integer
+ *               keywords:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *             required:
+ *               - title
+ *               - publication_year
+ *               - issue_id
+ *             example:
+ *               title: "string"
+ *               abstract: "string"
+ *               publication_year: 0
+ *               issue_id: 1
+ *               doi: "string"
+ *               primary_topic: "string"
+ *               sub_topic: []
+ *               authors: 
+ *                 - "String ids of authors"
+ *               keywords:
+ *                 - "string names of keywords"
+ *     responses:
+ *       201:
+ *         description: Đã tạo bài báo thành công
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     article_id:
+ *                       type: integer
+ *                     title:
+ *                       type: string
+ *                     doi:
+ *                       type: string
+ *       400:
+ *         description: Dữ liệu không hợp lệ
+ *       401:
+ *         description: Chưa xác thực hoặc token không hợp lệ
+ *       500:
+ *         description: Lỗi server
+ */
+router.post('/', requireAuth, createArticle);
 
 export default router;

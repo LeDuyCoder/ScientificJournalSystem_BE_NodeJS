@@ -129,3 +129,53 @@ export const getArticleById = async (articleId) => {
         throw error;
     }
 }
+
+export const createArticle = async (articleData) => {
+    try {
+        const {
+            version = null,
+            issue_id = null,
+            title,            // Bắt buộc (NOT NULL trong schema)
+            abstract = null,
+            publication_year, // Bắt buộc (NOT NULL trong schema)
+            doi = null,
+            primary_topic = null
+        } = articleData;
+
+        // Kiểm tra nhanh các trường bắt buộc ở tầng ứng dụng
+        if (!title || publication_year === undefined) {
+            throw new Error('Title and publication_year are required fields.');
+        }
+
+        const query = `
+            INSERT INTO "Article" (
+                version, 
+                issue_id, 
+                title, 
+                abstract, 
+                publication_year, 
+                doi, 
+                primary_topic
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            RETURNING *; -- Trả về toàn bộ thông tin dòng vừa tạo (bao gồm cả article_id và created_at)
+        `;
+
+        const values = [
+            version,
+            issue_id,
+            title,
+            abstract,
+            publication_year,
+            doi,
+            primary_topic
+        ];
+
+        const result = await pool.query(query, values);
+        return result.rows[0]; // Trả về object article vừa tạo
+
+    } catch (error) {
+        logger.error('Error creating article:', error);
+        throw error;
+    }
+};

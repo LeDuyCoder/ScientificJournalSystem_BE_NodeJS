@@ -212,3 +212,58 @@ export const checkProjectOwnership = async (projectId, userId) => {
   );
   return result.rows.length > 0;
 };
+
+
+export const addKeywordsToArticle = async (articleId, keywordNames) => {
+    // 1. Kiểm tra đầu vào và tối ưu hóa mảng ở tầng JS
+    if (!keywordNames || keywordNames.length === 0) {
+        return [];
+    }
+
+    const uniqueKeywordNames = [
+        ...new Set(keywordNames.map(name => name.trim()).filter(Boolean))
+    ];
+
+    const client = await pool.connect();
+
+    try {
+        await client.query('BEGIN');
+
+        const upsertKeywordsQuery = `
+          INSERT INTO "Keyword" (display_name)
+          SELECT unnest($1::text[])
+          ON CONFLICT (display_name) -- Sửa từ LOWER(display_name) thành display_name
+          DO UPDATE SET display_name = EXCLUDED.display_name
+          RETURNING keyword_id, display_name;
+      `;
+
+
+        const keywordResult = await client.query(upsertKeywordsQuery, [uniqueKeywordNames]);
+        const allKeywords = keywordResult.rows;
+
+        if (allKeywords.length === 0) {
+            await client.query('COMMIT');
+            return [];
+        }
+
+        const keywordIds = allKeywords.map(k => k.keyword_id);
+
+        const insertRelationsQuery = `
+            INSERT INTO "Keyword_Article" (article_id, keyword_id)
+            SELECT $1, unnest($2::integer[])
+            ON CONFLICT DO NOTHING;
+        `;
+
+        await client.query(insertRelationsQuery, [articleId, keywordIds]);
+
+        await client.query('COMMIT');
+        return allKeywords;
+
+    } catch (error) {
+        await client.query('ROLLBACK');
+        logger.error('Error adding keywords to article:', error);
+        throw error;
+    } finally {
+        client.release();
+    }
+};

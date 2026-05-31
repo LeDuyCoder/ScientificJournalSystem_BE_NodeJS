@@ -65,3 +65,47 @@ export const countArticlesByTopicId = async (topicId) => {
     const result = await pool.query(query, [topicId]);
     return parseInt(result.rows[0].total);
 };
+
+export const createSubTopicArticleRelationships = async (articleId, topicIds, primaryTopicId) => {
+    try {
+        // 1. Kiểm tra đầu vào, nếu mảng rỗng thì thoát sớm
+        if (!topicIds || topicIds.length === 0) {
+            return;
+        }
+
+        const targetPrimaryId = primaryTopicId ? Number(primaryTopicId) : null;
+
+        const uniqueTopicIds = [
+            ...new Set(
+                topicIds
+                    .map(id => Number(id))
+                    .filter(id => id !== targetPrimaryId)
+            )
+        ];
+
+        if (uniqueTopicIds.length === 0) {
+            logger.info('Không có chủ đề phụ nào hợp lệ để thêm (hoặc đã bị trùng với Chủ đề chính).');
+            return;
+        }
+
+        const query = `
+            INSERT INTO "Sub_Topic" (article_id, topic_id)
+            SELECT $1, unnest($2::bigint[])
+            ON CONFLICT DO NOTHING
+        `;
+
+    
+        await pool.query(query, [articleId, uniqueTopicIds]);
+
+        logger.info(
+            `Đã tạo ${uniqueTopicIds.length} quan hệ chủ đề phụ - bài báo`
+        );
+
+    } catch (error) {
+        logger.error(
+            'Lỗi khi tạo quan hệ chủ đề phụ - bài báo:',
+            error
+        );
+        throw error;
+    }
+};

@@ -1,4 +1,7 @@
 import * as articleService from '../services/article.service.js';
+import { checkAuthorsExistence, createAuthorArticleRelationships } from '../services/author.service.js';
+import { addKeywordsToArticle } from '../services/keyword.service.js';
+import { createSubTopicArticleRelationships } from '../services/topic.service.js';
 import logger from '../utils/logger.js';
 
 /**
@@ -159,3 +162,165 @@ export const getArticleById = async (req, res) => {
         });
     }
 }
+
+export const createArticle = async (req, res) => {
+    const {
+        title,
+        publication_year,
+        version,
+        issue_id,
+        abstract,
+        doi,
+        primary_topic,
+        sub_topic,
+        authors,
+        keywords
+    } = req.body;
+
+    if (!title || title.trim() === '') {
+        return res.status(400).json({
+            success: false,
+            message: 'Title is required'
+        });
+    }
+
+    if (publication_year === undefined || publication_year === null) {
+        return res.status(400).json({
+            success: false,
+            message: 'Publication year is required'
+        });
+    }
+
+    if (typeof publication_year !== 'number') {
+        return res.status(400).json({
+            success: false,
+            message: 'Publication year must be a number'
+        });
+    }
+
+    if (issue_id !== undefined && issue_id !== null && typeof issue_id !== 'number') {
+        return res.status(400).json({
+            success: false,
+            message: 'Issue ID must be a number'
+        });
+    }
+
+    if (
+        primary_topic !== undefined &&
+        primary_topic !== null &&
+        typeof primary_topic !== 'number'
+    ) {
+        return res.status(400).json({
+            success: false,
+            message: 'Primary topic must be a number'
+        });
+    }
+
+    if (authors !== undefined && !Array.isArray(authors)) {
+        return res.status(400).json({
+            success: false,
+            message: 'Authors must be an array of author IDs'
+        });
+    }
+
+    if (Array.isArray(authors) && !authors.every(id => Number.isInteger(id))) {
+        return res.status(400).json({
+            success: false,
+            message: 'Each author ID must be an integer'
+        });
+    }
+
+    if (keywords !== undefined && !Array.isArray(keywords)) {
+        return res.status(400).json({
+            success: false,
+            message: 'Keywords must be an array of strings'
+        });
+    }
+
+    if (Array.isArray(keywords) && !keywords.every(kw => typeof kw === 'string')) {
+        return res.status(400).json({
+            success: false,
+            message: 'Each keyword must be a string'
+        });
+    }
+
+    if (sub_topic !== undefined && !Array.isArray(sub_topic)) {
+        return res.status(400).json({
+            success: false,
+            message: 'Sub_topic must be an array of strings or IDs'
+        });
+    }
+
+    if (Array.isArray(sub_topic) && !sub_topic.every(item => typeof item === 'string' || Number.isInteger(item))) {
+        return res.status(400).json({
+            success: false,
+            message: 'Each sub_topic item must be a string or integer'
+        });
+    }
+
+    try {
+        // const newArticle = await articleService.createArticle({
+        //     title,
+        //     publication_year,
+        //     version,
+        //     issue_id,
+        //     abstract,
+        //     doi,
+        //     primary_topic,
+        //     sub_topic,
+        //     authors,
+        //     keywords
+        // });
+        // return res.status(201).json({
+        //     success: true,
+        //     message: "Bài báo đã được tạo thành công!",
+        //     data: newArticle
+        // });
+        
+        if(authors && authors.length > 0) {
+            const authorIdsNotExist = await checkAuthorsExistence(authors);
+            if (authorIdsNotExist.length > 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Các tác giả với ID sau không tồn tại: ${authorIdsNotExist.join(', ')}`
+                });
+            }
+        }
+
+        const newArticle = await articleService.createArticle({
+            version,
+            issue_id,
+            title,
+            abstract,
+            publication_year,
+            doi,
+            primary_topic: primary_topic == 0 ? null : primary_topic
+        })
+
+        await createAuthorArticleRelationships(newArticle.article_id, authors || []);
+        await createSubTopicArticleRelationships(newArticle.article_id, sub_topic || [], primary_topic == 0 ? null : primary_topic);
+
+        if(keywords && keywords.length > 0) {
+            await addKeywordsToArticle(newArticle.article_id, keywords);
+        }
+
+        return res.status(201).json({
+            success: true,
+            message: "Bài báo đã được tạo thành công!",
+            data: newArticle
+        });
+
+    } catch (error) {
+        logger.error('Lỗi khi validate dữ liệu tạo bài báo:', error);
+        if (error.statusCode === 400) {
+            return res.status(400).json({
+                success: false,
+                message: error.message
+            });
+        }
+        return res.status(500).json({
+            success: false,
+            message: "Có lỗi xảy ra ở Server!"
+        });
+    }
+};
