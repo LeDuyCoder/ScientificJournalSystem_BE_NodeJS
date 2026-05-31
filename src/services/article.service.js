@@ -9,6 +9,13 @@ import logger from '../utils/logger.js';
  * @param {number} offset - Vị trí bắt đầu (dùng cho phân trang)
  * @returns {Array} Danh sách bài báo kèm keyword matched
  */
+/**
+ * Get Articles By Keywords.
+ * @param {any} keywords
+ * @param {any} limit
+ * @param {any} offset
+ * @returns {Promise<any>}
+ */
 export const getArticlesByKeywords = async (keywords, limit = 20, offset = 0) => {
     const keywordPlaceholders = keywords
         .map((_, index) => `$${index + 3}`)
@@ -36,6 +43,11 @@ export const getArticlesByKeywords = async (keywords, limit = 20, offset = 0) =>
     return result.rows;
 };
 
+/**
+ * Count Articles By Keywords.
+ * @param {any} keywords
+ * @returns {Promise<any>}
+ */
 export const countArticlesByKeywords = async (keywords) => {
     const keywordPlaceholders = keywords
         .map((_, index) => `$${index + 1}`)
@@ -60,6 +72,11 @@ export const countArticlesByKeywords = async (keywords) => {
  * @param {Object} params
  * @param {string} [params.search] - Từ khóa tìm kiếm theo title
  */
+/**
+ * Count All Articles.
+ * @param {any} { search
+ * @returns {Promise<any>}
+ */
 export const countAllArticles = async ({ search = '' }) => {
     let query = `SELECT COUNT(*) AS "total" FROM "Article" a`;
     const values = [];
@@ -75,6 +92,10 @@ export const countAllArticles = async ({ search = '' }) => {
 
 /**
  * Đếm tổng số tất cả bài báo trong hệ thống (không kèm điều kiện lọc)
+ */
+/**
+ * Get Total Articles.
+ * @returns {Promise<any>}
  */
 export const getTotalArticles = async () => {
     try {
@@ -92,6 +113,14 @@ export const getTotalArticles = async () => {
  * Hỗ trợ đồng thời cả 2 dạng gọi từ Controller:
  * 1. Gọi kiểu Object để Search: getAllArticles({ limit, offset, search })
  * 2. Gọi kiểu tham số rời để Sort: getAllArticles(limit, offset, sortBy, sortOrder)
+ */
+/**
+ * Get All Articles.
+ * @param {any} firstParam
+ * @param {any} offsetParam
+ * @param {any} sortByParam
+ * @param {any} sortOrderParam
+ * @returns {Promise<any>}
  */
 export const getAllArticles = async (firstParam = {}, offsetParam = 0, sortByParam = 'created_at', sortOrderParam = 'DESC') => {
     try {
@@ -174,6 +203,11 @@ export const getAllArticles = async (firstParam = {}, offsetParam = 0, sortByPar
 /**
  * Lấy thông tin chi tiết bài báo theo ID
  */
+/**
+ * Get Article By Id.
+ * @param {any} articleId
+ * @returns {Promise<any>}
+ */
 export const getArticleById = async (articleId) => {
     try {
         const query = `
@@ -201,6 +235,11 @@ export const getArticleById = async (articleId) => {
 
 /**
  * Tạo mới một bản ghi bài báo gốc (Dữ liệu thô)
+ */
+/**
+ * Create Article.
+ * @param {any} articleData
+ * @returns {Promise<any>}
  */
 export const createArticle = async (articleData) => {
     try {
@@ -248,5 +287,156 @@ export const createArticle = async (articleData) => {
     } catch (error) {
         logger.error('Error creating article:', error);
         throw error;
+    }
+};
+
+/**
+ * Cập nhật thông tin cốt lõi của bài báo (Tầng Service)
+ * @param {Object} params 
+ * @param {number|string} params.article_id - ID bài báo cần update (Bắt buộc)
+ * @param {Object} params.updateData - Object chứa các trường muốn thay đổi từ req.body
+ * @returns {Promise<Object|null>} Bản ghi sau khi update thành công
+ */
+/**
+ * Update Article.
+ * @param {any} { article_id
+ * @param {any} ...updateData }
+ * @returns {Promise<any>}
+ */
+export const updateArticle = async ({ article_id, ...updateData }) => {
+    try {
+        if (!article_id) {
+            throw new Error('Thiếu article_id khi gọi hàm updateArticle Service.');
+        }
+
+        // 1. Lấy dữ liệu hiện tại trong DB để so sánh logic trùng lặp
+        const currentQuery = `SELECT * FROM "Article" WHERE "article_id" = $1;`;
+        const currentResult = await pool.query(currentQuery, [article_id]);
+        const currentArticle = currentResult.rows[0];
+
+        if (!currentArticle) {
+            return null; // Không tìm thấy bài báo
+        }
+
+        // 2. Tách các trường dữ liệu đầu vào
+        const { title, publication_year, version, issue_id, abstract, doi, primary_topic } = updateData;
+
+        // Khởi tạo các biến xây dựng câu lệnh SQL động
+        const fieldsToSet = [];
+        const values = [article_id]; // $1 luôn là article_id
+
+        // 3. KIỂM TRA LOGIC TỪNG TRƯỜNG DỮ LIỆU
+
+        // --- Trường: title ---
+        if (title !== undefined) {
+            const trimmedTitle = String(title).trim();
+            if (trimmedTitle === '') {
+                throw new Error('VALIDATION_ERROR: Tiêu đề không được để trống.');
+            }
+            if (trimmedTitle !== currentArticle.title) {
+                fieldsToSet.push('title');
+                values.push(trimmedTitle);
+            }
+        }
+
+        // --- Trường: publication_year ---
+        if (publication_year !== undefined) {
+            const yearNum = Number(publication_year);
+            if (isNaN(yearNum) || yearNum <= 0) {
+                throw new Error('VALIDATION_ERROR: Năm xuất bản phải là số dương hợp lệ.');
+            }
+            if (yearNum !== currentArticle.publication_year) {
+                fieldsToSet.push('publication_year');
+                values.push(yearNum);
+            }
+        }
+
+        // --- Trường: version ---
+        if (version !== undefined && version !== currentArticle.version) {
+            fieldsToSet.push('version');
+            values.push(version);
+        }
+
+        // --- Trường: abstract ---
+        if (abstract !== undefined && abstract !== currentArticle.abstract) {
+            fieldsToSet.push('abstract');
+            values.push(abstract);
+        }
+
+        // --- Trường: doi ---
+        if (doi !== undefined && doi !== currentArticle.doi) {
+            fieldsToSet.push('doi');
+            values.push(doi);
+        }
+
+        // --- Trường: issue_id ---
+        if (issue_id !== undefined) {
+            if (String(currentArticle.issue_id) === String(issue_id)) {
+                throw new Error('VALIDATION_ERROR: Không thể cập nhật cùng một mã issue.');
+            }
+            
+            const issueExistsResult = await issueExists(issue_id);
+            if (!issueExistsResult) {
+                throw new Error('VALIDATION_ERROR: Mã Issue ID không tồn tại trên hệ thống.');
+            }
+
+            fieldsToSet.push('issue_id');
+            values.push(issue_id);
+        }
+
+        // --- Trường: primary_topic ---
+        if (primary_topic !== undefined) {
+            if (Number(primary_topic) === 0) {
+                if (currentArticle.primary_topic !== null) {
+                    fieldsToSet.push('primary_topic');
+                    values.push(null);
+                }
+            } else {
+                if (String(currentArticle.primary_topic) === String(primary_topic)) {
+                    throw new Error('VALIDATION_ERROR: Không thể cập nhật cùng giá trị Primary Topic.');
+                }
+
+                const isTopicExists = await topicExists(primary_topic);
+                if (!isTopicExists) {
+                    throw new Error('VALIDATION_ERROR: Primary topic không tồn tại trên hệ thống.');
+                }
+
+                fieldsToSet.push('primary_topic');
+                values.push(primary_topic);
+            }
+        }
+
+        // 4. Nếu người dùng gửi dữ liệu lên nhưng không có bất kỳ thay đổi nào so với DB
+        if (fieldsToSet.length === 0) {
+            return currentArticle; // Trả về luôn dữ liệu hiện tại, không cần chạy lệnh UPDATE
+        }
+
+        // 5. Xây dựng chuỗi SET động cho SQL (Ví dụ: "title" = $2, "version" = $3)
+        const setClause = fieldsToSet
+            .map((field, index) => `"${field}" = $${index + 2}`) // index + 2 vì $1 là article_id
+            .join(', ');
+
+        // 6. Thực thi câu lệnh UPDATE xuống Postgres
+        const query = `
+            UPDATE "Article"
+            SET ${setClause}
+            WHERE "article_id" = $1
+            RETURNING 
+                article_id,
+                version,
+                issue_id,
+                title,
+                abstract,
+                publication_year,
+                doi,
+                primary_topic,
+                created_at;
+        `;
+
+        const result = await pool.query(query, values);
+        return result.rows[0] || null;
+
+    } catch (error) {
+        throw error; // Quăng lỗi lên để Controller bắt lấy và trả về res.status
     }
 };

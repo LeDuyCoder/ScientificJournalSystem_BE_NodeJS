@@ -5,7 +5,8 @@ import {
     getArticle, 
     getArticleById, 
     getArticlesByKeywords, 
-    getArticles 
+    getArticles, 
+    updateArticle
 } from '../controllers/article.controller.js';
 
 const router = express.Router();
@@ -13,63 +14,67 @@ const router = express.Router();
 /**
  * @swagger
  * /api/v1/articles:
- * get:
- * summary: Lấy danh sách hoặc Tìm kiếm bài báo tổng hợp (Hỗ trợ keywords yêu cầu Auth)
- * description: >
- * - Nếu KHÔNG truyền tham số `keywords`: Trả về danh sách bài báo toàn hệ thống công khai (Public), hỗ trợ `search`, phân trang, sắp xếp.
- * - Nếu CÓ truyền tham số `keywords`: API tự động chuyển sang chế độ tìm kiếm nâng cao theo từ khóa chuyên biệt (Yêu cầu xác thực Bearer Token).
- * tags:
- * - Article
- * parameters:
- * - in: query
- * name: keywords
- * schema:
- * type: string
- * description: Danh sách từ khóa cách nhau bởi dấu phẩy. Nếu có trường này, bắt buộc phải gửi Token.
- * example: Machine Learning,Deep Learning
- * - in: query
- * name: page
- * schema:
- * type: integer
- * minimum: 1
- * default: 1
- * description: Số trang hiện tại
- * - in: query
- * name: limit
- * schema:
- * type: integer
- * minimum: 1
- * default: 10
- * description: Số lượng bài báo mỗi trang
- * - in: query
- * name: search
- * schema:
- * type: string
- * description: Tìm kiếm bài báo theo tiêu đề văn bản (chỉ dùng cho chế độ Public công khai)
- * example: cancer
- * - in: query
- * name: sortBy
- * schema:
- * type: string
- * enum: [article_id, title, publication_year, created_at, doi]
- * default: created_at
- * description: Trường sắp xếp (chỉ dùng cho chế độ Public công khai)
- * - in: query
- * name: sortOrder
- * schema:
- * type: string
- * enum: [asc, desc]
- * default: desc
- * description: Thứ tự sắp xếp (chỉ dùng cho chế độ Public công khai)
- * responses:
- * 200:
- * description: Lấy danh sách hoặc tìm kiếm thành công
- * 400:
- * description: Tham số không hợp lệ
- * 401:
- * description: Chưa xác thực (Khi dùng tính năng keywords)
- * 500:
- * description: Lỗi hệ thống
+ *   get:
+ *     summary: Lấy danh sách hoặc tìm kiếm bài báo tổng hợp
+ *     description: >
+ *       Nếu KHÔNG truyền tham số `keywords`: trả về danh sách bài báo công khai, hỗ trợ `search`, phân trang và sắp xếp.
+ *       Nếu CÓ truyền tham số `keywords`: API chuyển sang chế độ tìm kiếm nâng cao theo từ khóa chuyên biệt (yêu cầu xác thực Bearer Token).
+ *     tags:
+ *       - Article
+ *     parameters:
+ *       - in: query
+ *         name: keywords
+ *         schema:
+ *           type: string
+ *         description: Danh sách từ khóa cách nhau bởi dấu phẩy. Nếu có trường này, bắt buộc phải gửi token.
+ *         example: Machine Learning,Deep Learning
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           default: 1
+ *         description: Số trang hiện tại
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           default: 10
+ *         description: Số lượng bài báo mỗi trang
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Tìm kiếm bài báo theo tiêu đề (chỉ dùng trong chế độ public)
+ *         example: cancer
+ *       - in: query
+ *         name: sortBy
+ *         schema:
+ *           type: string
+ *           enum: [article_id, title, publication_year, created_at, doi]
+ *           default: created_at
+ *         description: Trường sắp xếp
+ *       - in: query
+ *         name: sortOrder
+ *         schema:
+ *           type: string
+ *           enum: [asc, desc]
+ *           default: desc
+ *         description: Thứ tự sắp xếp
+ *     responses:
+ *       200:
+ *         description: Lấy danh sách hoặc tìm kiếm thành công
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *       400:
+ *         description: Tham số không hợp lệ
+ *       401:
+ *         description: Chưa xác thực (khi dùng tính năng keywords)
+ *       500:
+ *         description: Lỗi hệ thống
  */
 
 /**
@@ -90,98 +95,186 @@ router.get('/', (req, res, next) => {
 /**
  * @swagger
  * /api/v1/articles/{id}:
- * get:
- * summary: Lấy chi tiết bài báo theo ID
- * description: Lấy thông tin chi tiết của 1 bài báo theo `article_id`
- * tags:
- * - Article
- * security:
- * - bearerAuth: []
- * parameters:
- * - in: path
- * name: id
- * required: true
- * schema:
- * type: integer
- * description: ID của bài báo cần lấy
- * example: 123
- * responses:
- * 200:
- * description: Thành công
- * 401:
- * description: Chưa xác thực hoặc token không hợp lệ
- * 404:
- * description: Không tìm thấy bài báo
- * 500:
- * description: Lỗi server
+ *   get:
+ *     summary: Lấy chi tiết bài báo theo ID
+ *     description: Lấy thông tin chi tiết của một bài báo theo `article_id`.
+ *     tags:
+ *       - Article
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID của bài báo cần lấy
+ *         example: 123
+ *     responses:
+ *       200:
+ *         description: Thành công
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *       401:
+ *         description: Chưa xác thực hoặc token không hợp lệ
+ *       404:
+ *         description: Không tìm thấy bài báo
+ *       500:
+ *         description: Lỗi server
  */
 router.get('/:id', requireAuth, getArticleById);
 
 /**
  * @swagger
  * /api/v1/articles:
- * post:
- * summary: Tạo mới một bài báo
- * description: Tạo một bài báo mới trong hệ thống. Yêu cầu dữ liệu bài báo, danh sách tác giả và từ khóa nếu có.
- * tags:
- * - Article
- * security:
- * - bearerAuth: []
- * requestBody:
- * required: true
- * content:
- * application/json:
- * schema:
- * type: object
- * properties:
- * title:
- * type: string
- * abstract:
- * type: string
- * publication_year:
- * type: integer
- * issue_id:
- * type: integer
- * doi:
- * type: string
- * primary_topic:
- * type: string
- * sub_topic:
- * type: array
- * items:
- * type: string
- * authors:
- * type: array
- * items:
- * type: integer
- * keywords:
- * type: array
- * items:
- * type: string
- * required:
- * - title
- * - publication_year
- * - issue_id
- * example:
- * title: "An Analysis of AI Trends"
- * abstract: "This paper evaluates current deep learning paradigms..."
- * publication_year: 2026
- * issue_id: 1
- * doi: "10.1109/TAI.2026.01"
- * primary_topic: "Computer Science"
- * sub_topic: ["Machine Learning", "Neural Networks"]
- * authors: [12, 15]
- * keywords: ["AI", "Deep Learning", "Survey"]
- * responses:
- * 201:
- * description: Đã tạo bài báo thành công
- * 400:
- * description: Dữ liệu không hợp lệ
- * 401:
- * description: Chưa xác thực hoặc token không hợp lệ
- * 500:
- * description: Lỗi server
+ *   post:
+ *     summary: Tạo mới một bài báo
+ *     description: Tạo một bài báo mới trong hệ thống. Yêu cầu dữ liệu bài báo, danh sách tác giả và từ khóa nếu có.
+ *     tags:
+ *       - Article
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               title:
+ *                 type: string
+ *               abstract:
+ *                 type: string
+ *               publication_year:
+ *                 type: integer
+ *               issue_id:
+ *                 type: integer
+ *               doi:
+ *                 type: string
+ *               primary_topic:
+ *                 type: string
+ *               sub_topic:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *               authors:
+ *                 type: array
+ *                 items:
+ *                   type: integer
+ *               keywords:
+ *                 type: object
+ *                 additionalProperties:
+ *                   type: number
+ *                 description: "Từ khóa kèm điểm score, ví dụ {\"Colorectal cancer\": 0.25}"
+ *             required:
+ *               - title
+ *               - publication_year
+ *               - issue_id
+ *           example:
+ *             title: "An Analysis of AI Trends"
+ *             abstract: "This paper evaluates current deep learning paradigms..."
+ *             publication_year: 2026
+ *             issue_id: 1
+ *             doi: "10.1109/TAI.2026.01"
+ *             primary_topic: "Computer Science"
+ *             sub_topic:
+ *               - "Machine Learning"
+ *               - "Neural Networks"
+ *             authors:
+ *               - 12
+ *               - 15
+ *             keywords:
+ *               "Colorectal cancer": 0.25
+ *               "demo 2": 0.25
+ *     responses:
+ *       201:
+ *         description: Đã tạo bài báo thành công
+ *       400:
+ *         description: Dữ liệu không hợp lệ
+ *       401:
+ *         description: Chưa xác thực hoặc token không hợp lệ
+ *       500:
+ *         description: Lỗi server
  */
 router.post('/', requireAuth, createArticle);
+
+/**
+ * @swagger
+ * /api/v1/articles/{id}:
+ *   put:
+ *     summary: Cập nhật thông tin bài báo theo ID
+ *     description: Cập nhật một bài báo hiện có. Các trường không bắt buộc có thể được cập nhật riêng lẻ.
+ *     tags:
+ *       - Article
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID của bài báo cần cập nhật
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               title:
+ *                 type: string
+ *               abstract:
+ *                 type: string
+ *               publication_year:
+ *                 type: integer
+ *               issue_id:
+ *                 type: integer
+ *               doi:
+ *                 type: string
+ *               primary_topic:
+ *                 type: string
+ *               sub_topic:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *               authors:
+ *                 type: array
+ *                 items:
+ *                   type: integer
+ *               keywords:
+ *                 type: object
+ *                 additionalProperties:
+ *                   type: number
+ *                 description: "Từ khóa kèm điểm score, ví dụ {\"Colorectal cancer\": 0.25}"
+ *           example:
+ *             title: "An Updated Title"
+ *             publication_year: 2026
+ *             issue_id: 1
+ *             doi: "10.1109/TAI.2026.02"
+ *             primary_topic: "Computer Science"
+ *             sub_topic:
+ *               - "Neural Networks"
+ *             authors:
+ *               - 12
+ *               - 15
+ *             keywords:
+ *               "Colorectal cancer": 0.25
+ *               "demo 2": 0.25
+ *     responses:
+ *       200:
+ *         description: Cập nhật bài báo thành công
+ *       400:
+ *         description: Dữ liệu không hợp lệ
+ *       401:
+ *         description: Chưa xác thực hoặc token không hợp lệ
+ *       404:
+ *         description: Không tìm thấy bài báo
+ *       500:
+ *         description: Lỗi server
+ */
+router.put('/:id', requireAuth, updateArticle);
 
 export default router;

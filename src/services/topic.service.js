@@ -109,3 +109,44 @@ export const createSubTopicArticleRelationships = async (articleId, topicIds, pr
         throw error;
     }
 };
+
+/**
+ * Cập nhật toàn bộ mối quan hệ chủ đề phụ cho bài báo (Chuẩn RESTful PUT)
+ * - Bước 1: Xóa toàn bộ quan hệ chủ đề phụ cũ của bài báo này
+ * - Bước 2: Gọi lại hàm create để chèn danh sách mới sạch sẽ
+ * * @param {number|string} articleId - ID của bài báo cần cập nhật
+ * @param {number[]} topicIds - Mảng các ID chủ đề phụ mới (ví dụ: [3, 4, 5])
+ * @param {number|string|null} primaryTopicId - ID chủ đề chính để đối chiếu lọc trùng
+ */
+export const updateSubTopicArticleRelationships = async (articleId, topicIds, primaryTopicId) => {
+    try {
+        if (!articleId) {
+            throw new Error('Thiếu articleId khi gọi hàm updateSubTopicArticleRelationships');
+        }
+
+        const deleteQuery = `
+            DELETE FROM "Sub_Topic"
+            WHERE "article_id" = $1;
+        `;
+        await pool.query(deleteQuery, [articleId]);
+
+        await createSubTopicArticleRelationships(articleId, topicIds, primaryTopicId);
+
+        logger.info(`Đã cập nhật làm mới toàn bộ quan hệ chủ đề phụ cho bài báo ID: ${articleId}`);
+
+    } catch (error) {
+        logger.error(`Lỗi khi cập nhật quan hệ chủ đề phụ cho bài báo ID ${articleId}:`, error);
+        throw error;
+    }
+};
+
+export const topicExists = async (topicId) => {
+    try {
+        const queryText = `SELECT 1 FROM "Topic" WHERE "topic_id" = $1`;
+        const res = await pool.query(queryText, [topicId]);
+        return res.rowCount > 0;
+    } catch (error) {
+        logger.error('Lỗi khi kiểm tra tồn tại của chủ đề:', error);
+        throw error;
+    }  
+}
