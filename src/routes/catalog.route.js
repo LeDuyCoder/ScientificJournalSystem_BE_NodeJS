@@ -4,7 +4,9 @@ import {
   getJournals,
   getSubjectAreas,
   getSubjectCategories,
-  getJournalRankings
+  getJournalRankings,
+  getVolumes,
+  getIssues
 } from '../controllers/catalog.controller.js';
 
 const router = express.Router();
@@ -304,5 +306,112 @@ router.get('/subject-categories', requireAuth, getSubjectCategories);
  *         description: Lỗi hệ thống
  */
 router.get('/journals/:id/rankings', requireAuth, getJournalRankings);
+
+/**
+ * @swagger
+ * /api/v1/catalog/volumes:
+ *   get:
+ *     summary: Lấy danh sách volume trong hệ thống, hỗ trợ lọc theo journal_id
+ *     description: Trả về danh sách volume. API này là public, không yêu cầu đăng nhập.
+ *     tags:
+ *       - Catalog
+ *     parameters:
+ *       - in: query
+ *         name: journal_id
+ *         schema:
+ *           type: string
+ *         description: ID của journal cần lọc danh sách volume
+ *     responses:
+ *       200:
+ *         description: Lấy danh sách volume thành công
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Lấy danh sách volume thành công"
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       volume_id:
+ *                         type: string
+ *                         example: "12"
+ *                       journal_id:
+ *                         type: string
+ *                         example: "11"
+ *                       journal_name:
+ *                         type: string
+ *                         example: "CA-A Cancer Journal for Clinicians"
+ *                       volume_number:
+ *                         type: integer
+ *                         example: 12
+ *                       publication_year:
+ *                         type: integer
+ *                         example: 2025
+ *       400:
+ *         description: Tham số journal_id không hợp lệ
+ *       500:
+ *         description: Lỗi hệ thống
+ */
+router.get('/volumes', getVolumes);
+
+/**
+ * @swagger
+ * /api/v1/catalog/issues:
+ *   get:
+ *     summary: Lấy danh sách issue trong hệ thống, hỗ trợ lọc theo volume_id
+ *     description: Trả về danh sách issue. API này là public, không yêu cầu đăng nhập.
+ *     tags:
+ *       - Catalog
+ *     parameters:
+ *       - in: query
+ *         name: volume_id
+ *         schema:
+ *           type: string
+ *         description: ID của volume cần lọc danh sách issue
+ *     responses:
+ *       200:
+ *         description: Lấy danh sách issue thành công
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Lấy danh sách issue thành công"
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       issue_id:
+ *                         type: string
+ *                         example: "15"
+ *                       volume_id:
+ *                         type: string
+ *                         example: "12"
+ *                       issue_number:
+ *                         type: string
+ *                         example: "1"
+ *                       publication_year:
+ *                         type: integer
+ *                         example: 2025
+ *       400:
+ *         description: Tham số volume_id không hợp lệ
+ *       500:
+ *         description: Lỗi hệ thống
+ */
+router.get('/issues', getIssues);
 
 export default router;
