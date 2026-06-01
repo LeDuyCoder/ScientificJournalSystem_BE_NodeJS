@@ -153,3 +153,130 @@ export const getAuthorLeaderboardService = async (limit, page) => {
         throw error;
     }
 }
+
+/**
+ * Kiểm tra xem một tác giả có tồn tại hay không.
+ *
+ * @param {number|string} authorId - ID của tác giả cần kiểm tra
+ * @returns {Promise<boolean>} `true` nếu tồn tại, ngược lại `false`
+ */
+export const isAuthorExists = async (authorId) => {
+    try {
+        const queryText = `SELECT 1 FROM "Author" WHERE "author_id" = $1`;
+        const res = await pool.query(queryText, [authorId]);
+        return res.rowCount > 0;
+    } catch (error) {
+        logger.error('Lỗi khi kiểm tra tồn tại của tác giả:', error);
+        throw error;
+    }
+}
+
+/**
+ * Kiểm tra tồn tại một loạt tác giả và trả về những `author_id` không tồn tại.
+ *
+ * @param {Array<number|string>} authorIds - Mảng ID tác giả cần kiểm tra
+ * @returns {Promise<number[]>} Mảng các `author_id` không tồn tại trên hệ thống
+ */
+export const checkAuthorsExistence = async (authorIds) => {
+    try {
+        if (!authorIds || authorIds.length === 0) {
+            return [];
+        }
+
+        const queryText = `
+            SELECT author_id
+            FROM "Author"
+            WHERE author_id = ANY($1)
+        `;
+
+        const result = await pool.query(queryText, [authorIds]);
+
+        const existingAuthorIds = result.rows.map(
+            row => Number(row.author_id)
+        );
+
+        const normalizedAuthorIds = authorIds.map(
+            id => Number(id)
+        );
+
+        const nonExistingAuthorIds = normalizedAuthorIds.filter(
+            id => !existingAuthorIds.includes(id)
+        );
+
+        return nonExistingAuthorIds;
+
+    } catch (error) {
+        logger.error('Lỗi khi kiểm tra tồn tại của các tác giả:', error);
+        throw error;
+    }
+};
+
+/**
+ * Tạo các quan hệ `Author_Article` cho một bài báo.
+ * - Bỏ qua nếu `authorIds` rỗng.
+ * - Loại bỏ trùng lặp trước khi chèn.
+ *
+ * @param {number|string} articleId - ID bài báo
+ * @param {Array<number|string>} authorIds - Mảng ID tác giả để gán cho bài báo
+ * @returns {Promise<void>} Không trả về dữ liệu, ném lỗi nếu có sự cố
+ */
+export const createAuthorArticleRelationships = async (articleId, authorIds) => {
+    try {
+        if (!authorIds || authorIds.length === 0) {
+            return;
+        }
+        
+        // Loại bỏ trùng lặp và chuyển thành Number gọn gàng hơn với Set
+        const uniqueAuthorIds = [
+            ...new Set(authorIds.map(id => Number(id)))
+        ];
+
+        const query = `
+            INSERT INTO "Author_Article" (article_id, author_id)
+            SELECT $1, unnest($2::bigint[])
+            ON CONFLICT DO NOTHING
+        `;
+
+        await pool.query(query, [articleId, uniqueAuthorIds]);
+
+        logger.info(
+            `Đã tạo ${uniqueAuthorIds.length} quan hệ tác giả - bài báo`
+        );
+
+    } catch (error) {
+        logger.error(
+            'Lỗi khi tạo quan hệ tác giả - bài báo:',
+            error
+        );
+        throw error;
+    }
+};
+
+/**
+ * Cập nhật toàn bộ mối quan hệ tác giả cho bài báo
+ * - Bước 1: Xóa toàn bộ liên kết tác giả cũ của bài báo này
+ * - Bước 2: Gọi lại hàm create để chèn danh sách mới sạch sẽ
+ * * @param {number|string} articleId - ID của bài báo cần cập nhật
+ * @param {number[]} authorIds - Mảng các ID tác giả mới (ví dụ: [1, 2, 3])
+ */
+export const updateAuthorArticleRelationships = async (articleId, authorIds) => {
+    try {
+        if (!articleId) {
+            throw new Error('Thiếu articleId khi gọi hàm updateAuthorArticleRelationships');
+        }
+
+        const deleteQuery = `
+            DELETE FROM "Author_Article"
+            WHERE "article_id" = $1;
+        `;
+        await pool.query(deleteQuery, [articleId]);
+
+        await createAuthorArticleRelationships(articleId, authorIds);
+
+        logger.info(`Đã cập nhật làm mới toàn bộ quan hệ tác giả cho bài báo ID: ${articleId}`);
+
+    } catch (error) {
+        logger.error(`Lỗi khi cập nhật quan hệ tác giả cho bài báo ID ${articleId}:`, error);
+        throw error;
+    }
+};

@@ -111,7 +111,27 @@ export const getWatchedKeywordArticles = async (req, res) => {
 };
 
 
-// POST /api/v1/projects/:id/keywords/watch
+/**
+ * Thêm/đồng bộ danh sách từ khóa theo dõi cho một Project
+ *
+ * Mô tả: Nhận `keyword_ids` (mảng số nguyên) trong `req.body` và thêm những
+ * keyword mới vào danh sách theo dõi của project (không xóa các keyword cũ).
+ * Kiểm tra quyền sở hữu project trước khi thao tác.
+ *
+ * @param {import('express').Request} req - Express request
+ * @param {Object} req.params - Tham số URL
+ * @param {string|number} req.params.id - ID project
+ * @param {Object} req.body - Body request
+ * @param {number[]} req.body.keyword_ids - Mảng các keyword_id (số nguyên dương)
+ * @param {import('express').Response} res - Express response
+ * @returns {Promise<import('express').Response>} JSON response
+ *
+ * Responses:
+ * - 201: Cập nhật danh sách từ khóa theo dõi thành công
+ * - 400: Dữ liệu đầu vào không hợp lệ (ID không hợp lệ, keyword_ids không phải mảng, hoặc giá trị bên trong không phải số nguyên dương)
+ * - 404: Project không tồn tại hoặc không thuộc quyền sở hữu
+ * - 500: Lỗi server
+ */
 export const watchKeywords = async (req, res) => {
   try {
     const projectId = parseInt(req.params.id);

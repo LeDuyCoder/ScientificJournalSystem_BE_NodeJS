@@ -2,7 +2,13 @@ import pool from "../config/database.js";
 import logger from "../utils/logger.js";
 
 /**
- * Lấy Top 20 từ khóa trending của project
+ * Lấy danh sách từ khóa thịnh hành trong một project.
+ *
+ * @param {number|string} projectId - ID của project cần truy vấn
+ * @param {Object} queryParams - Tham số lọc/phan trang
+ * @param {number|string} [queryParams.limit=20] - Số kết quả tối đa
+ * @param {string} [queryParams.sort_by='count'] - `count` hoặc `score`
+ * @returns {Promise<Object>} Kết quả gồm tổng `total`, `sort_by` và mảng `keywords`
  */
 export const getTrendingKeywords = async (projectId, queryParams) => {
   const limit = Math.min(parseInt(queryParams.limit) || 20, 100);
@@ -50,7 +56,15 @@ export const getTrendingKeywords = async (projectId, queryParams) => {
 };
 
 /**
- * Lấy danh sách bài báo mới nhất từ các từ khóa đang theo dõi trong project
+ * Lấy danh sách bài báo liên quan đến các từ khóa được theo dõi trong project.
+ *
+ * @param {number|string} projectId - ID project
+ * @param {number|string} userId - ID người dùng thực hiện truy vấn (dùng để kiểm tra sở hữu)
+ * @param {Object} queryParams
+ * @param {number|string} [queryParams.page=1] - Trang kết quả
+ * @param {number|string} [queryParams.limit=10] - Số phần tử trên mỗi trang
+ * @returns {Promise<Object>} Object phân trang: { page, limit, total, total_pages, data }
+ *  - `data` là mảng article objects `{ article_id, title, publication_year, doi, matched_keywords }`
  */
 export const getWatchedKeywordArticles = async (projectId, userId, queryParams) => {
   const page = Math.max(parseInt(queryParams.page) || 1, 1);
@@ -122,9 +136,11 @@ export const getWatchedKeywordArticles = async (projectId, userId, queryParams) 
 };
 
 /**
- * Kiểm tra xem các keyword_ids có tồn tại trong bảng Keyword hay không
- * @param {Array<number|string>} keywordIds
- * @returns {Promise<boolean>}
+ * Xác thực xem một danh sách `keyword_id` có tồn tại trong bảng `Keyword` hay không.
+ * Trả về `true` khi tất cả id hợp lệ, ngược lại `false`.
+ *
+ * @param {Array<number|string>} keywordIds - Mảng id cần kiểm tra
+ * @returns {Promise<boolean>} `true` nếu tất cả id tồn tại
  */
 export const validateKeywordIds = async (keywordIds) => {
   if (!keywordIds || keywordIds.length === 0) return true;
@@ -141,9 +157,14 @@ export const validateKeywordIds = async (keywordIds) => {
 };
 
 /**
- * Cập nhật danh sách từ khóa theo dõi của dự án (chỉ thêm, không xóa)
- * @param {string|number} projectId 
- * @param {Array<number|string>} keywordIds 
+ * Đồng bộ danh sách từ khóa được theo dõi (Project_Keyword) cho một project.
+ * - Bỏ qua nếu `keywordIds` rỗng.
+ * - Chỉ insert những keyword mới và tồn tại.
+ *
+ * @param {number|string} projectId - ID project
+ * @param {Array<number|string>} keywordIds - Mảng keyword_id cần đồng bộ
+ * @returns {Promise<boolean>} `true` nếu đồng bộ thành công
+ * @throws {Error} Ném lỗi khi DB transaction gặp sự cố
  */
 export const syncWatchedKeywords = async (projectId, keywordIds) => {
   if (!keywordIds || keywordIds.length === 0) return true;
@@ -200,10 +221,11 @@ export const syncWatchedKeywords = async (projectId, keywordIds) => {
 };
 
 /**
- * Kiểm tra xem người dùng có quyền sở hữu dự án hay không
- * @param {string|number} projectId 
- * @param {string|number} userId 
- * @returns {Promise<boolean>}
+ * Kiểm tra quyền sở hữu project của user.
+ *
+ * @param {number|string} projectId - ID project
+ * @param {number|string} userId - ID user
+ * @returns {Promise<boolean>} `true` nếu user là chủ project
  */
 export const checkProjectOwnership = async (projectId, userId) => {
   const result = await pool.query(
@@ -211,4 +233,143 @@ export const checkProjectOwnership = async (projectId, userId) => {
     [projectId, userId]
   );
   return result.rows.length > 0;
+};
+
+
+/**
+ * Thêm (và upsert) các từ khóa rồi gán vào một bài báo cùng với `score`.
+ * Hỗ trợ hai dạng `keywordsInput`:
+ * - Array of strings: `["kw1", "kw2"]` (điểm dùng `options.score` hoặc 0)
+ * - Object mapping: `{ "Colorectal cancer": 0.25, "demo 2": 0.25 }`
+ *
+ * Trả về mảng các bản ghi `Keyword` đã được upsert.
+ *
+ * @param {number|string} articleId - ID bài báo
+ * @param {Array<string>|Object<string, number>} keywordsInput - Dữ liệu từ khóa
+ * @param {Object} [options] - Tuỳ chọn, ví dụ `{ score: number }` cho dạng array
+ * @returns {Promise<Array>} Mảng các bản ghi `Keyword` (rows returned from INSERT ... RETURNING)
+ */
+export const addKeywordsToArticle = async (articleId, keywordsInput, options = {}) => {
+    const isEmptyObject = typeof keywordsInput === 'object' && !Array.isArray(keywordsInput) && Object.keys(keywordsInput || {}).length === 0;
+    if (!keywordsInput || (Array.isArray(keywordsInput) && keywordsInput.length === 0) || isEmptyObject) {
+        return [];
+    }
+
+    let keywordEntries = [];
+    if (Array.isArray(keywordsInput)) {
+        const score = options.score !== undefined ? Number(options.score) : 0.0;
+        keywordEntries = keywordsInput
+            .filter(name => typeof name === 'string')
+            .map(name => ({ display_name: name.trim(), score }))
+            .filter(item => item.display_name.length > 0);
+    } else if (typeof keywordsInput === 'object') {
+        keywordEntries = Object.entries(keywordsInput)
+            .filter(([name]) => typeof name === 'string' && name.trim().length > 0)
+            .map(([name, score]) => ({
+                display_name: name.trim(),
+                score: Number(score ?? 0)
+            }));
+    } else {
+        throw new Error('Keywords must be an array or object');
+    }
+
+    if (keywordEntries.length === 0) {
+        return [];
+    }
+
+    const uniqueKeywordNames = [
+        ...new Set(keywordEntries.map(entry => entry.display_name))
+    ];
+    const scoreMap = Object.fromEntries(keywordEntries.map(entry => [entry.display_name, entry.score]));
+
+    const client = await pool.connect();
+
+    try {
+        await client.query('BEGIN');
+
+        const upsertKeywordsQuery = `
+            INSERT INTO "Keyword" (display_name)
+            SELECT unnest($1::text[])
+            ON CONFLICT (display_name)
+            DO UPDATE SET display_name = EXCLUDED.display_name
+            RETURNING keyword_id, display_name;
+        `;
+
+        const keywordResult = await client.query(upsertKeywordsQuery, [uniqueKeywordNames]);
+        const allKeywords = keywordResult.rows;
+
+        if (allKeywords.length === 0) {
+            await client.query('COMMIT');
+            return [];
+        }
+
+        const keywordIds = [];
+        const keywordScores = [];
+        for (const displayName of uniqueKeywordNames) {
+            const keywordRow = allKeywords.find(k => k.display_name === displayName);
+            if (!keywordRow) continue;
+            keywordIds.push(keywordRow.keyword_id);
+            keywordScores.push(scoreMap[displayName] ?? 0.0);
+        }
+
+        if (keywordIds.length === 0) {
+            await client.query('COMMIT');
+            return [];
+        }
+
+        const insertRelationsQuery = `
+            INSERT INTO "Keyword_Article" (article_id, keyword_id, score)
+            SELECT $1, unnest($2::bigint[]), unnest($3::numeric[])
+            ON CONFLICT DO NOTHING;
+        `;
+
+        await client.query(insertRelationsQuery, [articleId, keywordIds, keywordScores]);
+
+        await client.query('COMMIT');
+        return allKeywords;
+
+    } catch (error) {
+        await client.query('ROLLBACK');
+        logger.error('Error adding keywords to article:', error);
+        throw error;
+    } finally {
+        client.release();
+    }
+};
+
+/**
+ * Cập nhật toàn bộ danh sách từ khóa của một bài báo (thay thế hoàn toàn).
+ * - Xóa mối quan hệ cũ trong `Keyword_Article`
+ * - Gọi `addKeywordsToArticle` để upsert và chèn quan hệ mới
+ *
+ * @param {number|string} articleId - ID bài báo
+ * @param {Array<string>|Object<string, number>} keywordsInput - Dữ liệu từ khóa (giống `addKeywordsToArticle`)
+ * @returns {Promise<Array>} Mảng các bản ghi `Keyword` đã được gán
+ */
+export const updateKeywordsToArticle = async (articleId, keywordsInput) => {
+    const client = await pool.connect();
+
+    try {
+        await client.query('BEGIN');
+
+        const deleteRelationsQuery = `
+            DELETE FROM "Keyword_Article"
+            WHERE "article_id" = $1;
+        `;
+        await client.query(deleteRelationsQuery, [articleId]);
+
+        await client.query('COMMIT');
+
+        const updatedKeywords = await addKeywordsToArticle(articleId, keywordsInput);
+
+        logger.info(`Đã làm mới toàn bộ danh sách từ khóa cho bài báo ID: ${articleId}`);
+        return updatedKeywords;
+
+    } catch (error) {
+        await client.query('ROLLBACK');
+        logger.error(`Lỗi khi cập nhật danh sách từ khóa cho bài báo ID ${articleId}:`, error);
+        throw error;
+    } finally {
+        client.release();
+    }
 };
