@@ -1,4 +1,6 @@
 import pool from "../config/database.js";
+import { publisherExist } from "./publisher.service.js";
+import { zoneExist } from "./zone.service.js";
 
 /**
  * Lấy danh sách journal có hỗ trợ tìm kiếm theo tên và phân trang.
@@ -89,4 +91,66 @@ export const getJournalsById = async (id) => {
     logger.error('Lỗi khi lấy danh sách journal trong catalog:', error);
     throw error;
   }
+}
+
+/**
+ * Tạo mới một journal.
+ *
+ * @async
+ * @param {Object} data - Dữ liệu journal cần tạo.
+ * @returns {Promise<Object>} Journal mới được tạo.
+ */
+export const createJournal = async (data) => {
+  try {
+    // Nhận các field từ object data truyền vào
+    let {
+      source_id, publisher_id, country, region, display_name,
+      type, is_open_access, is_oa_diamond, coverage, issn, scope_detail
+    } = data;
+
+    // Chuẩn hóa dữ liệu sang null nếu trống
+    source_id = source_id || null;
+    publisher_id = publisher_id || null;
+    country = country || null;
+    region = region || null;
+    display_name = display_name || null;
+    type = type || null;
+    is_open_access = is_open_access ?? null;
+    is_oa_diamond = is_oa_diamond ?? null;
+    coverage = coverage || null;
+    issn = issn || null;
+    scope_detail = scope_detail || null;
+    const is_deleted = false; 
+
+    const query = `
+        INSERT INTO "Journal" (
+            source_id, publisher_id, country, region, display_name,
+            type, is_open_access, is_oa_diamond, coverage, issn, scope_detail, is_deleted
+        ) 
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        RETURNING *;
+    `;
+
+    const values = [
+        source_id,
+        publisher_id ? BigInt(publisher_id) : null,
+        country ? BigInt(country) : null,
+        region ? BigInt(region) : null,
+        display_name, type, is_open_access, is_oa_diamond, coverage, issn, scope_detail, is_deleted
+    ];
+
+    const result = await pool.query(query, values);
+    return result.rows[0];
+
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const updateJournal = async () => {
+
+}
+
+export const deleteJournal = async () => {
+
 }

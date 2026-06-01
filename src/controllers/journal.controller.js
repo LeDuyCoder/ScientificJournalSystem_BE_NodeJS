@@ -57,6 +57,17 @@ export const getJournals = async (req, res) => {
   }
 };
 
+/**
+ * Controller lấy thông tin chi tiết của một journal theo ID.
+ * - Kiểm tra tính hợp lệ của ID (phải là số nguyên dương).
+ * - Gọi service để lấy thông tin journal từ database.
+ * - Trả về thông tin journal nếu thành công, hoặc lỗi 400 nếu ID không hợp lệ, hoặc lỗi 500 nếu có lỗi hệ thống.
+ *
+ * @async
+ * @param {import('express').Request} req - Express request, chứa params.id là ID của journal cần lấy
+ * @param {import('express').Response} res - Express response, trả về JSON chứa thông tin journal hoặc lỗi
+ * @returns {Promise<import('express').Response>} JSON response với thông tin journal hoặc lỗi
+ */
 export const getJournalsById = async (req, res) => {
   try{
     const { id } = req.params;
@@ -83,3 +94,36 @@ export const getJournalsById = async (req, res) => {
     });
   }
 }
+
+/**
+ * Controller tạo mới một journal.
+ * - Nhận dữ liệu journal từ req.body, đã được validate bởi middleware trước đó.
+ * - Gọi service để tạo mới journal trong database.
+ * - Trả về thông tin journal mới tạo nếu thành công, hoặc lỗi 500 nếu có lỗi hệ thống.
+ * @async
+ * @param {import('express').Request} req - Express request, chứa body là dữ liệu journal cần tạo
+ * @param {import('express').Response} res - Express response, trả về JSON chứa thông tin journal mới tạo hoặc lỗi
+ * @returns {Promise<import('express').Response>} JSON response với thông tin journal mới tạo hoặc lỗi
+ */
+export const createJournal = async (req, res) => {
+  try {
+    const dataJournal = req.body;
+
+    // Lúc này dữ liệu chắc chắn đã qua bộ lọc hợp lệ từ middleware
+    const result = await journalService.createJournal(dataJournal);
+
+    return res.status(201).json({
+      success: true,
+      message: 'Tạo Journal thành công',
+      data: result
+    });
+
+  } catch (error) {
+    // Bắt các lỗi phát sinh từ database (như lỗi trùng unique key, sai kiểu dữ liệu...)
+    return res.status(500).json({
+      success: false,
+      message: 'Lỗi hệ thống khi tạo Journal',
+      detail: error.message
+    });
+  }
+};

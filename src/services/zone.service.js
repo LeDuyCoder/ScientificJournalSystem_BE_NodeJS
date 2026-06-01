@@ -163,3 +163,27 @@ export const getCountryRegionsStats = async (countryCode) => {
     regions: statsResult.rows
   };
 };
+
+
+/**
+ * Kiểm tra Vùng (Zone) có tồn tại trong hệ thống hay không
+ * @param {string|number} id - ID của Zone cần kiểm tra
+ * @returns {Promise<boolean>} true nếu tồn tại, false nếu không
+ */
+export const zoneExist = async (id) => {
+    try {
+        const query = `
+            SELECT EXISTS (
+                SELECT 1 FROM "Zone" WHERE zone_id = $1
+            ) AS "exists";
+        `;
+
+        const result = await pool.query(query, [id]);
+        
+        return result.rows[0]?.exists || false;
+
+    } catch (error) {
+        console.error(`[Service Error] Lỗi khi kiểm tra zoneExist với ID ${id}:`, error);
+        throw error;
+    }
+};
