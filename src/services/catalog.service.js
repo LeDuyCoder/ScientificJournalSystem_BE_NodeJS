@@ -224,3 +224,63 @@ export const getJournalRankings = async (journalId, filters = {}) => {
   }
   return grouped;
 };
+
+/**
+ * Lấy danh sách Volume, hỗ trợ lọc theo journal_id.
+ *
+ * @async
+ * @param {Object} [params] - Tham số lọc.
+ * @param {string|number} [params.journalId] - ID của journal cần lọc.
+ * @returns {Promise<Array<Object>>} Danh sách Volume.
+ */
+export const getVolumes = async ({ journalId } = {}) => {
+  let query = `
+    SELECT 
+      v.volume_id::text AS volume_id,
+      v.journal_id::text AS journal_id,
+      j.display_name AS journal_name,
+      v.volume_number,
+      v.publication_year
+    FROM "Volume" v
+    LEFT JOIN "Journal" j ON j.journal_id = v.journal_id
+  `;
+  const params = [];
+
+  if (journalId) {
+    query += ` WHERE v.journal_id = $1`;
+    params.push(journalId);
+  }
+
+  query += ` ORDER BY v.publication_year DESC, v.volume_number DESC`;
+  const res = await pool.query(query, params);
+  return res.rows;
+};
+
+/**
+ * Lấy danh sách Issue, hỗ trợ lọc theo volume_id.
+ *
+ * @async
+ * @param {Object} [params] - Tham số lọc.
+ * @param {string|number} [params.volumeId] - ID của volume cần lọc.
+ * @returns {Promise<Array<Object>>} Danh sách Issue.
+ */
+export const getIssues = async ({ volumeId } = {}) => {
+  let query = `
+    SELECT 
+      issue_id::text AS issue_id,
+      volume_id::text AS volume_id,
+      issue_number,
+      publication_year
+    FROM "Issue"
+  `;
+  const params = [];
+
+  if (volumeId) {
+    query += ` WHERE volume_id = $1`;
+    params.push(volumeId);
+  }
+
+  query += ` ORDER BY publication_year DESC, issue_number DESC`;
+  const res = await pool.query(query, params);
+  return res.rows;
+};

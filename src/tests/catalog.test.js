@@ -308,4 +308,139 @@ test.describe('Catalog & Search API Suite', () => {
       assert.strictEqual(res.body.message, 'Tạp chí không tồn tại');
     });
   });
+
+  // ==========================================
+  // 5. GET /api/v1/catalog/volumes (Public)
+  // ==========================================
+  test.describe('GET /api/v1/catalog/volumes (Public)', () => {
+    test('Lấy danh sách volumes thành công không lọc (không cần Token)', async () => {
+      mock.method(pool, 'query', async (sql, params) => {
+        assert.strictEqual(params.length, 0);
+        assert.ok(sql.includes('FROM "Volume"'));
+        return {
+          rows: [
+            {
+              volume_id: '12',
+              journal_id: '11',
+              journal_name: 'Test Journal A',
+              volume_number: 12,
+              publication_year: 2025
+            }
+          ]
+        };
+      });
+
+      const res = await request(app).get('/api/v1/catalog/volumes');
+
+      assert.strictEqual(res.status, 200);
+      assert.strictEqual(res.body.success, true);
+      assert.strictEqual(res.body.message, 'Lấy danh sách volume thành công');
+      assert.strictEqual(res.body.data.length, 1);
+      assert.strictEqual(res.body.data[0].volume_number, 12);
+      assert.strictEqual(res.body.data[0].journal_name, 'Test Journal A');
+    });
+
+    test('Lấy danh sách volumes lọc theo journal_id thành công', async () => {
+      mock.method(pool, 'query', async (sql, params) => {
+        assert.deepStrictEqual(params, ['11']);
+        assert.ok(sql.includes('WHERE v.journal_id = $1'));
+        return {
+          rows: [
+            {
+              volume_id: '12',
+              journal_id: '11',
+              journal_name: 'Test Journal A',
+              volume_number: 12,
+              publication_year: 2025
+            }
+          ]
+        };
+      });
+
+      const res = await request(app).get('/api/v1/catalog/volumes?journal_id=11');
+
+      assert.strictEqual(res.status, 200);
+      assert.strictEqual(res.body.success, true);
+      assert.strictEqual(res.body.data.length, 1);
+      assert.strictEqual(res.body.data[0].journal_id, '11');
+    });
+
+    test('Lỗi 400 - journal_id không hợp lệ', async () => {
+      const resVal = await request(app).get('/api/v1/catalog/volumes?journal_id=abc');
+      assert.strictEqual(resVal.status, 400);
+      assert.strictEqual(resVal.body.success, false);
+      assert.strictEqual(resVal.body.message, 'Tham số journal_id phải là số nguyên dương lớn hơn 0');
+
+      const resNeg = await request(app).get('/api/v1/catalog/volumes?journal_id=-5');
+      assert.strictEqual(resNeg.status, 400);
+      assert.strictEqual(resNeg.body.success, false);
+      assert.strictEqual(resNeg.body.message, 'Tham số journal_id phải là số nguyên dương lớn hơn 0');
+    });
+  });
+
+  // ==========================================
+  // 6. GET /api/v1/catalog/issues (Public)
+  // ==========================================
+  test.describe('GET /api/v1/catalog/issues (Public)', () => {
+    test('Lấy danh sách issues thành công không lọc (không cần Token)', async () => {
+      mock.method(pool, 'query', async (sql, params) => {
+        assert.strictEqual(params.length, 0);
+        assert.ok(sql.includes('FROM "Issue"'));
+        return {
+          rows: [
+            {
+              issue_id: '15',
+              volume_id: '12',
+              issue_number: '1',
+              publication_year: 2025
+            }
+          ]
+        };
+      });
+
+      const res = await request(app).get('/api/v1/catalog/issues');
+
+      assert.strictEqual(res.status, 200);
+      assert.strictEqual(res.body.success, true);
+      assert.strictEqual(res.body.message, 'Lấy danh sách issue thành công');
+      assert.strictEqual(res.body.data.length, 1);
+      assert.strictEqual(res.body.data[0].issue_number, '1');
+    });
+
+    test('Lấy danh sách issues lọc theo volume_id thành công', async () => {
+      mock.method(pool, 'query', async (sql, params) => {
+        assert.deepStrictEqual(params, ['12']);
+        assert.ok(sql.includes('WHERE volume_id = $1'));
+        return {
+          rows: [
+            {
+              issue_id: '15',
+              volume_id: '12',
+              issue_number: '1',
+              publication_year: 2025
+            }
+          ]
+        };
+      });
+
+      const res = await request(app).get('/api/v1/catalog/issues?volume_id=12');
+
+      assert.strictEqual(res.status, 200);
+      assert.strictEqual(res.body.success, true);
+      assert.strictEqual(res.body.data.length, 1);
+      assert.strictEqual(res.body.data[0].volume_id, '12');
+    });
+
+    test('Lỗi 400 - volume_id không hợp lệ', async () => {
+      const resVal = await request(app).get('/api/v1/catalog/issues?volume_id=abc');
+      assert.strictEqual(resVal.status, 400);
+      assert.strictEqual(resVal.body.success, false);
+      assert.strictEqual(resVal.body.message, 'Tham số volume_id phải là số nguyên dương lớn hơn 0');
+
+      const resNeg = await request(app).get('/api/v1/catalog/issues?volume_id=-2');
+      assert.strictEqual(resNeg.status, 400);
+      assert.strictEqual(resNeg.body.success, false);
+      assert.strictEqual(resNeg.body.message, 'Tham số volume_id phải là số nguyên dương lớn hơn 0');
+    });
+  });
 });
