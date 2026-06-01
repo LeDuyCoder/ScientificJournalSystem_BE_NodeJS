@@ -7,7 +7,7 @@ import articleRouter from "./article.route.js";
 import googleRouter from "./google.route.js";
 import zoneRouter from "./zone.route.js";
 import keywordRouter from "./keyword.route.js";
-import catalogRouter from './catalog.route.js';
+import catalogRouter from "./catalog.route.js";
 import authorRouter from "./author.route.js";
 import topicRouter from "./topic.route.js";
 
@@ -34,5 +34,8 @@ router.use("/author", authorRouter);
 
 // Gom router của topic vào đường dẫn /topics
 router.use("/topics", topicRouter);
+
+//Gom router của keyword vào đường dẫn /keywords
+router.use("/keywords", keywordRouter);
 
 export default router;
