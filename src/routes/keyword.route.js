@@ -4,6 +4,7 @@ import {
   getTrendingKeywords,
   getWatchedKeywordArticles,
   watchKeywords,
+  deleteWatchedKeyword,
 } from "../controllers/keyword.controller.js";
 
 const router = express.Router();
@@ -265,6 +266,56 @@ router.post(
   "/:id/keywords/watch",
   requireAuth,
   watchKeywords
+);
+
+/**
+ * @swagger
+ * /api/v1/projects/{id}/keywords/{keywordId}:
+ *   delete:
+ *     summary: Xóa một từ khóa khỏi danh sách theo dõi của dự án
+ *     tags: [Keywords]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID của project
+ *       - in: path
+ *         name: keywordId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID của từ khóa cần xóa
+ *     responses:
+ *       200:
+ *         description: Đã xóa thành công
+ *       400:
+ *         description: ID dự án hoặc ID từ khóa không hợp lệ
+ *       401:
+ *         description: Chưa xác thực
+ *       404:
+ *         description: Không tìm thấy dự án, không có quyền, hoặc từ khóa không nằm trong danh sách
+ *       500:
+ *         description: Lỗi server
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: Có lỗi xảy ra ở server khi xóa từ khóa
+ */
+router.delete(
+  "/:id/keywords/:keywordId",
+  requireAuth,
+  deleteWatchedKeyword
 );
 
 export default router;

@@ -235,6 +235,21 @@ export const checkProjectOwnership = async (projectId, userId) => {
   return result.rows.length > 0;
 };
 
+/**
+ * Xóa một từ khóa khỏi danh sách theo dõi của dự án (xóa trong Project_Keyword).
+ *
+ * @param {number|string} projectId - ID dự án
+ * @param {number|string} keywordId - ID từ khóa cần xóa
+ * @returns {Promise<boolean>} `true` nếu xóa thành công, `false` nếu từ khóa không tồn tại trong danh sách
+ */
+export const removeWatchedKeyword = async (projectId, keywordId) => {
+  const result = await pool.query(
+    `DELETE FROM "Project_Keyword" WHERE project_id = $1 AND keyword_id = $2 RETURNING *`,
+    [projectId, keywordId]
+  );
+  
+  return result.rowCount > 0;
+};
 
 /**
  * Thêm (và upsert) các từ khóa rồi gán vào một bài báo cùng với `score`.

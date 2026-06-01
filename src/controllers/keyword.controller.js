@@ -4,6 +4,7 @@ import {
   syncWatchedKeywords,
   validateKeywordIds,
   checkProjectOwnership,
+  removeWatchedKeyword,
 } from "../services/keyword.service.js";
 import logger from "../utils/logger.js";
 
@@ -184,4 +185,43 @@ export const watchKeywords = async (req, res) => {
   }
 };
 
+/**
+ * API Xóa một từ khóa khỏi danh sách theo dõi của dự án
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+export const deleteWatchedKeyword = async (req, res) => {
+  try {
+    const projectId = parseInt(req.params.id);
+    const keywordId = parseInt(req.params.keywordId);
 
+    if (isNaN(projectId) || projectId <= 0) {
+      return res.status(400).json({ success: false, message: "ID dự án không hợp lệ" });
+    }
+
+    if (isNaN(keywordId) || keywordId <= 0) {
+      return res.status(400).json({ success: false, message: "ID từ khóa không hợp lệ" });
+    }
+
+    const userId = req.user.user_id;
+    const isOwner = await checkProjectOwnership(projectId, userId);
+
+    if (!isOwner) {
+      return res.status(404).json({ success: false, message: "Không tìm thấy dự án hoặc bạn không có quyền truy cập dự án này" });
+    }
+
+    const isDeleted = await removeWatchedKeyword(projectId, keywordId);
+    
+    if (!isDeleted) {
+      return res.status(404).json({ success: false, message: "Từ khóa không nằm trong danh sách theo dõi của dự án" });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Đã xóa từ khóa khỏi dự án thành công"
+    });
+  } catch (error) {
+    logger.error("[deleteWatchedKeyword] Lỗi khi xóa từ khóa theo dõi:", error);
+    return res.status(500).json({ success: false, message: "Có lỗi xảy ra ở server khi xóa từ khóa" });
+  }
+};

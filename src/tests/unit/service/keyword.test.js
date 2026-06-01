@@ -1,4 +1,4 @@
-﻿import { describe, test, afterEach, after, mock } from 'node:test';
+import { describe, test, afterEach, after, mock } from 'node:test';
 import assert from 'node:assert';
 import request from 'supertest';
 import jwt from 'jsonwebtoken';
@@ -384,3 +384,41 @@ describe('Keyword Controller - getWatchedKeywordArticles()', () => {
     assert.strictEqual(res.body.success, false);
   });
 });
+
+// ============================================================
+// Keyword Service - removeWatchedKeyword (Unit Test)
+// ============================================================
+describe('Keyword Service - removeWatchedKeyword()', () => {
+  afterEach(() => {
+    mock.restoreAll();
+  });
+
+  test('Thành công: Trả về true khi xóa dữ liệu thành công', async () => {
+    mock.method(pool, 'query', async () => ({ rowCount: 1 }));
+    
+    const result = await keywordService.removeWatchedKeyword(1, 2);
+    
+    assert.strictEqual(result, true);
+  });
+
+  test('Thành công: Trả về false khi không có dữ liệu để xóa', async () => {
+    mock.method(pool, 'query', async () => ({ rowCount: 0 }));
+    
+    const result = await keywordService.removeWatchedKeyword(1, 999);
+    
+    assert.strictEqual(result, false);
+  });
+
+  test('Thất bại: Throw lỗi khi database gặp sự cố', async () => {
+    mock.method(pool, 'query', async () => {
+      throw new Error('Database Error');
+    });
+    
+    try {
+      await keywordService.removeWatchedKeyword(1, 2);
+      assert.fail('Đáng lẽ phải throw error');
+    } catch (err) {
+      assert.strictEqual(err.message, 'Database Error');
+    }
+  });
+});

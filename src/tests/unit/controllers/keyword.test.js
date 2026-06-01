@@ -8,6 +8,7 @@ import pool from '../../../config/database.js';
 import {
   getTrendingKeywords,
   getWatchedKeywordArticles,
+  deleteWatchedKeyword,
 } from '../../../controllers/keyword.controller.js';
 import * as keywordService from '../../../services/keyword.service.js';
 
@@ -384,3 +385,110 @@ describe('Keyword Controller - getWatchedKeywordArticles()', () => {
     assert.strictEqual(res.body.success, false);
   });
 });
+
+// ============================================================
+// 4. deleteWatchedKeyword (Unit Test)
+// ============================================================
+describe('Keyword Controller - deleteWatchedKeyword()', () => {
+  const MOCK_USER_ID = '0028ddd0-d305-4aa1-8baa-2b1a2893c883';
+
+  afterEach(() => {
+    mock.restoreAll();
+  });
+
+  test('Thất bại: Trả về 400 nếu projectId không hợp lệ', async () => {
+    const req = {
+      params: { id: 'abc', keywordId: '2' },
+      user: { user_id: MOCK_USER_ID },
+    };
+    const res = createMockResponse();
+
+    await deleteWatchedKeyword(req, res);
+
+    assert.strictEqual(res.statusCode, 400);
+    assert.strictEqual(res.body.success, false);
+    assert.strictEqual(res.body.message, 'ID dự án không hợp lệ');
+  });
+
+  test('Thất bại: Trả về 400 nếu keywordId không hợp lệ', async () => {
+    const req = {
+      params: { id: '1', keywordId: 'xyz' },
+      user: { user_id: MOCK_USER_ID },
+    };
+    const res = createMockResponse();
+
+    await deleteWatchedKeyword(req, res);
+
+    assert.strictEqual(res.statusCode, 400);
+    assert.strictEqual(res.body.success, false);
+    assert.strictEqual(res.body.message, 'ID từ khóa không hợp lệ');
+  });
+
+  test('Thất bại: Trả về 404 nếu không phải chủ project', async () => {
+    mock.method(keywordService, 'checkProjectOwnership', async () => false);
+
+    const req = {
+      params: { id: '1', keywordId: '2' },
+      user: { user_id: MOCK_USER_ID },
+    };
+    const res = createMockResponse();
+
+    await deleteWatchedKeyword(req, res);
+
+    assert.strictEqual(res.statusCode, 404);
+    assert.strictEqual(res.body.success, false);
+    assert.strictEqual(res.body.message, 'Không tìm thấy dự án hoặc bạn không có quyền truy cập dự án này');
+  });
+
+  test('Thất bại: Trả về 404 nếu từ khóa không tồn tại trong danh sách', async () => {
+    mock.method(keywordService, 'checkProjectOwnership', async () => true);
+    mock.method(keywordService, 'removeWatchedKeyword', async () => false);
+
+    const req = {
+      params: { id: '1', keywordId: '2' },
+      user: { user_id: MOCK_USER_ID },
+    };
+    const res = createMockResponse();
+
+    await deleteWatchedKeyword(req, res);
+
+    assert.strictEqual(res.statusCode, 404);
+    assert.strictEqual(res.body.success, false);
+    assert.strictEqual(res.body.message, 'Từ khóa không nằm trong danh sách theo dõi của dự án');
+  });
+
+  test('Thành công: Trả về 200 khi xóa thành công', async () => {
+    mock.method(keywordService, 'checkProjectOwnership', async () => true);
+    mock.method(keywordService, 'removeWatchedKeyword', async () => true);
+
+    const req = {
+      params: { id: '1', keywordId: '2' },
+      user: { user_id: MOCK_USER_ID },
+    };
+    const res = createMockResponse();
+
+    await deleteWatchedKeyword(req, res);
+
+    assert.strictEqual(res.statusCode, 200);
+    assert.strictEqual(res.body.success, true);
+    assert.strictEqual(res.body.message, 'Đã xóa từ khóa khỏi dự án thành công');
+  });
+
+  test('Thất bại: Trả về 500 khi có lỗi từ server', async () => {
+    mock.method(keywordService, 'checkProjectOwnership', async () => {
+      throw new Error('Database connection lost');
+    });
+
+    const req = {
+      params: { id: '1', keywordId: '2' },
+      user: { user_id: MOCK_USER_ID },
+    };
+    const res = createMockResponse();
+
+    await deleteWatchedKeyword(req, res);
+
+    assert.strictEqual(res.statusCode, 500);
+    assert.strictEqual(res.body.success, false);
+    assert.strictEqual(res.body.message, 'Có lỗi xảy ra ở server khi xóa từ khóa');
+  });
+});
