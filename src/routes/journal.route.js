@@ -1,7 +1,7 @@
 import express from 'express';
 import { requireAuth } from '../middlewares/auth.middleware.js';
-import { createJournal, getJournals, getJournalsById, updateJournal } from '../controllers/journal.controller.js';
-import { validateCreateJournal, validateUpdateJournal } from '../middlewares/journalValidation.middleware.js';
+import { createJournal, deleteJournal, getJournals, getJournalsById, restoreJournal, updateJournal } from '../controllers/journal.controller.js';
+import { validateCreateJournal, validateJournalId, validateUpdateJournal } from '../middlewares/journalValidation.middleware.js';
 
 const router = express.Router();
 
@@ -297,5 +297,152 @@ router.post('/', requireAuth, validateCreateJournal, createJournal);
  *                   example: "Lỗi hệ thống khi cập nhật Journal"
  */
 router.put('/:id', requireAuth, validateUpdateJournal, updateJournal);
+
+//viết giúp tôi tài liệu swagger cho endpoint xóa journal
+/**
+ * @swagger
+ * /api/v1/journal/{id}:
+ *   delete:
+ *     summary: Xóa một journal
+ *     description: Xóa mềm một bài báo bằng cách đánh dấu `is_deleted = true`. Journal sẽ không xuất hiện trong danh sách nhưng vẫn có thể lấy chi tiết nếu biết ID. Yêu cầu xác thực.
+ *     tags:
+ *       - Journal
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID của journal cần xóa
+ *     responses:
+ *       200:
+ *         description: Xóa journal thành công
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 code:
+ *                   type: string
+ *                   example: "DELETE_JOURNAL_SUCCESS"
+ *                 message:
+ *                   type: string
+ *                   example: "Xóa Journal thành công"
+ *       400:
+ *         description: Id không hợp lệ
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 code:
+ *                   type: string
+ *                   example: "INVALID_ID"
+ *                 message:
+ *                   type: string
+ *                   example: "Id không hợp lệ"
+ *       401:
+ *         description: Chưa xác thực
+ *       404:
+ *         description: Journal không tồn tại
+ *       500:
+ *         description: Lỗi hệ thống khi xóa journal
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 code:
+ *                   type: string
+ *                   example: "SERVER_VALIDATION_ERROR"
+ *                 message:
+ *                   type: string
+ *                   example: "Lỗi hệ thống khi xóa Journal"
+ */
+router.delete('/:id', requireAuth, validateJournalId, deleteJournal);
+
+/**
+ * @swagger
+ * /api/v1/journal/{id}:
+ *   patch:
+ *     summary: Khôi phục một journal đã bị xóa mềm
+ *     description: Khôi phục một journal đã bị xóa mềm dựa vào ID cung cấp. Yêu cầu đăng nhập.
+ *     tags:
+ *       - Journal
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID của journal cần khôi phục
+ *     responses:
+ *       200:
+ *         description: Khôi phục journal thành công
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 code:
+ *                   type: string
+ *                   example: "RESTORE_JOURNAL_SUCCESS"
+ *                 message:
+ *                   type: string
+ *                   example: "Khôi phục Journal thành công"
+ *       400:
+ *         description: Id không hợp lệ
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 code:
+ *                   type: string
+ *                   example: "INVALID_ID"
+ *                 message:
+ *                   type: string
+ *                   example: "Id không hợp lệ"
+ *       401:
+ *         description: Chưa xác thực
+ *       404:
+ *         description: Journal không tồn tại hoặc đã được khôi phục trước đó
+ *       500:
+ *         description: Lỗi hệ thống khi khôi phục journal
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 code:
+ *                   type: string
+ *                   example: "SERVER_ERROR"
+ *                 message:
+ *                   type: string
+ *                   example: "Lỗi hệ thống khi khôi phục Journal"
+ */
+router.patch('/:id', requireAuth, validateJournalId, restoreJournal);
 
 export default router;

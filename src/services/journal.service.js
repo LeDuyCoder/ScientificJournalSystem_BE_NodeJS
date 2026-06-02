@@ -32,29 +32,35 @@ export const getJournals = async ({ search, page = 1, limit = 10 } = {}) => {
   
   let countQuery = `SELECT COUNT(*)::integer AS total FROM "Journal"`;
   
+  const whereClauses = ['is_deleted = false'];
   const queryParams = [];
   const countParams = [];
   
-  // 1. Xử lý phần WHERE (Dùng chung biến đếm để tránh lệch $1, $2)
+  // Nếu có từ khóa search, đẩy thêm điều kiện vào mảng
   if (search && search.trim() !== '') {
     const searchTerm = `%${search.trim()}%`;
     
-    queryParams.push(searchTerm); // Sẽ là $1 của query
-    countParams.push(searchTerm); // Sẽ là $1 của countQuery
+    queryParams.push(searchTerm); 
+    countParams.push(searchTerm); 
     
-    query += ` WHERE display_name ILIKE $1`;
-    countQuery += ` WHERE display_name ILIKE $1`;
+    whereClauses.push(`display_name ILIKE $1`);
   }
 
-  // 2. Xử lý phần ORDER BY, LIMIT, OFFSET cho câu query chính
-  // Xác định số thứ tự ($) tiếp theo dựa vào độ dài hiện tại của mảng queryParams
+  // Khâu nối mảng whereClauses lại bằng chữ "AND"
+  // Kết quả dạng: "WHERE is_deleted = false" HOẶC "WHERE is_deleted = false AND display_name ILIKE $1"
+  const whereSql = ` WHERE ${whereClauses.join(' AND ')}`;
+  
+  query += whereSql;
+  countQuery += whereSql;
+
+  // 3. Xử lý phần ORDER BY, LIMIT, OFFSET cho câu query chính
   const limitPlaceholder = `$${queryParams.length + 1}`;
   const offsetPlaceholder = `$${queryParams.length + 2}`;
 
   queryParams.push(limitNum, offset);
   query += ` ORDER BY display_name ASC LIMIT ${limitPlaceholder} OFFSET ${offsetPlaceholder}`;
 
-  // 3. Thực thi song song
+  // 4. Thực thi song song
   const [itemsRes, countRes] = await Promise.all([
     pool.query(query, queryParams),
     pool.query(countQuery, countParams)
@@ -66,6 +72,13 @@ export const getJournals = async ({ search, page = 1, limit = 10 } = {}) => {
   };
 };
 
+/**
+ * Lấy thông tin chi tiết của một journal theo ID.
+ * @async
+ * @param {number} id - ID của journal cần lấy thông tin.
+ * @returns {Promise<Object|null>} Thông tin journal nếu tìm thấy, hoặc null nếu không tìm thấy.
+ * @throws {Error} Ném lỗi nếu có lỗi hệ thống trong quá trình truy vấn database.
+ */
 export const getJournalsById = async (id) => {
   try{
     const query = `
@@ -90,6 +103,24 @@ export const getJournalsById = async (id) => {
     return result.rows[0];
   }catch(error){
     logger.error('Lỗi khi lấy danh sách journal trong catalog:', error);
+    throw error;
+  }
+}
+
+/**
+ * Kiểm tra sự tồn tại của một journal trong database dựa trên ID.
+ * @async
+ * @param {number|string} id - ID của journal cần kiểm tra (có thể là số hoặc chuỗi số).
+ * @returns {Promise<boolean>} Trả về true nếu journal tồn tại và chưa bị xóa mềm, false nếu không tồn tại hoặc đã bị xóa.
+ * @throws {Error} Ném lỗi nếu có lỗi hệ thống trong quá trình truy vấn database.
+*/
+export const journalExist = async (id) => {
+  try {
+    const query = `SELECT 1 FROM "Journal" WHERE journal_id = $1`;
+    const result = await pool.query(query, [id]);
+    return result.rows.length > 0;
+  } catch (error) {
+    logger.error(`Lỗi khi kiểm tra tồn tại của journal với ID ${id}:`, error.message);
     throw error;
   }
 }
@@ -210,6 +241,48 @@ export const updateJournal = async (id, data) => {
   }
 };
 
-export const deleteJournal = async () => {
+/**
+ * Xóa mềm một journal bằng cách cập nhật trường is_deleted.
+ *
+ * @async
+ * @param {string|number} id - ID của journal cần xóa.
+ * @returns {Promise<Object|null>} Journal đã được cập nhật, hoặc null nếu không tìm thấy.
+ */
+export const deleteJournal = async (id) => {
+  try {
+    const query = `
+      UPDATE "Journal"
+      SET is_deleted = true
+      WHERE journal_id = $1 AND is_deleted = false
+      RETURNING *;
+    `;
+    const result = await pool.query(query, [BigInt(id)]);
 
+    return result.rows.length ? result.rows[0] : null;
+  } catch (error) {
+    logger.error(`Lỗi khi xóa journal với ID ${id}:`, error.message);
+    throw error;
+  }
+}
+
+/**
+ * Khôi phục một journal đã bị xóa mềm bằng cách cập nhật trường is_deleted.
+ * @async
+ * @param {string|number} id - ID của journal cần khôi phục (có thể là số hoặc chuỗi số).
+ * @return {Promise<Object|null>} Trả về journal đã được khôi phục nếu thành công, null nếu không tìm thấy journal với ID đó hoặc đã được khôi phục trước đó, hoặc lỗi nếu có lỗi hệ thống.
+ */
+export const restoreJournal = async (id) => {
+  try {
+    const query = `
+      UPDATE "Journal"
+      SET is_deleted = false
+      WHERE journal_id = $1 AND is_deleted = true
+      RETURNING *;
+    `;
+    const result = await pool.query(query, [BigInt(id)]);
+    return result.rows.length ? result.rows[0] : null;
+  } catch (error) {
+    logger.error(`Lỗi khi khôi phục journal với ID ${id}:`, error.message);
+    throw error;
+  }
 }

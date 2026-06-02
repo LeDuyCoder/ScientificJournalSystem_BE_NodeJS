@@ -1,3 +1,4 @@
+import { journalExist } from '../services/journal.service.js';
 import { publisherExist } from '../services/publisher.service.js';
 import { zoneExist } from '../services/zone.service.js';
 
@@ -249,4 +250,35 @@ export const validateUpdateJournal = async (req, res, next) => {
       message: 'Lỗi hệ thống trong quá trình kiểm tra dữ liệu',
     });
   }
+}
+
+export const validateJournalId = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const idNumber = Number(id);
+    if (!Number.isInteger(idNumber) || idNumber <= 0) {
+      return res.status(400).json({
+        success: false,
+        code: 'INVALID_JOURNAL_ID',
+        message: 'Id không hợp lệ, phải là số nguyên dương'
+      });
+    }
+
+    if(!(await journalExist(idNumber))) {
+      return res.status(404).json({
+        success: false,
+        code: 'JOURNAL_NOT_FOUND',
+        message: `Không tìm thấy journal nào với id ${idNumber}`
+      });
+    }
+    next();
+
+  } catch (error) {
+    return res.status(400).json({
+        success: false,
+        code: 'INVALID_JOURNAL_ID',
+        message: 'Id không hợp lệ, phải là số nguyên dương'
+      });
+    }
+
 }

@@ -166,3 +166,43 @@ export const updateJournal = async (req, res) => {
     });
   }
 }
+
+export const deleteJournal = async (req, res) => {
+  try {
+    await journalService.deleteJournal(req.params.id);
+
+    return res.status(200).json({
+      success: true,
+      code: 'DELETE_JOURNAL_SUCCESS',
+      message: 'Xóa Journal thành công',
+    });
+  }catch (error) {
+    logger.error(`Lỗi khi xóa journal với ID ${req.params.id}:`, error.message);
+
+    return res.status(500).json({
+      success: false,
+      code: 'SERVER_VALIDATION_ERROR',
+      message: 'Lỗi hệ thống khi xóa Journal',
+    });
+  }
+}
+
+export const restoreJournal = async (req, res) => {
+  try {
+    await journalService.restoreJournal(req.params.id);
+
+    return res.status(200).json({
+      success: true,
+      code: 'RESTORE_JOURNAL_SUCCESS',
+      message: 'Khôi phục Journal thành công',
+    });
+  }catch (error) {
+    logger.error(`Lỗi khi khôi phục journal với ID ${req.params.id}:`, error.message);
+
+    return res.status(500).json({
+      success: false,
+      code: 'SERVER_VALIDATION_ERROR',
+      message: 'Lỗi hệ thống khi khôi phục Journal',
+    });
+  }
+}
