@@ -11,6 +11,7 @@ import catalogRouter from './catalog.route.js';
 import authorRouter from "./author.route.js";
 import topicRouter from "./topic.route.js";
 import journalRouter from "./journal.route.js";
+import volumeRouter from "./volume.route.js";
 
 const router = express.Router();
 
@@ -37,5 +38,6 @@ router.use("/author", authorRouter);
 router.use("/topics", topicRouter);
 
 router.use("/journal", journalRouter);
+router.use("/volumes", volumeRouter);
 
 export default router;
