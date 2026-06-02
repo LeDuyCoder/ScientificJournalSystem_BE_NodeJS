@@ -12,7 +12,7 @@ import {
   restoreKeyword,
   removeWatchedKeyword,
   replaceWatchedKeywords,
-  addWatchedKeyword,
+  addWatchedKeywords,
 } from "../services/keyword.service.js";
 import logger from "../utils/logger.js";
 
@@ -123,92 +123,31 @@ export const watchKeywords = async (req, res) => {
         .json({ success: false, message: "ID dự án không hợp lệ" });
     }
 
-    // Kiểm tra quyền sở hữu project trước khi xử lý logic dữ liệu
-    const userId = req.user.user_id;
-    const isOwner = await checkProjectOwnership(projectId, userId);
-    if (!isOwner) {
-      return res.status(403).json({
+    const { keyword_ids } = req.body || {};
+
+    // Thêm mới các keyword vào danh sách (middleware đã validate)
+    const result = await addWatchedKeywords(projectId, keyword_ids);
+
+    if (!result.success) {
+      return res.status(400).json({
         success: false,
-        message: "Không tìm thấy dự án hoặc bạn không có quyền truy cập dự án này",
+        code: "ERROR_KEYWORDS_ALREADY_WATCHED",
+        message: "Có từ khóa đã tồn tại trong danh sách theo dõi của dự án, không thể thêm mới"
       });
     }
 
-    const { keyword_id, keyword_ids } = req.body || {};
-
-    // HƯỚNG 1: Xử lý theo mảng nhiều keyword_ids (Bên B)
-    if (keyword_ids !== undefined) {
-      if (!Array.isArray(keyword_ids)) {
-        return res
-          .status(400)
-          .json({ success: false, message: "keyword_ids phải là một mảng" });
-      }
-
-      if (keyword_ids.length > 0) {
-        const isValid = keyword_ids.every((id) => Number.isInteger(id) && id > 0);
-        if (!isValid) {
-          return res.status(400).json({
-            success: false,
-            message: "Các phần tử trong keyword_ids phải là số nguyên dương",
-          });
-        }
-
-        const keywordsExist = await validateKeywordIds(keyword_ids);
-        if (!keywordsExist) {
-          return res.status(400).json({
-            success: false,
-            message: "Một hoặc nhiều Keyword ID không tồn tại trong hệ thống",
-          });
-        }
-      }
-
-      // Sync/Đồng bộ danh sách từ khóa
-      await syncWatchedKeywords(projectId, keyword_ids);
-      
-      return res.status(201).json({
-        success: true,
-        code: "SUCCESS_SYNC_WATCHED_KEYWORDS",
-        message: "Đồng bộ danh sách từ khóa theo dõi thành công"
-      });
-    }
-
-    // HƯỚNG 2: Xử lý single keyword_id (Bên A)
-    if (keyword_id !== undefined) {
-      const parsedKeywordId = parseInt(keyword_id);
-      if (isNaN(parsedKeywordId) || parsedKeywordId <= 0) {
-        return res.status(400).json({
-          success: false,
-          message: "keyword_id đơn lẻ phải là số nguyên dương"
-        });
-      }
-
-      const isInserted = await addWatchedKeyword(projectId, parsedKeywordId);
-      if (!isInserted) {
-        return res.status(400).json({
-          success: false,
-          code: "ERROR_KEYWORD_ALREADY_WATCHED",
-          message: "Từ khóa này đã tồn tại trong danh sách theo dõi của dự án"
-        });
-      }
-
-      return res.status(201).json({
-        success: true,
-        code: "SUCCESS_CREATE_WATCHED_KEYWORD",
-        message: "Thêm từ khóa theo dõi thành công"
-      });
-    }
-
-    // Nếu không truyền cả 2 trường
-    return res.status(400).json({
-      success: false,
-      message: "Yêu cầu cung cấp keyword_id hoặc keyword_ids"
+    return res.status(201).json({
+      success: true,
+      code: "SUCCESS_CREATE_WATCHED_KEYWORDS",
+      message: `Thêm thành công ${result.insertedCount} từ khóa vào danh sách theo dõi`
     });
 
   } catch (error) {
     logger.error("[watchKeywords] Error:", error);
-    return res.status(500).json({ 
-      success: false, 
+    return res.status(500).json({
+      success: false,
       code: "ERROR_SERVER_CREATE_WATCHED_KEYWORD",
-      message: "Có lỗi xảy ra ở Server!" 
+      message: "Có lỗi xảy ra ở Server!"
     });
   }
 };

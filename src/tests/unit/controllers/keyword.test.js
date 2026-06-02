@@ -113,20 +113,20 @@ describe('Keyword Controller - POST /api/v1/projects/:id/keywords/watch', () => 
       assert.strictEqual(res.body.message, 'ID từ khóa không tồn tại trong hệ thống');
     });
 
-    test('Lỗi 400 - Từ khóa đã tồn tại trong danh sách theo dõi', async () => {
+    test('Lỗi 400 - Tất cả từ khóa đã tồn tại trong danh sách theo dõi', async () => {
       mock.method(keywordService, 'checkProjectOwnership', async () => true);
       mock.method(keywordService, 'validateKeywordIds', async () => true);
-      mock.method(keywordService, 'addWatchedKeyword', async () => false);
+      mock.method(keywordService, 'addWatchedKeywords', async () => ({ success: false, existingIds: [1] }));
 
       const res = await request(app)
         .post('/api/v1/projects/1/keywords/watch')
         .set('Authorization', `Bearer ${testToken}`)
-        .send({ keyword_id: 1 });
+        .send({ keyword_ids: [1, 2] });
 
       assert.strictEqual(res.status, 400);
       assert.strictEqual(res.body.success, false);
-      assert.strictEqual(res.body.code, 'ERROR_KEYWORD_ALREADY_WATCHED');
-      assert.strictEqual(res.body.message, 'Từ khóa này đã tồn tại trong danh sách theo dõi của dự án');
+      assert.strictEqual(res.body.code, 'ERROR_KEYWORDS_ALREADY_WATCHED');
+      assert.strictEqual(res.body.message, 'Có từ khóa đã tồn tại trong danh sách theo dõi của dự án, không thể thêm mới');
     });
   });
 
@@ -134,19 +134,20 @@ describe('Keyword Controller - POST /api/v1/projects/:id/keywords/watch', () => 
   // 1.3 Trường hợp thành công
   // ==========================================
   describe('Success Cases', () => {
-    test('Thành công (201) - Thêm 1 keyword hợp lệ', async () => {
+    test('Thành công (201) - Thêm danh sách keyword hợp lệ', async () => {
       mock.method(keywordService, 'checkProjectOwnership', async () => true);
       mock.method(keywordService, 'validateKeywordIds', async () => true);
-      mock.method(keywordService, 'addWatchedKeyword', async () => true);
+      mock.method(keywordService, 'addWatchedKeywords', async () => ({ success: true, insertedCount: 2 }));
 
       const res = await request(app)
         .post('/api/v1/projects/1/keywords/watch')
         .set('Authorization', `Bearer ${testToken}`)
-        .send({ keyword_id: 1 });
+        .send({ keyword_ids: [1, 2] });
 
       assert.strictEqual(res.status, 201);
       assert.strictEqual(res.body.success, true);
-      assert.strictEqual(res.body.message, 'Thêm từ khóa theo dõi thành công');
+      assert.strictEqual(res.body.code, 'SUCCESS_CREATE_WATCHED_KEYWORDS');
+      assert.strictEqual(res.body.message, 'Thêm thành công 2 từ khóa vào danh sách theo dõi');
     });
   });
 

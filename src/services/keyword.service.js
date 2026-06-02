@@ -289,21 +289,48 @@ export const replaceWatchedKeywords = async (projectId, keywordIds) => {
 };
 
 /**
- * Thêm một từ khóa vào danh sách theo dõi của dự án.
- * Nếu từ khóa đã được theo dõi, sẽ bỏ qua (ON CONFLICT DO NOTHING).
+ * Thêm danh sách từ khóa vào danh sách theo dõi của dự án.
+ * Nếu có BẤT KỲ từ khóa nào trong danh sách đã được theo dõi, sẽ không thêm từ khóa nào và báo lỗi.
  *
  * @param {number|string} projectId - ID dự án
- * @param {number|string} keywordId - ID từ khóa
- * @returns {Promise<boolean>} `true` nếu thêm thành công, `false` nếu đã tồn tại
+ * @param {Array<number|string>} keywordIds - Mảng các ID từ khóa
+ * @returns {Promise<Object>} Object chứa trạng thái success, số lượng thêm thành công, hoặc danh sách ID bị trùng
  */
-export const addWatchedKeyword = async (projectId, keywordId) => {
-  const result = await pool.query(
-    `INSERT INTO "Project_Keyword" (project_id, keyword_id) 
-     VALUES ($1, $2) 
-     ON CONFLICT (project_id, keyword_id) DO NOTHING`,
-    [projectId, keywordId]
+export const addWatchedKeywords = async (projectId, keywordIds) => {
+  if (!keywordIds || keywordIds.length === 0) return { success: true, insertedCount: 0 };
+  
+  // 1. Kiểm tra xem có keyword nào đã tồn tại trong project này chưa
+  const existingCheck = await pool.query(
+    `SELECT keyword_id FROM "Project_Keyword" WHERE project_id = $1 AND keyword_id = ANY($2::int[])`,
+    [projectId, keywordIds]
   );
-  return result.rowCount > 0;
+
+  if (existingCheck.rows.length > 0) {
+    const existingIds = existingCheck.rows.map(row => row.keyword_id);
+    return { success: false, existingIds };
+  }
+
+  // 2. Nếu không trùng cái nào, tiến hành thêm tất cả
+  // Dùng transaction để đảm bảo an toàn nếu thêm nhiều
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    let insertedCount = 0;
+    for (const kwId of keywordIds) {
+      const result = await client.query(
+        `INSERT INTO "Project_Keyword" (project_id, keyword_id) VALUES ($1, $2)`,
+        [projectId, kwId]
+      );
+      insertedCount += result.rowCount;
+    }
+    await client.query('COMMIT');
+    return { success: true, insertedCount };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
 };
 
 /**
