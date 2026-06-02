@@ -229,6 +229,84 @@ export const syncWatchedKeywords = async (projectId, keywordIds) => {
 };
 
 /**
+ * Ghi đè (thay thế toàn bộ) danh sách từ khóa được theo dõi cho một project.
+ * - Xóa tất cả từ khóa đang theo dõi hiện tại của project.
+ * - Thêm mới danh sách `keywordIds` truyền vào.
+ *
+ * @param {number|string} projectId - ID project
+ * @param {Array<number|string>} keywordIds - Mảng keyword_id cần cập nhật
+ * @returns {Promise<boolean>} `true` nếu cập nhật thành công
+ * @throws {Error} Ném lỗi khi DB transaction gặp sự cố
+ */
+export const replaceWatchedKeywords = async (projectId, keywordIds) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // 1. Xóa tất cả các liên kết từ khóa cũ của project
+    await client.query(
+      `DELETE FROM "Project_Keyword" WHERE project_id = $1`,
+      [projectId]
+    );
+
+    // Nếu không có keyword nào truyền lên, tức là chỉ muốn xóa sạch -> Commit luôn
+    if (!keywordIds || keywordIds.length === 0) {
+      await client.query('COMMIT');
+      return true;
+    }
+
+    // 2. Loại bỏ duplicate từ input
+    const uniqueIds = [...new Set(keywordIds)];
+
+    // 3. Validate keywords tồn tại trong bảng Keyword
+    const validationResult = await client.query(
+      `SELECT keyword_id FROM "Keyword" WHERE keyword_id = ANY($1::bigint[])`,
+      [uniqueIds]
+    );
+    const validIds = new Set(validationResult.rows.map(row => Number(row.keyword_id)));
+
+    // 4. Lọc ra những keywords hợp lệ
+    const idsToInsert = uniqueIds.filter(id => validIds.has(id));
+    
+    // 5. Insert danh sách keywords hợp lệ mới
+    if (idsToInsert.length > 0) {
+      for (const kwId of idsToInsert) {
+        await client.query(
+          `INSERT INTO "Project_Keyword" (project_id, keyword_id) VALUES ($1, $2)`,
+          [projectId, kwId]
+        );
+      }
+    }
+
+    await client.query('COMMIT');
+    return true;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
+/**
+ * Thêm một từ khóa vào danh sách theo dõi của dự án.
+ * Nếu từ khóa đã được theo dõi, sẽ bỏ qua (ON CONFLICT DO NOTHING).
+ *
+ * @param {number|string} projectId - ID dự án
+ * @param {number|string} keywordId - ID từ khóa
+ * @returns {Promise<boolean>} `true` nếu thêm thành công, `false` nếu đã tồn tại
+ */
+export const addWatchedKeyword = async (projectId, keywordId) => {
+  const result = await pool.query(
+    `INSERT INTO "Project_Keyword" (project_id, keyword_id) 
+     VALUES ($1, $2) 
+     ON CONFLICT (project_id, keyword_id) DO NOTHING`,
+    [projectId, keywordId]
+  );
+  return result.rowCount > 0;
+};
+
+/**
  * Kiểm tra quyền sở hữu project của user.
  *
  * @param {number|string} projectId - ID project
@@ -241,6 +319,22 @@ export const checkProjectOwnership = async (projectId, userId) => {
     [projectId, userId],
   );
   return result.rows.length > 0;
+};
+
+/**
+ * Xóa một từ khóa khỏi danh sách theo dõi của dự án (xóa trong Project_Keyword).
+ *
+ * @param {number|string} projectId - ID dự án
+ * @param {number|string} keywordId - ID từ khóa cần xóa
+ * @returns {Promise<boolean>} `true` nếu xóa thành công, `false` nếu từ khóa không tồn tại trong danh sách
+ */
+export const removeWatchedKeyword = async (projectId, keywordId) => {
+  const result = await pool.query(
+    `DELETE FROM "Project_Keyword" WHERE project_id = $1 AND keyword_id = $2 RETURNING *`,
+    [projectId, keywordId]
+  );
+  
+  return result.rowCount > 0;
 };
 
 /**
