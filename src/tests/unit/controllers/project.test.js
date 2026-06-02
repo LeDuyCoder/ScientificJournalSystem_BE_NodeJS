@@ -1,7 +1,7 @@
 import { test, describe, mock, afterEach } from 'node:test';
 import assert from 'node:assert';
 
-import { getRelatedArticles, projectServiceRef } from '../../../controllers/project.controller.js';
+import { getRelatedArticles, getProjectAnalytics, projectServiceRef } from '../../../controllers/project.controller.js';
 import logger from '../../../utils/logger.js';
 
 describe('Project Controller - getRelatedArticles() Unit Test Suite', () => {
@@ -106,3 +106,67 @@ describe('Project Controller - getRelatedArticles() Unit Test Suite', () => {
         assert.deepStrictEqual(mockGetRelatedArticles.mock.calls[0].arguments, [mockJournalIds, mockCategoryIds, { limit: 10 }]);
     });
 });
+
+describe('Project Controller - getProjectAnalytics() Unit Test Suite', () => {
+    afterEach(() => {
+        mock.restoreAll();
+    });
+
+    const createMockResponse = () => {
+        const res = {};
+        res.status = (statusCode) => {
+            res.statusCode = statusCode;
+            return res;
+        };
+        res.json = (jsonData) => {
+            res.body = jsonData;
+            return res;
+        };
+        return res;
+    };
+
+    test('Thất bại: Trả về 400 nếu projectId không hợp lệ (không phải số nguyên dương)', async () => {
+        const req = { params: { id: 'abc' }, user: { user_id: 'user-1' } };
+        const res = createMockResponse();
+
+        await getProjectAnalytics(req, res);
+
+        assert.strictEqual(res.statusCode, 400);
+        assert.strictEqual(res.body.success, false);
+        assert.strictEqual(res.body.message, 'ID dự án không hợp lệ');
+    });
+
+    test('Thất bại: Trả về 404 nếu không tìm thấy dự án hoặc không có quyền truy cập', async () => {
+        mock.method(projectServiceRef, 'getProjectAnalytics', async () => null);
+        mock.method(logger, 'error', () => {});
+
+        const req = { params: { id: '12' }, user: { user_id: 'user-1' } };
+        const res = createMockResponse();
+
+        await getProjectAnalytics(req, res);
+
+        assert.strictEqual(res.statusCode, 404);
+        assert.strictEqual(res.body.success, false);
+        assert.strictEqual(res.body.message, 'Không tìm thấy dự án hoặc bạn không có quyền truy cập dự án này');
+    });
+
+    test('Thành công: Trả về dữ liệu phân tích nếu dự án thuộc sở hữu của người dùng', async () => {
+        const mockAnalytics = {
+            article_volume_trend: [{ year: 2025, article_count: 5 }],
+            journal_metrics_comparison: [{ journal_name: 'Nature', journal_id: '1', metric_code: 'SJR', value: 15.2, year: 2025 }]
+        };
+
+        const mockGetAnalytics = mock.method(projectServiceRef, 'getProjectAnalytics', async () => mockAnalytics);
+        mock.method(logger, 'error', () => {});
+
+        const req = { params: { id: '12' }, user: { user_id: 'user-1' } };
+        const res = createMockResponse();
+
+        await getProjectAnalytics(req, res);
+
+        assert.strictEqual(res.statusCode, 200);
+        assert.strictEqual(res.body.success, true);
+        assert.deepStrictEqual(res.body.data, mockAnalytics);
+        assert.deepStrictEqual(mockGetAnalytics.mock.calls[0].arguments, ['12', 'user-1']);
+    });
+});

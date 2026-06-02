@@ -437,4 +437,103 @@ export const getRelatedArticles = async (journalIds, categoryIds, { limit = 5 })
         logger.error('Lỗi khi lấy bài viết liên quan tại Service:', error);
         throw error;
     }
-}
+};
+
+/**
+ * Lấy dữ liệu phân tích/thống kê của một dự án (Trending Charts)
+ * 
+ * @async
+ * @param {number|string} projectId - ID dự án.
+ * @param {string} userId - ID người dùng sở hữu dự án.
+ * @returns {Promise<Object|null>} Dữ liệu phân tích hoặc null nếu dự án không tồn tại/không thuộc quyền sở hữu.
+ */
+export const getProjectAnalytics = async (projectId, userId) => {
+    try {
+        // 1. Xác thực sự tồn tại và quyền sở hữu dự án
+        const projectCheck = await pool.query(
+            `SELECT 1 FROM "Project" WHERE project_id = $1 AND user_id = $2`,
+            [Number(projectId), userId]
+        );
+        if (projectCheck.rows.length === 0) {
+            return null;
+        }
+
+        // 2. Chart 1 (Article Volume Trend)
+        const articleTrendQuery = `
+            SELECT 
+                a.publication_year::integer AS year,
+                COUNT(a.article_id)::integer AS article_count
+            FROM "Article" a
+            JOIN "Issue" i ON a.issue_id = i.issue_id
+            JOIN "Volume" v ON i.volume_id = v.volume_id
+            JOIN "Project_Journal" pj ON v.journal_id = pj.journal_id
+            WHERE pj.project_id = $1 AND a.is_deleted = false
+            GROUP BY a.publication_year
+            ORDER BY a.publication_year ASC
+        `;
+        const articleTrendRes = await pool.query(articleTrendQuery, [Number(projectId)]);
+
+        // 3. Chart 2 (Journal Metrics Comparison)
+        const metricsCompareQuery = `
+            WITH latest_years AS (
+                SELECT jr.journal_id, MAX(jr.year) AS max_year
+                FROM "Journal_Ranking" jr
+                JOIN "Project_Journal" pj ON jr.journal_id = pj.journal_id
+                WHERE pj.project_id = $1
+                GROUP BY jr.journal_id
+            ),
+            deduped_rankings AS (
+                SELECT DISTINCT ON (jr.journal_id, rm.code, jr.subject_category_id)
+                    j.display_name AS journal_name,
+                    j.journal_id::text AS journal_id,
+                    rm.code AS metric_code,
+                    rm.display_name AS metric_name,
+                    rm.metric_type,
+                    jr.year,
+                    jr.value_txt,
+                    jr.value_float,
+                    jr.value_int
+                FROM "Journal_Ranking" jr
+                JOIN latest_years ly ON jr.journal_id = ly.journal_id AND jr.year = ly.max_year
+                JOIN "Ranking_Metric" rm ON jr.metric_id = rm.metric_id
+                JOIN "Journal" j ON jr.journal_id = j.journal_id
+                ORDER BY jr.journal_id, rm.code, jr.subject_category_id, jr.journal_ranking_id DESC
+            )
+            SELECT * FROM deduped_rankings
+            ORDER BY journal_name ASC, metric_code ASC
+        `;
+        const metricsCompareRes = await pool.query(metricsCompareQuery, [Number(projectId)]);
+        
+        const journalMetrics = metricsCompareRes.rows.map(row => {
+            let value = null;
+            if (row.metric_type === 'QUARTILE') {
+                value = row.value_txt;
+            } else if (row.metric_type === 'SCORE') {
+                value = row.value_float !== null ? Number(row.value_float) : null;
+            } else if (row.metric_type === 'INTEGER') {
+                value = row.value_int !== null ? Number(row.value_int) : null;
+            } else {
+                value = row.value_txt !== null ? row.value_txt :
+                        row.value_float !== null ? Number(row.value_float) :
+                        row.value_int !== null ? Number(row.value_int) : null;
+            }
+            return {
+                journal_name: row.journal_name,
+                journal_id: row.journal_id,
+                metric_code: row.metric_code,
+                metric_name: row.metric_name,
+                metric_type: row.metric_type,
+                value,
+                year: row.year
+            };
+        });
+
+        return {
+            article_volume_trend: articleTrendRes.rows,
+            journal_metrics_comparison: journalMetrics
+        };
+    } catch (error) {
+        logger.error('Lỗi khi lấy dữ liệu phân tích của dự án:', error);
+        throw error;
+    }
+};

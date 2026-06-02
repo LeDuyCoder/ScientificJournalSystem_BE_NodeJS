@@ -6,7 +6,8 @@ import {
   createProject,
   updateProject,
   getRelatedArticles,
-  deleteProject
+  deleteProject,
+  getProjectAnalytics
 } from '../controllers/project.controller.js';
 
 const router = express.Router();
@@ -405,4 +406,87 @@ router.put('/:id', requireAuth, updateProject);
  */
 router.delete('/:id', requireAuth, deleteProject);
 
+/**
+ * @swagger
+ * /api/v1/projects/{id}/analytics:
+ *   get:
+ *     summary: Lấy dữ liệu phân tích thống kê dự án (biểu đồ Trending)
+ *     description: Trả về dữ liệu bài viết theo năm xuất bản và so sánh chỉ số của các tạp chí trong dự án.
+ *     tags:
+ *       - Project
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID của dự án cần lấy dữ liệu phân tích (BIGINT)
+ *     responses:
+ *       200:
+ *         description: Lấy dữ liệu phân tích dự án thành công
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Lấy dữ liệu phân tích dự án thành công"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     article_volume_trend:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           year:
+ *                             type: integer
+ *                             example: 2025
+ *                           article_count:
+ *                             type: integer
+ *                             example: 120
+ *                     journal_metrics_comparison:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           journal_name:
+ *                             type: string
+ *                             example: "Nature"
+ *                           journal_id:
+ *                             type: string
+ *                             example: "1"
+ *                           metric_code:
+ *                             type: string
+ *                             example: "SJR"
+ *                           metric_name:
+ *                             type: string
+ *                             example: "SJR Score"
+ *                           metric_type:
+ *                             type: string
+ *                             example: "SCORE"
+ *                           value:
+ *                             type: number
+ *                             example: 15.2
+ *                           year:
+ *                             type: integer
+ *                             example: 2025
+ *       400:
+ *         description: ID dự án không hợp lệ
+ *       401:
+ *         description: Chưa xác thực (thiếu hoặc sai Token)
+ *       404:
+ *         description: Không tìm thấy dự án hoặc không có quyền truy cập
+ *       500:
+ *         description: Lỗi máy chủ
+ */
+router.get('/:id/analytics', requireAuth, getProjectAnalytics);
+
 export default router;
+
