@@ -8,6 +8,8 @@ import pool from '../../../config/database.js';
 import {
   getTrendingKeywords,
   getWatchedKeywordArticles,
+  deleteWatchedKeyword,
+  updateWatchedKeywords,
 } from '../../../controllers/keyword.controller.js';
 import * as keywordService from '../../../services/keyword.service.js';
 
@@ -51,7 +53,7 @@ describe('Keyword Controller - POST /api/v1/projects/:id/keywords/watch', () => 
     test('Lỗi 401 - Không truyền Token xác thực', async () => {
       const res = await request(app)
         .post('/api/v1/projects/1/keywords/watch')
-        .send({ keyword_ids: [1] });
+        .send({ keyword_id: 1 });
 
       assert.strictEqual(res.status, 401);
       assert.strictEqual(res.body.success, false);
@@ -66,33 +68,22 @@ describe('Keyword Controller - POST /api/v1/projects/:id/keywords/watch', () => 
       const res = await request(app)
         .post('/api/v1/projects/abc/keywords/watch')
         .set('Authorization', `Bearer ${testToken}`)
-        .send({ keyword_ids: [1] });
+        .send({ keyword_id: 1 });
 
       assert.strictEqual(res.status, 400);
       assert.strictEqual(res.body.success, false);
       assert.strictEqual(res.body.message, 'ID dự án không hợp lệ');
     });
 
-    test('Lỗi 400 - keyword_ids không tồn tại hoặc không phải mảng', async () => {
+    test('Lỗi 400 - keyword_id không hợp lệ (số âm, chuỗi)', async () => {
       const res = await request(app)
         .post('/api/v1/projects/1/keywords/watch')
         .set('Authorization', `Bearer ${testToken}`)
-        .send({ keyword_ids: "not_array" });
+        .send({ keyword_id: -5 });
 
       assert.strictEqual(res.status, 400);
       assert.strictEqual(res.body.success, false);
-      assert.strictEqual(res.body.message, 'keyword_ids phải là một mảng');
-    });
-
-    test('Lỗi 400 - keyword_ids chứa phần tử không hợp lệ (số âm, chuỗi)', async () => {
-      const res = await request(app)
-        .post('/api/v1/projects/1/keywords/watch')
-        .set('Authorization', `Bearer ${testToken}`)
-        .send({ keyword_ids: [1, -5, "abc"] });
-
-      assert.strictEqual(res.status, 400);
-      assert.strictEqual(res.body.success, false);
-      assert.strictEqual(res.body.message, 'Các phần tử trong keyword_ids phải là số nguyên dương');
+      assert.strictEqual(res.body.message, 'keyword_id phải là một số nguyên dương');
     });
 
     test('Lỗi 404 - Project không tồn tại hoặc không phải chủ sở hữu', async () => {
@@ -101,7 +92,7 @@ describe('Keyword Controller - POST /api/v1/projects/:id/keywords/watch', () => 
       const res = await request(app)
         .post('/api/v1/projects/1/keywords/watch')
         .set('Authorization', `Bearer ${testToken}`)
-        .send({ keyword_ids: [1] });
+        .send({ keyword_id: 1 });
 
       assert.strictEqual(res.status, 404);
       assert.strictEqual(res.body.success, false);
@@ -115,11 +106,27 @@ describe('Keyword Controller - POST /api/v1/projects/:id/keywords/watch', () => 
       const res = await request(app)
         .post('/api/v1/projects/1/keywords/watch')
         .set('Authorization', `Bearer ${testToken}`)
-        .send({ keyword_ids: [1] });
+        .send({ keyword_id: 1 });
 
       assert.strictEqual(res.status, 400);
       assert.strictEqual(res.body.success, false);
-      assert.strictEqual(res.body.message, 'Một hoặc nhiều Keyword ID không tồn tại trong hệ thống');
+      assert.strictEqual(res.body.message, 'ID từ khóa không tồn tại trong hệ thống');
+    });
+
+    test('Lỗi 400 - Từ khóa đã tồn tại trong danh sách theo dõi', async () => {
+      mock.method(keywordService, 'checkProjectOwnership', async () => true);
+      mock.method(keywordService, 'validateKeywordIds', async () => true);
+      mock.method(keywordService, 'addWatchedKeyword', async () => false);
+
+      const res = await request(app)
+        .post('/api/v1/projects/1/keywords/watch')
+        .set('Authorization', `Bearer ${testToken}`)
+        .send({ keyword_id: 1 });
+
+      assert.strictEqual(res.status, 400);
+      assert.strictEqual(res.body.success, false);
+      assert.strictEqual(res.body.code, 'ERROR_KEYWORD_ALREADY_WATCHED');
+      assert.strictEqual(res.body.message, 'Từ khóa này đã tồn tại trong danh sách theo dõi của dự án');
     });
   });
 
@@ -127,32 +134,19 @@ describe('Keyword Controller - POST /api/v1/projects/:id/keywords/watch', () => 
   // 1.3 Trường hợp thành công
   // ==========================================
   describe('Success Cases', () => {
-    test('Thành công (201) - Cập nhật list keywords hợp lệ', async () => {
+    test('Thành công (201) - Thêm 1 keyword hợp lệ', async () => {
       mock.method(keywordService, 'checkProjectOwnership', async () => true);
       mock.method(keywordService, 'validateKeywordIds', async () => true);
-      mock.method(keywordService, 'syncWatchedKeywords', async () => true);
+      mock.method(keywordService, 'addWatchedKeyword', async () => true);
 
       const res = await request(app)
         .post('/api/v1/projects/1/keywords/watch')
         .set('Authorization', `Bearer ${testToken}`)
-        .send({ keyword_ids: [1, 2, 3] });
+        .send({ keyword_id: 1 });
 
       assert.strictEqual(res.status, 201);
       assert.strictEqual(res.body.success, true);
-      assert.strictEqual(res.body.message, 'Cập nhật danh sách từ khóa theo dõi thành công');
-    });
-
-    test('Thành công (201) - Gửi mảng rỗng (unwatch all)', async () => {
-      mock.method(keywordService, 'checkProjectOwnership', async () => true);
-      mock.method(keywordService, 'syncWatchedKeywords', async () => true);
-
-      const res = await request(app)
-        .post('/api/v1/projects/1/keywords/watch')
-        .set('Authorization', `Bearer ${testToken}`)
-        .send({ keyword_ids: [] });
-
-      assert.strictEqual(res.status, 201);
-      assert.strictEqual(res.body.success, true);
+      assert.strictEqual(res.body.message, 'Thêm từ khóa theo dõi thành công');
     });
   });
 
@@ -168,11 +162,11 @@ describe('Keyword Controller - POST /api/v1/projects/:id/keywords/watch', () => 
       const res = await request(app)
         .post('/api/v1/projects/1/keywords/watch')
         .set('Authorization', `Bearer ${testToken}`)
-        .send({ keyword_ids: [1] });
+        .send({ keyword_id: 1 });
 
       assert.strictEqual(res.status, 500);
       assert.strictEqual(res.body.success, false);
-      assert.strictEqual(res.body.message, 'Có lỗi xảy ra ở Server!');
+      assert.strictEqual(res.body.code, 'ERROR_SERVER_CREATE_WATCHED_KEYWORD');
     });
   });
 });
@@ -382,5 +376,113 @@ describe('Keyword Controller - getWatchedKeywordArticles()', () => {
 
     assert.strictEqual(res.statusCode, 500);
     assert.strictEqual(res.body.success, false);
+  });
+});
+
+// ============================================================
+// 4. deleteWatchedKeyword (Unit Test)
+// ============================================================
+describe('Keyword Controller - deleteWatchedKeyword()', () => {
+  const MOCK_USER_ID = '0028ddd0-d305-4aa1-8baa-2b1a2893c883';
+
+  afterEach(() => {
+    mock.restoreAll();
+  });
+
+  test('Thất bại: Trả về 404 nếu từ khóa không tồn tại trong danh sách', async () => {
+    mock.method(keywordService, 'removeWatchedKeyword', async () => false);
+
+    const req = {
+      params: { id: '1', keywordId: '2' },
+      user: { user_id: MOCK_USER_ID },
+    };
+    const res = createMockResponse();
+
+    await deleteWatchedKeyword(req, res);
+
+    assert.strictEqual(res.statusCode, 404);
+    assert.strictEqual(res.body.success, false);
+    assert.strictEqual(res.body.message, 'Từ khóa không nằm trong danh sách theo dõi của dự án');
+  });
+
+  test('Thành công: Trả về 200 khi xóa thành công', async () => {
+    mock.method(keywordService, 'removeWatchedKeyword', async () => true);
+
+    const req = {
+      params: { id: '1', keywordId: '2' },
+      user: { user_id: MOCK_USER_ID },
+    };
+    const res = createMockResponse();
+
+    await deleteWatchedKeyword(req, res);
+
+    assert.strictEqual(res.statusCode, 200);
+    assert.strictEqual(res.body.success, true);
+    assert.strictEqual(res.body.message, 'Đã xóa từ khóa khỏi dự án thành công');
+  });
+
+  test('Thất bại: Trả về 500 khi có lỗi từ server', async () => {
+    mock.method(keywordService, 'removeWatchedKeyword', async () => {
+      throw new Error('Database connection lost');
+    });
+
+    const req = {
+      params: { id: '1', keywordId: '2' },
+      user: { user_id: MOCK_USER_ID },
+    };
+    const res = createMockResponse();
+
+    await deleteWatchedKeyword(req, res);
+
+    assert.strictEqual(res.statusCode, 500);
+    assert.strictEqual(res.body.success, false);
+    assert.strictEqual(res.body.message, 'Có lỗi xảy ra ở server khi xóa từ khóa');
+  });
+});
+
+// ============================================================
+// 5. updateWatchedKeywords (Unit Test)
+// ============================================================
+describe('Keyword Controller - updateWatchedKeywords()', () => {
+  const MOCK_USER_ID = '0028ddd0-d305-4aa1-8baa-2b1a2893c883';
+
+  afterEach(() => {
+    mock.restoreAll();
+  });
+
+  test('Thành công: Trả về 200 khi cập nhật (ghi đè) thành công', async () => {
+    mock.method(keywordService, 'replaceWatchedKeywords', async () => true);
+
+    const req = {
+      params: { id: '1' },
+      body: { keyword_ids: [1, 2, 3] },
+      user: { user_id: MOCK_USER_ID },
+    };
+    const res = createMockResponse();
+
+    await updateWatchedKeywords(req, res);
+
+    assert.strictEqual(res.statusCode, 200);
+    assert.strictEqual(res.body.success, true);
+    assert.strictEqual(res.body.message, 'Cập nhật danh sách từ khóa theo dõi thành công');
+  });
+
+  test('Thất bại: Trả về 500 khi có lỗi từ server', async () => {
+    mock.method(keywordService, 'replaceWatchedKeywords', async () => {
+      throw new Error('Database connection lost');
+    });
+
+    const req = {
+      params: { id: '1' },
+      body: { keyword_ids: [1, 2, 3] },
+      user: { user_id: MOCK_USER_ID },
+    };
+    const res = createMockResponse();
+
+    await updateWatchedKeywords(req, res);
+
+    assert.strictEqual(res.statusCode, 500);
+    assert.strictEqual(res.body.success, false);
+    assert.strictEqual(res.body.message, 'Có lỗi xảy ra ở server khi cập nhật từ khóa');
   });
 });
