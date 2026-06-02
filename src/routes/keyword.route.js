@@ -121,7 +121,7 @@ router.get("/:id/keywords/watch/articles", requireAuth, getWatchedKeywordArticle
  * @swagger
  * /api/v1/projects/{id}/keywords/watch:
  *   post:
- *     summary: Thêm mới 1 từ khóa vào danh sách theo dõi của dự án
+ *     summary: Thêm mới danh sách từ khóa vào danh sách theo dõi của dự án
  *     tags: [Keywords]
  *     security:
  *       - bearerAuth: []
@@ -139,12 +139,14 @@ router.get("/:id/keywords/watch/articles", requireAuth, getWatchedKeywordArticle
  *           schema:
  *             type: object
  *             required:
- *               - keyword_id
+ *               - keyword_ids
  *             properties:
- *               keyword_id:
- *                 type: integer
- *                 description: ID của từ khóa muốn thêm vào danh sách theo dõi
- *                 example: 123
+ *               keyword_ids:
+ *                 type: array
+ *                 items:
+ *                   type: integer
+ *                 description: Danh sách ID của các từ khóa muốn thêm vào danh sách theo dõi
+ *                 example: [123, 124, 125]
  *     responses:
  *       201:
  *         description: Thành công

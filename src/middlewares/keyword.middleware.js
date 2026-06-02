@@ -204,7 +204,7 @@ export const validateUpdateWatchedKeywords = async (req, res, next) => {
 };
 
 /**
- * Middleware validate các tham số và quyền cho việc tạo mới (thêm 1) từ khóa theo dõi.
+ * Middleware validate các tham số và quyền cho việc tạo mới (thêm nhiều) từ khóa theo dõi.
  */
 export const validateCreateWatchedKeyword = async (req, res, next) => {
   const projectId = parseInt(req.params.id);
@@ -217,14 +217,25 @@ export const validateCreateWatchedKeyword = async (req, res, next) => {
     });
   }
 
-  const { keyword_id } = req.body || {};
+  const { keyword_ids } = req.body || {};
 
-  if (!Number.isInteger(keyword_id) || keyword_id <= 0) {
+  if (!Array.isArray(keyword_ids)) {
     return res.status(400).json({ 
       success: false, 
-      code: KEYWORD_CODES.KEYWORD_INVALID_ID, 
-      message: "keyword_id phải là một số nguyên dương" 
+      code: KEYWORD_CODES.KEYWORD_INVALID_BODY, 
+      message: "keyword_ids phải là một mảng" 
     });
+  }
+
+  if (keyword_ids.length > 0) {
+    const isValid = keyword_ids.every(id => Number.isInteger(id) && id > 0);
+    if (!isValid) {
+      return res.status(400).json({ 
+        success: false, 
+        code: KEYWORD_CODES.KEYWORD_INVALID_BODY, 
+        message: "Các phần tử trong keyword_ids phải là số nguyên dương" 
+      });
+    }
   }
 
   const userId = req.user.user_id;
@@ -239,13 +250,15 @@ export const validateCreateWatchedKeyword = async (req, res, next) => {
       });
     }
 
-    const allExist = await validateKeywordIds([keyword_id]);
-    if (!allExist) {
-      return res.status(400).json({ 
-        success: false, 
-        code: KEYWORD_CODES.KEYWORD_NOT_FOUND, 
-        message: "ID từ khóa không tồn tại trong hệ thống" 
-      });
+    if (keyword_ids.length > 0) {
+      const allExist = await validateKeywordIds(keyword_ids);
+      if (!allExist) {
+        return res.status(400).json({ 
+          success: false, 
+          code: KEYWORD_CODES.KEYWORD_NOT_FOUND, 
+          message: "Một hoặc nhiều ID từ khóa không tồn tại trong hệ thống" 
+        });
+      }
     }
 
     next();
