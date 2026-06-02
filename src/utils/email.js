@@ -159,8 +159,13 @@ export const emailHelper = {
         await transporter.sendMail(mailOptions);
         logger.info(`[SMTP]: Đã gửi email kích hoạt tới ${toEmail} thành công.`);
       } catch (err) {
-        logger.error(`[SMTP]: Lỗi khi gửi email tới ${toEmail}:`, err);
-        throw new Error('Không thể gửi email kích hoạt tài khoản');
+          console.error('SMTP FULL ERROR:', err);
+          console.error('SMTP MESSAGE:', err.message);
+          console.error('SMTP RESPONSE:', err.response);
+
+          logger.error(`[SMTP]: Lỗi khi gửi email tới ${toEmail}:`, err);
+
+          throw err;
       }
     } else {
       // MOCK mode: ghi nhận ra log
