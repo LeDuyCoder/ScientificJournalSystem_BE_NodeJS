@@ -1,10 +1,97 @@
 import { checkProjectOwnership, validateKeywordIds } from "../services/keyword.service.js";
 
+export const KEYWORD_CODES = {
+  // Success
+  KEYWORD_FETCHED: "KEYWORD_FETCHED",
+  KEYWORD_LIST_FETCHED: "KEYWORD_LIST_FETCHED",
+  KEYWORD_CREATED: "KEYWORD_CREATED",
+  KEYWORD_UPDATED: "KEYWORD_UPDATED",
+  KEYWORD_DELETED: "KEYWORD_DELETED",
+  KEYWORD_RESTORED: "KEYWORD_RESTORED",
+
+  // Client errors
+  KEYWORD_INVALID_ID: "KEYWORD_INVALID_ID",
+  KEYWORD_INVALID_BODY: "KEYWORD_INVALID_BODY",
+  KEYWORD_NOT_FOUND: "KEYWORD_NOT_FOUND",
+  KEYWORD_DUPLICATE: "KEYWORD_DUPLICATE",
+  KEYWORD_ALREADY_DELETED: "KEYWORD_ALREADY_DELETED",
+  KEYWORD_ALREADY_ACTIVE: "KEYWORD_ALREADY_ACTIVE",
+
+  // Project/Watched specific codes (Đã chuẩn hóa đồng bộ)
+  PROJECT_INVALID_ID: "PROJECT_INVALID_ID",
+  PROJECT_NOT_FOUND: "PROJECT_NOT_FOUND",
+
+  // Server error
+  KEYWORD_SERVER_ERROR: "KEYWORD_SERVER_ERROR",
+};
+
+/**
+ * Validate display_name cho keyword
+ * Dùng cho POST và PUT trực tiếp vào bảng Keyword
+ */
+export const validateKeywordBody = (req, res, next) => {
+  const display_name = req.body.display_name?.trim();
+
+  if (!display_name) {
+    return res.status(400).json({
+      success: false,
+      code: KEYWORD_CODES.KEYWORD_INVALID_BODY,
+      message: "Tên keyword không được để trống",
+    });
+  }
+  if (display_name.length < 2) {
+    return res.status(400).json({
+      success: false,
+      code: KEYWORD_CODES.KEYWORD_INVALID_BODY,
+      message: "Tên keyword phải có ít nhất 2 ký tự",
+    });
+  }
+  if (display_name.length > 255) {
+    return res.status(400).json({
+      success: false,
+      code: KEYWORD_CODES.KEYWORD_INVALID_BODY,
+      message: "Tên keyword không được vượt quá 255 ký tự",
+    });
+  }
+  if (/[!@#$%^&*()_+={}\[\]|\\:;"'<>,?\/~`]/.test(display_name)) {
+    return res.status(400).json({
+      success: false,
+      code: KEYWORD_CODES.KEYWORD_INVALID_BODY,
+      message: "Tên keyword không được chứa ký tự đặc biệt",
+    });
+  }
+  if (/<[^>]*>/.test(display_name)) {
+    return res.status(400).json({
+      success: false,
+      code: KEYWORD_CODES.KEYWORD_INVALID_BODY,
+      message: "Tên keyword không được chứa HTML hoặc script",
+    });
+  }
+
+  req.body.display_name = display_name;
+  next();
+};
+
+/**
+ * Validate ID của bảng Keyword chính
+ */
+export const validateKeywordId = (req, res, next) => {
+  const id = parseInt(req.params.id);
+
+  if (isNaN(id) || id <= 0) {
+    return res.status(400).json({
+      success: false,
+      code: KEYWORD_CODES.KEYWORD_INVALID_ID,
+      message: "ID không hợp lệ",
+    });
+  }
+
+  req.keywordId = id;
+  next();
+};
+
 /**
  * Middleware validate các tham số và quyền cho việc xóa từ khóa theo dõi.
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- * @param {Function} next - Express next middleware function
  */
 export const validateDeleteWatchedKeyword = async (req, res, next) => {
   const projectId = parseInt(req.params.id);
@@ -13,13 +100,17 @@ export const validateDeleteWatchedKeyword = async (req, res, next) => {
   if (isNaN(projectId) || projectId <= 0) {
     return res.status(400).json({
       success: false,
-      code: "ERROR_INVALID_PROJECT_ID",
+      code: KEYWORD_CODES.PROJECT_INVALID_ID,
       message: "ID dự án không hợp lệ"
     });
   }
 
   if (isNaN(keywordId) || keywordId <= 0) {
-    return res.status(400).json({ success: false, code: "ERROR_INVALID_KEYWORD_ID", message: "ID từ khóa không hợp lệ" });
+    return res.status(400).json({ 
+      success: false, 
+      code: KEYWORD_CODES.KEYWORD_INVALID_ID, 
+      message: "ID từ khóa không hợp lệ" 
+    });
   }
 
   const userId = req.user.user_id;
@@ -27,38 +118,55 @@ export const validateDeleteWatchedKeyword = async (req, res, next) => {
     const isOwner = await checkProjectOwnership(projectId, userId);
 
     if (!isOwner) {
-      return res.status(404).json({ success: false, code: "ERROR_PROJECT_NOT_FOUND", message: "Không tìm thấy dự án hoặc bạn không có quyền truy cập dự án này" });
+      return res.status(404).json({ 
+        success: false, 
+        code: KEYWORD_CODES.PROJECT_NOT_FOUND, 
+        message: "Không tìm thấy dự án hoặc bạn không có quyền truy cập dự án này" 
+      });
     }
 
     next();
   } catch (error) {
-    return res.status(500).json({ success: false, code: "ERROR_SERVER_DELETE_WATCHED_KEYWORD", message: "Lỗi hệ thống khi xác thực quyền truy cập dự án" });
+    return res.status(500).json({ 
+      success: false, 
+      code: KEYWORD_CODES.KEYWORD_SERVER_ERROR, 
+      message: "Lỗi hệ thống khi xác thực quyền truy cập dự án" 
+    });
   }
 };
 
 /**
  * Middleware validate các tham số và quyền cho việc ghi đè (thay thế) danh sách từ khóa theo dõi.
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- * @param {Function} next - Express next middleware function
  */
 export const validateUpdateWatchedKeywords = async (req, res, next) => {
   const projectId = parseInt(req.params.id);
 
   if (isNaN(projectId) || projectId <= 0) {
-    return res.status(400).json({ success: false, code: "ERROR_INVALID_PROJECT_ID", message: "ID dự án không hợp lệ" });
+    return res.status(400).json({ 
+      success: false, 
+      code: KEYWORD_CODES.PROJECT_INVALID_ID, 
+      message: "ID dự án không hợp lệ" 
+    });
   }
 
   const { keyword_ids } = req.body || {};
 
   if (!Array.isArray(keyword_ids)) {
-    return res.status(400).json({ success: false, code: "ERROR_INVALID_KEYWORD_IDS", message: "keyword_ids phải là một mảng" });
+    return res.status(400).json({ 
+      success: false, 
+      code: KEYWORD_CODES.KEYWORD_INVALID_BODY, 
+      message: "keyword_ids phải là một mảng" 
+    });
   }
 
   if (keyword_ids.length > 0) {
     const isValid = keyword_ids.every(id => Number.isInteger(id) && id > 0);
     if (!isValid) {
-      return res.status(400).json({ success: false, code: "ERROR_INVALID_KEYWORD_IDS", message: "Các phần tử trong keyword_ids phải là số nguyên dương" });
+      return res.status(400).json({ 
+        success: false, 
+        code: KEYWORD_CODES.KEYWORD_INVALID_BODY, 
+        message: "Các phần tử trong keyword_ids phải là số nguyên dương" 
+      });
     }
   }
 
@@ -67,39 +175,56 @@ export const validateUpdateWatchedKeywords = async (req, res, next) => {
     const isOwner = await checkProjectOwnership(projectId, userId);
 
     if (!isOwner) {
-      return res.status(404).json({ success: false, code: "ERROR_PROJECT_NOT_FOUND", message: "Không tìm thấy dự án hoặc bạn không có quyền truy cập dự án này" });
+      return res.status(404).json({ 
+        success: false, 
+        code: KEYWORD_CODES.PROJECT_NOT_FOUND, 
+        message: "Không tìm thấy dự án hoặc bạn không có quyền truy cập dự án này" 
+      });
     }
 
     if (keyword_ids.length > 0) {
       const allExist = await validateKeywordIds(keyword_ids);
       if (!allExist) {
-        return res.status(400).json({ success: false, code: "ERROR_INVALID_KEYWORD_IDS", message: "Một hoặc nhiều ID từ khóa không tồn tại trong hệ thống" });
+        return res.status(400).json({ 
+          success: false, 
+          code: KEYWORD_CODES.KEYWORD_NOT_FOUND, 
+          message: "Một hoặc nhiều ID từ khóa không tồn tại trong hệ thống" 
+        });
       }
     }
 
     next();
   } catch (error) {
-    return res.status(500).json({ success: false, code: "ERROR_SERVER_UPDATE_WATCHED_KEYWORD", message: "Lỗi hệ thống khi xác thực quyền truy cập dự án" });
+    return res.status(500).json({ 
+      success: false, 
+      code: KEYWORD_CODES.KEYWORD_SERVER_ERROR, 
+      message: "Lỗi hệ thống khi xác thực quyền truy cập dự án" 
+    });
   }
 };
 
 /**
  * Middleware validate các tham số và quyền cho việc tạo mới (thêm 1) từ khóa theo dõi.
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- * @param {Function} next - Express next middleware function
  */
 export const validateCreateWatchedKeyword = async (req, res, next) => {
   const projectId = parseInt(req.params.id);
 
   if (isNaN(projectId) || projectId <= 0) {
-    return res.status(400).json({ success: false, code: "ERROR_INVALID_PROJECT_ID", message: "ID dự án không hợp lệ" });
+    return res.status(400).json({ 
+      success: false, 
+      code: KEYWORD_CODES.PROJECT_INVALID_ID, 
+      message: "ID dự án không hợp lệ" 
+    });
   }
 
   const { keyword_id } = req.body || {};
 
   if (!Number.isInteger(keyword_id) || keyword_id <= 0) {
-    return res.status(400).json({ success: false, code: "ERROR_INVALID_KEYWORD_ID", message: "keyword_id phải là một số nguyên dương" });
+    return res.status(400).json({ 
+      success: false, 
+      code: KEYWORD_CODES.KEYWORD_INVALID_ID, 
+      message: "keyword_id phải là một số nguyên dương" 
+    });
   }
 
   const userId = req.user.user_id;
@@ -107,18 +232,28 @@ export const validateCreateWatchedKeyword = async (req, res, next) => {
     const isOwner = await checkProjectOwnership(projectId, userId);
 
     if (!isOwner) {
-      return res.status(404).json({ success: false, code: "ERROR_PROJECT_NOT_FOUND", message: "Không tìm thấy dự án hoặc bạn không có quyền truy cập dự án này" });
+      return res.status(404).json({ 
+        success: false, 
+        code: KEYWORD_CODES.PROJECT_NOT_FOUND, 
+        message: "Không tìm thấy dự án hoặc bạn không có quyền truy cập dự án này" 
+      });
     }
 
     const allExist = await validateKeywordIds([keyword_id]);
     if (!allExist) {
-      return res.status(400).json({ success: false, code: "ERROR_KEYWORD_NOT_FOUND", message: "ID từ khóa không tồn tại trong hệ thống" });
+      return res.status(400).json({ 
+        success: false, 
+        code: KEYWORD_CODES.KEYWORD_NOT_FOUND, 
+        message: "ID từ khóa không tồn tại trong hệ thống" 
+      });
     }
 
     next();
   } catch (error) {
-    return res.status(500).json({ success: false, code: "ERROR_SERVER_CREATE_WATCHED_KEYWORD", message: "Lỗi hệ thống khi xác thực quyền truy cập dự án" });
+    return res.status(500).json({ 
+      success: false, 
+      code: KEYWORD_CODES.KEYWORD_SERVER_ERROR, 
+      message: "Lỗi hệ thống khi xác thực quyền truy cập dự án" 
+    });
   }
 };
-
-

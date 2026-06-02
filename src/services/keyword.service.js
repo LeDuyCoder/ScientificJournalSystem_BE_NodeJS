@@ -66,7 +66,11 @@ export const getTrendingKeywords = async (projectId, queryParams) => {
  * @returns {Promise<Object>} Object phân trang: { page, limit, total, total_pages, data }
  *  - `data` là mảng article objects `{ article_id, title, publication_year, doi, matched_keywords }`
  */
-export const getWatchedKeywordArticles = async (projectId, userId, queryParams) => {
+export const getWatchedKeywordArticles = async (
+  projectId,
+  userId,
+  queryParams,
+) => {
   const page = Math.max(parseInt(queryParams.page) || 1, 1);
   const limit = Math.min(parseInt(queryParams.limit) || 10, 50);
   const offset = (page - 1) * limit;
@@ -144,9 +148,9 @@ export const getWatchedKeywordArticles = async (projectId, userId, queryParams) 
  */
 export const validateKeywordIds = async (keywordIds) => {
   if (!keywordIds || keywordIds.length === 0) return true;
-  
+
   const uniqueIds = [...new Set(keywordIds)];
-  
+
   const query = `
     SELECT keyword_id
     FROM "Keyword"
@@ -171,7 +175,7 @@ export const syncWatchedKeywords = async (projectId, keywordIds) => {
 
   const client = await pool.connect();
   try {
-    await client.query('BEGIN');
+    await client.query("BEGIN");
 
     // 1. Loại bỏ duplicate từ input
     const uniqueIds = [...new Set(keywordIds)];
@@ -179,41 +183,45 @@ export const syncWatchedKeywords = async (projectId, keywordIds) => {
     // 2. Lấy danh sách keywords đã tồn tại cho project này
     const existingResult = await client.query(
       `SELECT keyword_id FROM "Project_Keyword" WHERE project_id = $1`,
-      [projectId]
+      [projectId],
     );
-    const existingIds = new Set(existingResult.rows.map(row => Number(row.keyword_id)));
+    const existingIds = new Set(
+      existingResult.rows.map((row) => Number(row.keyword_id)),
+    );
 
     // 3. Lọc ra keywords mới (chưa tồn tại)
-    const newKeywordIds = uniqueIds.filter(id => !existingIds.has(id));
+    const newKeywordIds = uniqueIds.filter((id) => !existingIds.has(id));
 
     if (newKeywordIds.length === 0) {
-      await client.query('COMMIT');
+      await client.query("COMMIT");
       return true; // Không có keywords mới để thêm
     }
 
     // 4. Validate keywords tồn tại trong bảng Keyword
     const validationResult = await client.query(
       `SELECT keyword_id FROM "Keyword" WHERE keyword_id = ANY($1::bigint[])`,
-      [newKeywordIds]
+      [newKeywordIds],
     );
-    const validIds = new Set(validationResult.rows.map(row => Number(row.keyword_id)));
+    const validIds = new Set(
+      validationResult.rows.map((row) => Number(row.keyword_id)),
+    );
 
     // 5. Chỉ INSERT những keywords hợp lệ
-    const idsToInsert = newKeywordIds.filter(id => validIds.has(id));
-    
+    const idsToInsert = newKeywordIds.filter((id) => validIds.has(id));
+
     if (idsToInsert.length > 0) {
       for (const kwId of idsToInsert) {
         await client.query(
           `INSERT INTO "Project_Keyword" (project_id, keyword_id) VALUES ($1, $2)`,
-          [projectId, kwId]
+          [projectId, kwId],
         );
       }
     }
 
-    await client.query('COMMIT');
+    await client.query("COMMIT");
     return true;
   } catch (error) {
-    await client.query('ROLLBACK');
+    await client.query("ROLLBACK");
     throw error;
   } finally {
     client.release();
@@ -308,7 +316,7 @@ export const addWatchedKeyword = async (projectId, keywordId) => {
 export const checkProjectOwnership = async (projectId, userId) => {
   const result = await pool.query(
     `SELECT 1 FROM "Project" WHERE project_id = $1 AND user_id = $2`,
-    [projectId, userId]
+    [projectId, userId],
   );
   return result.rows.length > 0;
 };
@@ -342,45 +350,58 @@ export const removeWatchedKeyword = async (projectId, keywordId) => {
  * @param {Object} [options] - Tuỳ chọn, ví dụ `{ score: number }` cho dạng array
  * @returns {Promise<Array>} Mảng các bản ghi `Keyword` (rows returned from INSERT ... RETURNING)
  */
-export const addKeywordsToArticle = async (articleId, keywordsInput, options = {}) => {
-    const isEmptyObject = typeof keywordsInput === 'object' && !Array.isArray(keywordsInput) && Object.keys(keywordsInput || {}).length === 0;
-    if (!keywordsInput || (Array.isArray(keywordsInput) && keywordsInput.length === 0) || isEmptyObject) {
-        return [];
-    }
+export const addKeywordsToArticle = async (
+  articleId,
+  keywordsInput,
+  options = {},
+) => {
+  const isEmptyObject =
+    typeof keywordsInput === "object" &&
+    !Array.isArray(keywordsInput) &&
+    Object.keys(keywordsInput || {}).length === 0;
+  if (
+    !keywordsInput ||
+    (Array.isArray(keywordsInput) && keywordsInput.length === 0) ||
+    isEmptyObject
+  ) {
+    return [];
+  }
 
-    let keywordEntries = [];
-    if (Array.isArray(keywordsInput)) {
-        const score = options.score !== undefined ? Number(options.score) : 0.0;
-        keywordEntries = keywordsInput
-            .filter(name => typeof name === 'string')
-            .map(name => ({ display_name: name.trim(), score }))
-            .filter(item => item.display_name.length > 0);
-    } else if (typeof keywordsInput === 'object') {
-        keywordEntries = Object.entries(keywordsInput)
-            .filter(([name]) => typeof name === 'string' && name.trim().length > 0)
-            .map(([name, score]) => ({
-                display_name: name.trim(),
-                score: Number(score ?? 0)
-            }));
-    } else {
-        throw new Error('Keywords must be an array or object');
-    }
+  let keywordEntries = [];
+  if (Array.isArray(keywordsInput)) {
+    const score = options.score !== undefined ? Number(options.score) : 0.0;
+    keywordEntries = keywordsInput
+      .filter((name) => typeof name === "string")
+      .map((name) => ({ display_name: name.trim(), score }))
+      .filter((item) => item.display_name.length > 0);
+  } else if (typeof keywordsInput === "object") {
+    keywordEntries = Object.entries(keywordsInput)
+      .filter(([name]) => typeof name === "string" && name.trim().length > 0)
+      .map(([name, score]) => ({
+        display_name: name.trim(),
+        score: Number(score ?? 0),
+      }));
+  } else {
+    throw new Error("Keywords must be an array or object");
+  }
 
-    if (keywordEntries.length === 0) {
-        return [];
-    }
+  if (keywordEntries.length === 0) {
+    return [];
+  }
 
-    const uniqueKeywordNames = [
-        ...new Set(keywordEntries.map(entry => entry.display_name))
-    ];
-    const scoreMap = Object.fromEntries(keywordEntries.map(entry => [entry.display_name, entry.score]));
+  const uniqueKeywordNames = [
+    ...new Set(keywordEntries.map((entry) => entry.display_name)),
+  ];
+  const scoreMap = Object.fromEntries(
+    keywordEntries.map((entry) => [entry.display_name, entry.score]),
+  );
 
-    const client = await pool.connect();
+  const client = await pool.connect();
 
-    try {
-        await client.query('BEGIN');
+  try {
+    await client.query("BEGIN");
 
-        const upsertKeywordsQuery = `
+    const upsertKeywordsQuery = `
             INSERT INTO "Keyword" (display_name)
             SELECT unnest($1::text[])
             ON CONFLICT (display_name)
@@ -388,46 +409,53 @@ export const addKeywordsToArticle = async (articleId, keywordsInput, options = {
             RETURNING keyword_id, display_name;
         `;
 
-        const keywordResult = await client.query(upsertKeywordsQuery, [uniqueKeywordNames]);
-        const allKeywords = keywordResult.rows;
+    const keywordResult = await client.query(upsertKeywordsQuery, [
+      uniqueKeywordNames,
+    ]);
+    const allKeywords = keywordResult.rows;
 
-        if (allKeywords.length === 0) {
-            await client.query('COMMIT');
-            return [];
-        }
+    if (allKeywords.length === 0) {
+      await client.query("COMMIT");
+      return [];
+    }
 
-        const keywordIds = [];
-        const keywordScores = [];
-        for (const displayName of uniqueKeywordNames) {
-            const keywordRow = allKeywords.find(k => k.display_name === displayName);
-            if (!keywordRow) continue;
-            keywordIds.push(keywordRow.keyword_id);
-            keywordScores.push(scoreMap[displayName] ?? 0.0);
-        }
+    const keywordIds = [];
+    const keywordScores = [];
+    for (const displayName of uniqueKeywordNames) {
+      const keywordRow = allKeywords.find(
+        (k) => k.display_name === displayName,
+      );
+      if (!keywordRow) continue;
+      keywordIds.push(keywordRow.keyword_id);
+      keywordScores.push(scoreMap[displayName] ?? 0.0);
+    }
 
-        if (keywordIds.length === 0) {
-            await client.query('COMMIT');
-            return [];
-        }
+    if (keywordIds.length === 0) {
+      await client.query("COMMIT");
+      return [];
+    }
 
-        const insertRelationsQuery = `
+    const insertRelationsQuery = `
             INSERT INTO "Keyword_Article" (article_id, keyword_id, score)
             SELECT $1, unnest($2::bigint[]), unnest($3::numeric[])
             ON CONFLICT DO NOTHING;
         `;
 
-        await client.query(insertRelationsQuery, [articleId, keywordIds, keywordScores]);
+    await client.query(insertRelationsQuery, [
+      articleId,
+      keywordIds,
+      keywordScores,
+    ]);
 
-        await client.query('COMMIT');
-        return allKeywords;
-
-    } catch (error) {
-        await client.query('ROLLBACK');
-        logger.error('Error adding keywords to article:', error);
-        throw error;
-    } finally {
-        client.release();
-    }
+    await client.query("COMMIT");
+    return allKeywords;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    logger.error("Error adding keywords to article:", error);
+    throw error;
+  } finally {
+    client.release();
+  }
 };
 
 /**
@@ -440,29 +468,228 @@ export const addKeywordsToArticle = async (articleId, keywordsInput, options = {
  * @returns {Promise<Array>} Mảng các bản ghi `Keyword` đã được gán
  */
 export const updateKeywordsToArticle = async (articleId, keywordsInput) => {
-    const client = await pool.connect();
+  const client = await pool.connect();
 
-    try {
-        await client.query('BEGIN');
+  try {
+    await client.query("BEGIN");
 
-        const deleteRelationsQuery = `
+    const deleteRelationsQuery = `
             DELETE FROM "Keyword_Article"
             WHERE "article_id" = $1;
         `;
-        await client.query(deleteRelationsQuery, [articleId]);
+    await client.query(deleteRelationsQuery, [articleId]);
 
-        await client.query('COMMIT');
+    await client.query("COMMIT");
 
-        const updatedKeywords = await addKeywordsToArticle(articleId, keywordsInput);
+    const updatedKeywords = await addKeywordsToArticle(
+      articleId,
+      keywordsInput,
+    );
 
-        logger.info(`Đã làm mới toàn bộ danh sách từ khóa cho bài báo ID: ${articleId}`);
-        return updatedKeywords;
+    logger.info(
+      `Đã làm mới toàn bộ danh sách từ khóa cho bài báo ID: ${articleId}`,
+    );
+    return updatedKeywords;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    logger.error(
+      `Lỗi khi cập nhật danh sách từ khóa cho bài báo ID ${articleId}:`,
+      error,
+    );
+    throw error;
+  } finally {
+    client.release();
+  }
+};
 
-    } catch (error) {
-        await client.query('ROLLBACK');
-        logger.error(`Lỗi khi cập nhật danh sách từ khóa cho bài báo ID ${articleId}:`, error);
-        throw error;
-    } finally {
-        client.release();
+//*********Những API liên quan tương tác trực tiếp tới Table Keyword */
+/**
+ * Lấy keyword theo ID
+ * @param {number} id - keyword_id
+ * @returns {Promise<Object>} keyword object
+ */
+export const getKeywordById = async (id) => {
+  const { rows } = await pool.query(
+    `SELECT keyword_id, display_name FROM "Keyword"
+     WHERE keyword_id = $1 AND is_deleted = false`,
+    [id],
+  );
+  if (!rows.length) {
+    const error = new Error("Keyword không tồn tại");
+    error.statusCode = 404;
+    error.code = "KEYWORD_NOT_FOUND";
+    throw error;
+  }
+  return rows[0];
+};
+
+export const getAllKeywords = async ({ page = 1, limit = 10, search = "" }) => {
+  const offset = (page - 1) * limit;
+  const searchPattern = `%${search.trim()}%`;
+
+  const countQuery = `
+    SELECT COUNT(*) AS total FROM "Keyword"
+    WHERE is_deleted = false
+      AND ($1 = '' OR LOWER(display_name) LIKE LOWER($1))
+  `;
+  const dataQuery = `
+    SELECT keyword_id, display_name FROM "Keyword"
+    WHERE is_deleted = false
+      AND ($1 = '' OR LOWER(display_name) LIKE LOWER($1))
+    ORDER BY display_name ASC
+    LIMIT $2 OFFSET $3
+  `;
+
+  const [countResult, dataResult] = await Promise.all([
+    pool.query(countQuery, [searchPattern]),
+    pool.query(dataQuery, [searchPattern, limit, offset]),
+  ]);
+
+  const total = parseInt(countResult.rows[0].total);
+  return {
+    data: dataResult.rows,
+    pagination: { page, limit, total, total_pages: Math.ceil(total / limit) },
+  };
+};
+
+/**
+ * Tạo mới một keyword
+ * @param {string} display_name - Tên keyword
+ * @returns {Promise<Object>} keyword vừa tạo
+ */
+export const createKeyword = async (display_name) => {
+  const duplicateCheck = await pool.query(
+    `SELECT keyword_id, is_deleted FROM "Keyword"
+     WHERE LOWER(display_name) = LOWER($1)`,
+    [display_name],
+  );
+
+  if (duplicateCheck.rows.length > 0) {
+    if (duplicateCheck.rows[0].is_deleted) {
+      const error = new Error(
+        "Keyword này đã bị xóa trước đó, vui lòng sử dụng API Restore để khôi phục",
+      );
+      error.statusCode = 409;
+      error.code = "KEYWORD_ALREADY_DELETED";
+      throw error;
     }
+    const error = new Error("Keyword đã tồn tại");
+    error.statusCode = 409;
+    error.code = "KEYWORD_DUPLICATE";
+    throw error;
+  }
+
+  const { rows } = await pool.query(
+    `INSERT INTO "Keyword" (display_name)
+     VALUES ($1) RETURNING keyword_id, display_name`,
+    [display_name],
+  );
+  return rows[0];
+};
+
+/**
+ * Cập nhật keyword theo ID
+ * @param {number} id - keyword_id
+ * @param {string} display_name - Tên keyword mới
+ * @returns {Promise<Object>} keyword sau khi cập nhật
+ */
+export const updateKeyword = async (id, display_name) => {
+  const existing = await pool.query(
+    `SELECT keyword_id FROM "Keyword"
+     WHERE keyword_id = $1 AND is_deleted = false`,
+    [id],
+  );
+  if (!existing.rows.length) {
+    const error = new Error("Keyword không tồn tại");
+    error.statusCode = 404;
+    error.code = "KEYWORD_NOT_FOUND";
+    throw error;
+  }
+
+  const duplicateCheck = await pool.query(
+    `SELECT keyword_id FROM "Keyword"
+     WHERE LOWER(display_name) = LOWER($1)
+     AND keyword_id != $2 AND is_deleted = false`,
+    [display_name, id],
+  );
+  if (duplicateCheck.rows.length > 0) {
+    const error = new Error("Keyword đã tồn tại");
+    error.statusCode = 409;
+    error.code = "KEYWORD_DUPLICATE";
+    throw error;
+  }
+
+  const { rows } = await pool.query(
+    `UPDATE "Keyword" SET display_name = $1
+     WHERE keyword_id = $2
+     RETURNING keyword_id, display_name`,
+    [display_name, id],
+  );
+  return rows[0];
+};
+
+/**
+ * Soft delete keyword theo ID
+ * @param {number} id - keyword_id
+ * @returns {Promise<Object>} keyword sau khi xóa
+ */
+export const deleteKeyword = async (id) => {
+  const existing = await pool.query(
+    `SELECT keyword_id, is_deleted FROM "Keyword"
+     WHERE keyword_id = $1`,
+    [id],
+  );
+  if (!existing.rows.length) {
+    const error = new Error("Keyword không tồn tại");
+    error.statusCode = 404;
+    error.code = "KEYWORD_NOT_FOUND";
+    throw error;
+  }
+  if (existing.rows[0].is_deleted) {
+    const error = new Error("Keyword đã bị xóa trước đó");
+    error.statusCode = 400;
+    error.code = "KEYWORD_ALREADY_DELETED";
+    throw error;
+  }
+
+  const { rows } = await pool.query(
+    `UPDATE "Keyword" SET is_deleted = true
+     WHERE keyword_id = $1
+     RETURNING keyword_id, display_name, is_deleted`,
+    [id],
+  );
+  return rows[0];
+};
+
+/**
+ * Restore keyword đã bị soft delete
+ * @param {number} id - keyword_id
+ * @returns {Promise<Object>} keyword sau khi restore
+ */
+export const restoreKeyword = async (id) => {
+  const existing = await pool.query(
+    `SELECT keyword_id, is_deleted FROM "Keyword"
+     WHERE keyword_id = $1`,
+    [id],
+  );
+  if (!existing.rows.length) {
+    const error = new Error("Keyword không tồn tại");
+    error.statusCode = 404;
+    error.code = "KEYWORD_NOT_FOUND";
+    throw error;
+  }
+  if (!existing.rows[0].is_deleted) {
+    const error = new Error("Keyword này đang active, không cần restore");
+    error.statusCode = 400;
+    error.code = "KEYWORD_ALREADY_ACTIVE";
+    throw error;
+  }
+
+  const { rows } = await pool.query(
+    `UPDATE "Keyword" SET is_deleted = false
+     WHERE keyword_id = $1
+     RETURNING keyword_id, display_name, is_deleted`,
+    [id],
+  );
+  return rows[0];
 };

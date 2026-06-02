@@ -7,9 +7,10 @@ import articleRouter from "./article.route.js";
 import googleRouter from "./google.route.js";
 import zoneRouter from "./zone.route.js";
 import keywordRouter from "./keyword.route.js";
-import catalogRouter from './catalog.route.js';
+import catalogRouter from "./catalog.route.js";
 import authorRouter from "./author.route.js";
 import topicRouter from "./topic.route.js";
+import journalRouter from "./journal.route.js";
 
 const router = express.Router();
 
@@ -34,5 +35,8 @@ router.use("/author", authorRouter);
 
 // Gom router của topic vào đường dẫn /topics
 router.use("/topics", topicRouter);
+
+router.use("/keywords", keywordRouter);
+router.use("/journal", journalRouter);
 
 export default router;

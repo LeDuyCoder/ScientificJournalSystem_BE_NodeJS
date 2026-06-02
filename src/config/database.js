@@ -7,14 +7,16 @@ dotenv.config();
 const { Pool } = pkg;
 
 const pool = new Pool({
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  host: process.env.DB_HOST,
-  port: process.env.DB_PORT,
-  database: process.env.DB_NAME,
+  connectionString: process.env.POSTGRES_URL,
+  
+  ssl: {
+    rejectUnauthorized: false,
+  },
+
+  // Pool config
   max: 20, // Số lượng kết nối tối đa trong pool
   idleTimeoutMillis: 30000, // Đóng các kết nối không dùng sau 30 giây
-  connectionTimeoutMillis: 2000, // Trả về lỗi nếu kết nối quá 2 giây không được
+  connectionTimeoutMillis: 10000, // Timeout kết nối
 });
 
 // Kiểm tra kết nối khi khởi động server
