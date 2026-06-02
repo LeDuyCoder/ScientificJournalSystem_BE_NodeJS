@@ -10,6 +10,7 @@ import keywordRouter from "./keyword.route.js";
 import catalogRouter from "./catalog.route.js";
 import authorRouter from "./author.route.js";
 import topicRouter from "./topic.route.js";
+import journalRouter from "./journal.route.js";
 
 const router = express.Router();
 
@@ -35,7 +36,7 @@ router.use("/author", authorRouter);
 // Gom router của topic vào đường dẫn /topics
 router.use("/topics", topicRouter);
 
-//Gom router của keyword vào đường dẫn /keywords
 router.use("/keywords", keywordRouter);
+router.use("/journal", journalRouter);
 
 export default router;

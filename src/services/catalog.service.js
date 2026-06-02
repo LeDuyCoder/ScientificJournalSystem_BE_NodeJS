@@ -1,63 +1,6 @@
 import pool from '../config/database.js';
 
 /**
- * Lấy danh sách journal có hỗ trợ tìm kiếm theo tên và phân trang.
- *
- * @async
- * @param {Object} params - Tham số đầu vào.
- * @param {string} [params.search] - Tên journal cần tìm kiếm.
- * @param {number} [params.page=1] - Trang hiện tại.
- * @param {number} [params.limit=10] - Số lượng bản ghi mỗi trang.
- * @returns {Promise<{ items: Array<Object>, total: number }>} Danh sách journal và tổng số lượng bản ghi phù hợp.
- */
-export const getJournals = async ({ search, page = 1, limit = 10 } = {}) => {
-  const pageNum = Math.max(1, parseInt(page, 10) || 1);
-  const limitNum = Math.max(1, parseInt(limit, 10) || 10);
-  const offset = (pageNum - 1) * limitNum;
-
-  let query = `
-    SELECT 
-      journal_id::text AS journal_id,
-      display_name,
-      issn,
-      type,
-      coverage,
-      is_open_access,
-      is_oa_diamond
-    FROM "Journal"
-  `;
-  
-  let countQuery = `SELECT COUNT(*)::integer AS total FROM "Journal"`;
-  const queryParams = [];
-  const countParams = [];
-
-  if (search && search.trim() !== '') {
-    const searchTerm = `%${search.trim()}%`;
-    queryParams.push(searchTerm);
-    countParams.push(searchTerm);
-    
-    query += ` WHERE display_name ILIKE $1`;
-    countQuery += ` WHERE display_name ILIKE $1`;
-
-    queryParams.push(limitNum, offset);
-    query += ` ORDER BY display_name ASC LIMIT $2 OFFSET $3`;
-  } else {
-    queryParams.push(limitNum, offset);
-    query += ` ORDER BY display_name ASC LIMIT $1 OFFSET $2`;
-  }
-
-  const [itemsRes, countRes] = await Promise.all([
-    pool.query(query, queryParams),
-    pool.query(countQuery, countParams)
-  ]);
-
-  return {
-    items: itemsRes.rows,
-    total: countRes.rows[0]?.total || 0
-  };
-};
-
-/**
  * Lấy danh sách các lĩnh vực lớn (Subject Area) trong hệ thống.
  *
  * @async
