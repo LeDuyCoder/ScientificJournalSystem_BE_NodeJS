@@ -12,6 +12,7 @@ import authorRouter from "./author.route.js";
 import topicRouter from "./topic.route.js";
 import journalRouter from "./journal.route.js";
 import volumeRouter from "./volume.route.js";
+import authRouter from "./auth.route.js";
 
 const router = express.Router();
 
@@ -25,6 +26,7 @@ router.use("/catalog", catalogRouter);
 router.use("/auth", loginRouter);
 router.use("/auth", registerRouter);
 router.use("/auth", googleRouter);
+router.use("/auth", authRouter);
 
 // Gom router của article vào đường dẫn /articles
 router.use("/articles", articleRouter);
