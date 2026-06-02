@@ -4,7 +4,14 @@ import {
   getTrendingKeywords,
   getWatchedKeywordArticles,
   watchKeywords,
+  getKeywordByIdController,
+  getAllKeywordsController,
+  createKeywordController,
+  updateKeywordController,
+  deleteKeywordController,
+  restoreKeywordController,
 } from "../controllers/keyword.controller.js";
+import { validateKeywordBody, validateKeywordId } from "../middlewares/keyword.middleware.js";
 
 const router = express.Router();
 
@@ -261,10 +268,369 @@ router.get(
  */
 
 // POST /api/v1/projects/:id/keywords/watch
-router.post(
-  "/:id/keywords/watch",
+router.post("/:id/keywords/watch", requireAuth, watchKeywords);
+
+// ==========================================
+// Keyword Management CRUD
+// ==========================================
+
+/**
+ * @swagger
+ * tags:
+ *   name: Keyword Management
+ *   description: API CRUD quản lý bảng Keywords
+ */
+
+/**
+ * @swagger
+ * /api/v1/keywords:
+ *   get:
+ *     summary: Lấy danh sách keywords
+ *     tags:
+ *       - Keyword Management
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Số trang
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: Số lượng mỗi trang (tối đa 100)
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Tìm kiếm theo tên keyword
+ *     responses:
+ *       200:
+ *         description: Lấy danh sách keyword thành công
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Lấy danh sách keyword thành công
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       keyword_id:
+ *                         type: integer
+ *                         example: 1
+ *                       display_name:
+ *                         type: string
+ *                         example: Machine Learning
+ *                 pagination:
+ *                   type: object
+ *                   properties:
+ *                     page:
+ *                       type: integer
+ *                       example: 1
+ *                     limit:
+ *                       type: integer
+ *                       example: 10
+ *                     total:
+ *                       type: integer
+ *                       example: 100
+ *                     total_pages:
+ *                       type: integer
+ *                       example: 10
+ *       401:
+ *         description: Chưa xác thực hoặc token không hợp lệ
+ *       500:
+ *         description: Lỗi server
+ */
+router.get("/", requireAuth, getAllKeywordsController);
+
+/**
+ * @swagger
+ * /api/v1/keywords:
+ *   post:
+ *     summary: Tạo mới một keyword
+ *     tags:
+ *       - Keyword Management
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - display_name
+ *             properties:
+ *               display_name:
+ *                 type: string
+ *                 example: Machine Learning
+ *     responses:
+ *       201:
+ *         description: Tạo keyword thành công
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Tạo keyword thành công
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     keyword_id:
+ *                       type: integer
+ *                       example: 1
+ *                     display_name:
+ *                       type: string
+ *                       example: Machine Learning
+ *       400:
+ *         description: Dữ liệu đầu vào không hợp lệ
+ *       401:
+ *         description: Chưa xác thực hoặc token không hợp lệ
+ *       409:
+ *         description: Keyword đã tồn tại
+ *       500:
+ *         description: Lỗi server
+ */
+router.post("/", requireAuth, validateKeywordBody, createKeywordController);
+
+/**
+ * @swagger
+ * /api/v1/keywords/{id}/restore:
+ *   patch:
+ *     summary: Khôi phục keyword đã bị xóa mềm
+ *     tags:
+ *       - Keyword Management
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *         description: ID của keyword
+ *     responses:
+ *       200:
+ *         description: Khôi phục keyword thành công
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Khôi phục keyword thành công
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     keyword_id:
+ *                       type: integer
+ *                       example: 1
+ *                     display_name:
+ *                       type: string
+ *                       example: Machine Learning
+ *                     is_deleted:
+ *                       type: boolean
+ *                       example: false
+ *       400:
+ *         description: ID không hợp lệ hoặc keyword đang active
+ *       401:
+ *         description: Chưa xác thực hoặc token không hợp lệ
+ *       404:
+ *         description: Keyword không tồn tại
+ *       500:
+ *         description: Lỗi server
+ */
+router.patch(
+  "/:id/restore",
   requireAuth,
-  watchKeywords
+  validateKeywordId,
+  restoreKeywordController,
 );
+
+/**
+ * @swagger
+ * /api/v1/keywords/{id}:
+ *   get:
+ *     summary: Lấy keyword theo ID
+ *     tags:
+ *       - Keyword Management
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *         description: ID của keyword
+ *     responses:
+ *       200:
+ *         description: Lấy keyword thành công
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Lấy keyword thành công
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     keyword_id:
+ *                       type: integer
+ *                       example: 1
+ *                     display_name:
+ *                       type: string
+ *                       example: Machine Learning
+ *       400:
+ *         description: ID không hợp lệ
+ *       401:
+ *         description: Chưa xác thực hoặc token không hợp lệ
+ *       404:
+ *         description: Keyword không tồn tại
+ *       500:
+ *         description: Lỗi server
+ */
+router.get("/:id", requireAuth, validateKeywordId, getKeywordByIdController);
+
+/**
+ * @swagger
+ * /api/v1/keywords/{id}:
+ *   put:
+ *     summary: Cập nhật keyword theo ID
+ *     tags:
+ *       - Keyword Management
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *         description: ID của keyword
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - display_name
+ *             properties:
+ *               display_name:
+ *                 type: string
+ *                 example: Deep Learning
+ *     responses:
+ *       200:
+ *         description: Cập nhật keyword thành công
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Cập nhật keyword thành công
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     keyword_id:
+ *                       type: integer
+ *                       example: 1
+ *                     display_name:
+ *                       type: string
+ *                       example: Deep Learning
+ *       400:
+ *         description: Dữ liệu đầu vào không hợp lệ
+ *       401:
+ *         description: Chưa xác thực hoặc token không hợp lệ
+ *       404:
+ *         description: Keyword không tồn tại
+ *       409:
+ *         description: Keyword đã tồn tại
+ *       500:
+ *         description: Lỗi server
+ */
+router.put(
+  "/:id",
+  requireAuth,
+  validateKeywordId,
+  validateKeywordBody,
+  updateKeywordController,
+);
+
+/**
+ * @swagger
+ * /api/v1/keywords/{id}:
+ *   delete:
+ *     summary: Xóa mềm keyword theo ID
+ *     tags:
+ *       - Keyword Management
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *         description: ID của keyword
+ *     responses:
+ *       200:
+ *         description: Xóa keyword thành công
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Xóa keyword thành công
+ *       400:
+ *         description: ID không hợp lệ hoặc keyword đã bị xóa trước đó
+ *       401:
+ *         description: Chưa xác thực hoặc token không hợp lệ
+ *       404:
+ *         description: Keyword không tồn tại
+ *       500:
+ *         description: Lỗi server
+ */
+router.delete("/:id", requireAuth, validateKeywordId, deleteKeywordController);
 
 export default router;
