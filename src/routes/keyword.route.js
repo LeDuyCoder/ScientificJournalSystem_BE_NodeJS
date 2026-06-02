@@ -1,10 +1,12 @@
 import express from "express";
 import { requireAuth } from "../middlewares/auth.middleware.js";
+import { validateDeleteWatchedKeyword, validateUpdateWatchedKeywords, validateCreateWatchedKeyword } from "../middlewares/keyword.middleware.js";
 import {
   getTrendingKeywords,
   getWatchedKeywordArticles,
   watchKeywords,
   deleteWatchedKeyword,
+  updateWatchedKeywords,
 } from "../controllers/keyword.controller.js";
 
 const router = express.Router();
@@ -189,7 +191,7 @@ router.get(
  * @swagger
  * /api/v1/projects/{id}/keywords/watch:
  *   post:
- *     summary: Cập nhật danh sách từ khóa mà dự án theo dõi
+ *     summary: Thêm mới 1 từ khóa vào danh sách theo dõi của dự án
  *     tags: [Keywords]
  *     security:
  *       - bearerAuth: []
@@ -207,14 +209,12 @@ router.get(
  *           schema:
  *             type: object
  *             required:
- *               - keyword_ids
+ *               - keyword_id
  *             properties:
- *               keyword_ids:
- *                 type: array
- *                 items:
- *                   type: integer
- *                 description: Mảng chứa các ID của từ khóa muốn theo dõi
- *                 example: [1, 5, 12]
+ *               keyword_id:
+ *                 type: integer
+ *                 description: ID của từ khóa muốn thêm vào danh sách theo dõi
+ *                 example: 123
  *     responses:
  *       201:
  *         description: Thành công
@@ -230,7 +230,7 @@ router.get(
  *                   type: string
  *                   example: Cập nhật danh sách từ khóa theo dõi thành công
  *       400:
- *         description: Dữ liệu đầu vào không hợp lệ (ID dự án, định dạng keyword_ids, hoặc keyword ID không tồn tại)
+ *         description: Dữ liệu đầu vào không hợp lệ (ID dự án, ID từ khóa không tồn tại, sai định dạng, hoặc từ khóa đã tồn tại trong danh sách)
  *         content:
  *           application/json:
  *             schema:
@@ -241,7 +241,7 @@ router.get(
  *                   example: false
  *                 message:
  *                   type: string
- *                   example: keyword_ids phải là một mảng
+ *                   example: keyword_id phải là một số nguyên dương
  *       401:
  *         description: Chưa xác thực (Missing/Invalid Token)
  *       404:
@@ -265,6 +265,7 @@ router.get(
 router.post(
   "/:id/keywords/watch",
   requireAuth,
+  validateCreateWatchedKeyword,
   watchKeywords
 );
 
@@ -315,7 +316,57 @@ router.post(
 router.delete(
   "/:id/keywords/:keywordId",
   requireAuth,
+  validateDeleteWatchedKeyword,
   deleteWatchedKeyword
+);
+
+/**
+ * @swagger
+ * /api/v1/projects/{id}/keywords/watch:
+ *   put:
+ *     summary: Cập nhật (ghi đè) danh sách từ khóa mà dự án theo dõi
+ *     tags: [Keywords]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID của project
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - keyword_ids
+ *             properties:
+ *               keyword_ids:
+ *                 type: array
+ *                 items:
+ *                   type: integer
+ *                 description: Mảng chứa toàn bộ các ID của từ khóa muốn theo dõi (các từ khóa cũ không có trong mảng này sẽ bị xóa)
+ *                 example: [1, 5, 12]
+ *     responses:
+ *       200:
+ *         description: Thành công
+ *       400:
+ *         description: Dữ liệu đầu vào không hợp lệ
+ *       401:
+ *         description: Chưa xác thực
+ *       404:
+ *         description: Project không tồn tại hoặc không thuộc quyền sở hữu của user
+ *       500:
+ *         description: Lỗi server
+ */
+router.put(
+  "/:id/keywords/watch",
+  requireAuth,
+  validateUpdateWatchedKeywords,
+  updateWatchedKeywords
 );
 
 export default router;

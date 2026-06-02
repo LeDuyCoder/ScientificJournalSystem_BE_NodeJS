@@ -421,4 +421,67 @@ describe('Keyword Service - removeWatchedKeyword()', () => {
       assert.strictEqual(err.message, 'Database Error');
     }
   });
-});
+});
+
+// ============================================================
+// Keyword Service - replaceWatchedKeywords (Unit Test)
+// ============================================================
+describe('Keyword Service - replaceWatchedKeywords()', () => {
+  afterEach(() => {
+    mock.restoreAll();
+  });
+
+  test('Thành công: Commit khi truyền mảng rỗng (xóa tất cả)', async () => {
+    const mockClient = {
+      query: mock.fn(async () => ({ rows: [] })),
+      release: mock.fn(),
+    };
+    mock.method(pool, 'connect', async () => mockClient);
+
+    const result = await keywordService.replaceWatchedKeywords(1, []);
+
+    assert.strictEqual(result, true);
+    assert.strictEqual(mockClient.query.mock.calls.length, 3); // BEGIN, DELETE, COMMIT
+    assert.strictEqual(mockClient.release.mock.calls.length, 1);
+  });
+
+  test('Thành công: Xóa cũ, insert mới hợp lệ', async () => {
+    const mockClient = {
+      query: mock.fn(async (queryStr) => {
+        if (queryStr.includes('SELECT keyword_id FROM "Keyword"')) {
+          return { rows: [{ keyword_id: '1' }, { keyword_id: '3' }] };
+        }
+        return { rows: [] };
+      }),
+      release: mock.fn(),
+    };
+    mock.method(pool, 'connect', async () => mockClient);
+
+    // Truyền [1, 2, 3] nhưng giả lập DB chỉ trả về 1 và 3 hợp lệ
+    const result = await keywordService.replaceWatchedKeywords(1, [1, 2, 3]);
+
+    assert.strictEqual(result, true);
+    // BEGIN(1) + DELETE(1) + SELECT(1) + INSERT(2) + COMMIT(1) = 6 queries
+    assert.strictEqual(mockClient.query.mock.calls.length, 6);
+  });
+
+  test('Thất bại: Rollback khi gặp lỗi DB', async () => {
+    const mockClient = {
+      query: mock.fn(async (queryStr) => {
+        if (queryStr === 'BEGIN') return;
+        throw new Error('Fake DB Error');
+      }),
+      release: mock.fn(),
+    };
+    mock.method(pool, 'connect', async () => mockClient);
+
+    try {
+      await keywordService.replaceWatchedKeywords(1, [1]);
+      assert.fail('Đáng lẽ phải throw error');
+    } catch (err) {
+      assert.strictEqual(err.message, 'Fake DB Error');
+      // BEGIN(1), error on DELETE, ROLLBACK(1) = 3 calls
+      assert.strictEqual(mockClient.query.mock.calls.length, 3);
+    }
+  });
+});
