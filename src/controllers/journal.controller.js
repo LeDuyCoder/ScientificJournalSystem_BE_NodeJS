@@ -127,3 +127,42 @@ export const createJournal = async (req, res) => {
     });
   }
 };
+
+/**
+ * Controller cập nhật thông tin một journal.
+ * - Nhận ID của journal cần cập nhật từ req.params.id và dữ liệu cập nhật từ req.body.
+ * - Kiểm tra tính hợp lệ của ID (phải là số nguyên dương).
+ * - Gọi service để cập nhật journal trong database.
+ * - Trả về thông tin journal đã cập nhật nếu thành công, hoặc lỗi 400 nếu ID không hợp lệ, hoặc lỗi 404 nếu journal không tồn tại, hoặc lỗi 500 nếu có lỗi hệ thống.
+ * @async
+ * @param {import('express').Request} req - Express request, chứa params.id là ID của journal cần cập nhật và body là dữ liệu cập nhật
+ * @param {import('express').Response} res - Express response, trả về JSON chứa thông tin journal đã cập nhật hoặc lỗi
+ * @returns {Promise<import('express').Response>} JSON response với thông tin journal đã cập nhật hoặc lỗi
+ */
+export const updateJournal = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const dataJournal = req.body;
+    const result = await journalService.updateJournal(id, dataJournal);
+    if (!result) {
+      return res.status(404).json({
+        success: false,
+        code: 'JOURNAL_NOT_FOUND',
+        message: 'Journal không tồn tại'
+      });
+    }
+    return res.status(200).json({
+      success: true,
+      code: 'UPDATE_JOURNAL_SUCCESS',
+      message: 'Cập nhật Journal thành công',
+    });
+  } catch (error) {
+    logger.error(`Lỗi khi cập nhật journal với ID ${req.params.id}:`, error.message);
+
+    return res.status(500).json({
+      success: false,
+      code: 'SERVER_VALIDATION_ERROR',
+      message: 'Lỗi hệ thống khi cập nhật Journal',
+    });
+  }
+}

@@ -1,7 +1,7 @@
 import express from 'express';
 import { requireAuth } from '../middlewares/auth.middleware.js';
-import { createJournal, getJournals, getJournalsById } from '../controllers/journal.controller.js';
-import { validateCreateJournal } from '../middlewares/journalValidation.middleware.js';
+import { createJournal, getJournals, getJournalsById, updateJournal } from '../controllers/journal.controller.js';
+import { validateCreateJournal, validateUpdateJournal } from '../middlewares/journalValidation.middleware.js';
 
 const router = express.Router();
 
@@ -197,4 +197,105 @@ router.get('/:id', requireAuth, getJournalsById);
  *         description: Lỗi hệ thống khi tạo journal
  */
 router.post('/', requireAuth, validateCreateJournal, createJournal);
+
+//viết document swagger cho endpoint cập nhật journal
+/**
+ * @swagger
+ * /api/v1/journal/{id}:
+ *   put:
+ *     summary: Cập nhật thông tin một journal
+ *     description: Cập nhật thông tin của một journal dựa vào ID cung cấp. Yêu cầu đăng nhập và dữ liệu phải hợp lệ.
+ *     tags:
+ *       - Journal
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID của journal cần cập nhật
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               source_id:
+ *                 type: string
+ *                 example: "SCOPUS_001"
+ *               publisher_id:
+ *                 type: integer
+ *                 example: 1
+ *               country:
+ *                 type: integer
+ *                 example: 84
+ *               region:
+ *                 type: integer
+ *                 example: 1
+ *               display_name:
+ *                 type: string
+ *                 example: "demo"
+ *               type:
+ *                 type: string
+ *                 example: "Academic"
+ *               is_open_access:
+ *                 type: boolean
+ *                 example: true
+ *               is_oa_diamond:
+ *                 type: boolean
+ *                 example: false
+ *               coverage:
+ *                 type: string
+ *                 example: "Computer Science"
+ *               issn:
+ *                 type: string
+ *                 example: "1234-5678"
+ *               scope_detail:
+ *                 type: string
+ *                 example: "Artificial Intelligence and Machine Learning"
+ *     responses:
+ *       200:
+ *         description: Cập nhật journal thành công
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 code:
+ *                   type: string
+ *                   example: "UPDATE_JOURNAL_SUCCESS"
+ *                 message:
+ *                   type: string
+ *                   example: "Cập nhật Journal thành công"
+ *       400:
+ *         description: Dữ liệu đầu vào không hợp lệ
+ *       401:
+ *         description: Chưa xác thực
+ *       404:
+ *         description: Journal không tồn tại
+ *       500:
+ *         description: Lỗi hệ thống khi cập nhật journal
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 code:
+ *                   type: string
+ *                   example: "SERVER_VALIDATION_ERROR"
+ *                 message:
+ *                   type: string
+ *                   example: "Lỗi hệ thống khi cập nhật Journal"
+ */
+router.put('/:id', requireAuth, validateUpdateJournal, updateJournal);
+
 export default router;

@@ -1,4 +1,5 @@
 import pool from "../config/database.js";
+import logger from "../utils/logger.js";
 import { publisherExist } from "./publisher.service.js";
 import { zoneExist } from "./zone.service.js";
 
@@ -147,9 +148,67 @@ export const createJournal = async (data) => {
   }
 };
 
-export const updateJournal = async () => {
+//viết documentation cho hàm updateJournal
+/**
+  * Cập nhật thông tin một journal.
+  * - Nhận ID của journal cần cập nhật và dữ liệu mới từ tham số đầu vào.
+  * - Kiểm tra tính hợp lệ của ID (phải là số nguyên dương).
+  * - Cập nhật các trường được phép trong database nếu chúng tồn tại trong dữ liệu mới.
+  * - Trả về thông tin journal đã cập nhật nếu thành công, hoặc null nếu không tìm thấy journal với ID đó, hoặc lỗi nếu có lỗi hệ thống.
+  * Các trường được phép cập nhật bao gồm: source_id, publisher_id, country, region, display_name, type, is_open_access, is_oa_diamond, coverage, issn, scope_detail. Các trường publisher_id, country, region sẽ được chuyển sang kiểu BigInt trước khi cập nhật.
+  * @async
+  * @param {number|string} id - ID của journal cần cập nhật (có thể là số hoặc chuỗi số).
+  * @param {Object} data - Dữ liệu mới để cập nhật cho journal, có thể chứa một hoặc nhiều trường trong số các trường được phép cập nhật.
+  * @returns {Promise<Object|null>} Thông tin journal đã được cập nhật nếu thành công, null nếu không tìm thấy journal với ID đó, hoặc lỗi nếu có lỗi hệ thống.
+*/ 
+export const updateJournal = async (id, data) => {
+  try {
+    const allowedFields = [
+      'source_id', 'publisher_id', 'country', 'region', 'display_name',
+      'type', 'is_open_access', 'is_oa_diamond', 'coverage', 'issn', 'scope_detail'
+    ];
 
-}
+    const updateParts = [];
+    const values = [];
+    let placeholderIndex = 1;
+
+    for (const field of allowedFields) {
+      if (data[field] !== undefined && data[field] !== null) {
+        let value = data[field];
+
+        if (['publisher_id', 'country', 'region'].includes(field)) {
+          value = BigInt(value);
+        }
+
+        updateParts.push(`"${field}" = $${placeholderIndex}`);
+        values.push(value);
+        placeholderIndex++;
+      }
+    }
+
+    if (updateParts.length === 0) {
+      logger.warn(`Không có trường nào hợp lệ để cập nhật cho journal ID ${id}`);
+      return null; 
+    }
+
+    values.push(BigInt(id));
+    const idPlaceholder = `$${placeholderIndex}`;
+
+    const query = `
+        UPDATE "Journal" 
+        SET ${updateParts.join(', ')}
+        WHERE journal_id = ${idPlaceholder} AND is_deleted = false
+        RETURNING *;
+    `;
+
+    const result = await pool.query(query, values);
+    return result.rows.length ? result.rows[0] : null;
+
+  } catch (error) {
+    logger.error(`Lỗi khi cập nhật động journal với ID ${id}:`, error.message);
+    throw error;
+  }
+};
 
 export const deleteJournal = async () => {
 
