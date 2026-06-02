@@ -415,45 +415,31 @@ export const updateKeywordsToArticle = async (articleId, keywordsInput) => {
  * @returns {Promise<Object>} keyword object
  */
 export const getKeywordById = async (id) => {
-  const query = `
-    SELECT keyword_id, display_name
-    FROM "Keyword"
-    WHERE keyword_id = $1
-      AND is_deleted = false
-  `;
-
-  const { rows } = await pool.query(query, [id]);
-
+  const { rows } = await pool.query(
+    `SELECT keyword_id, display_name FROM "Keyword"
+     WHERE keyword_id = $1 AND is_deleted = false`,
+    [id],
+  );
   if (!rows.length) {
-    const error = new Error("Keyword không tồn tại trong hệ thống");
+    const error = new Error("Keyword không tồn tại");
     error.statusCode = 404;
+    error.code = "KEYWORD_NOT_FOUND";
     throw error;
   }
-
   return rows[0];
 };
 
-/**
- * Lấy danh sách keywords với pagination và search
- * @param {number} page - Số trang (default: 1)
- * @param {number} limit - Số lượng mỗi trang (default: 10)
- * @param {string} search - Tìm kiếm theo tên keyword (optional)
- * @returns {Promise<Object>} { data, pagination: { page, limit, total, total_pages } }
- */
 export const getAllKeywords = async ({ page = 1, limit = 10, search = "" }) => {
   const offset = (page - 1) * limit;
   const searchPattern = `%${search.trim()}%`;
 
   const countQuery = `
-    SELECT COUNT(*) AS total
-    FROM "Keyword"
+    SELECT COUNT(*) AS total FROM "Keyword"
     WHERE is_deleted = false
       AND ($1 = '' OR LOWER(display_name) LIKE LOWER($1))
   `;
-
   const dataQuery = `
-    SELECT keyword_id, display_name
-    FROM "Keyword"
+    SELECT keyword_id, display_name FROM "Keyword"
     WHERE is_deleted = false
       AND ($1 = '' OR LOWER(display_name) LIKE LOWER($1))
     ORDER BY display_name ASC
@@ -466,15 +452,9 @@ export const getAllKeywords = async ({ page = 1, limit = 10, search = "" }) => {
   ]);
 
   const total = parseInt(countResult.rows[0].total);
-
   return {
     data: dataResult.rows,
-    pagination: {
-      page,
-      limit,
-      total,
-      total_pages: Math.ceil(total / limit),
-    },
+    pagination: { page, limit, total, total_pages: Math.ceil(total / limit) },
   };
 };
 
@@ -484,27 +464,32 @@ export const getAllKeywords = async ({ page = 1, limit = 10, search = "" }) => {
  * @returns {Promise<Object>} keyword vừa tạo
  */
 export const createKeyword = async (display_name) => {
-  // Kiểm tra duplicate (case-insensitive)
   const duplicateCheck = await pool.query(
-    `SELECT keyword_id FROM "Keyword"
-     WHERE LOWER(display_name) = LOWER($1)
-     AND is_deleted = false`,
+    `SELECT keyword_id, is_deleted FROM "Keyword"
+     WHERE LOWER(display_name) = LOWER($1)`,
     [display_name],
   );
 
   if (duplicateCheck.rows.length > 0) {
+    if (duplicateCheck.rows[0].is_deleted) {
+      const error = new Error(
+        "Keyword này đã bị xóa trước đó, vui lòng sử dụng API Restore để khôi phục",
+      );
+      error.statusCode = 409;
+      error.code = "KEYWORD_ALREADY_DELETED";
+      throw error;
+    }
     const error = new Error("Keyword đã tồn tại");
     error.statusCode = 409;
+    error.code = "KEYWORD_DUPLICATE";
     throw error;
   }
 
   const { rows } = await pool.query(
     `INSERT INTO "Keyword" (display_name)
-     VALUES ($1)
-     RETURNING keyword_id, display_name`,
+     VALUES ($1) RETURNING keyword_id, display_name`,
     [display_name],
   );
-
   return rows[0];
 };
 
@@ -515,43 +500,37 @@ export const createKeyword = async (display_name) => {
  * @returns {Promise<Object>} keyword sau khi cập nhật
  */
 export const updateKeyword = async (id, display_name) => {
-  // Kiểm tra keyword tồn tại và chưa bị xóa
   const existing = await pool.query(
     `SELECT keyword_id FROM "Keyword"
-     WHERE keyword_id = $1
-     AND is_deleted = false`,
+     WHERE keyword_id = $1 AND is_deleted = false`,
     [id],
   );
-
   if (!existing.rows.length) {
-    const error = new Error("Keyword không tồn tại trong hệ thống");
+    const error = new Error("Keyword không tồn tại");
     error.statusCode = 404;
+    error.code = "KEYWORD_NOT_FOUND";
     throw error;
   }
 
-  // Kiểm tra duplicate (case-insensitive), loại trừ chính nó
   const duplicateCheck = await pool.query(
     `SELECT keyword_id FROM "Keyword"
      WHERE LOWER(display_name) = LOWER($1)
-     AND keyword_id != $2
-     AND is_deleted = false`,
+     AND keyword_id != $2 AND is_deleted = false`,
     [display_name, id],
   );
-
   if (duplicateCheck.rows.length > 0) {
-    const error = new Error("Keyword đã tồn tại trong hệ thống");
+    const error = new Error("Keyword đã tồn tại");
     error.statusCode = 409;
+    error.code = "KEYWORD_DUPLICATE";
     throw error;
   }
 
   const { rows } = await pool.query(
-    `UPDATE "Keyword"
-     SET display_name = $1
+    `UPDATE "Keyword" SET display_name = $1
      WHERE keyword_id = $2
      RETURNING keyword_id, display_name`,
     [display_name, id],
   );
-
   return rows[0];
 };
 
@@ -561,34 +540,30 @@ export const updateKeyword = async (id, display_name) => {
  * @returns {Promise<Object>} keyword sau khi xóa
  */
 export const deleteKeyword = async (id) => {
-  // Kiểm tra keyword tồn tại
   const existing = await pool.query(
     `SELECT keyword_id, is_deleted FROM "Keyword"
      WHERE keyword_id = $1`,
     [id],
   );
-
   if (!existing.rows.length) {
     const error = new Error("Keyword không tồn tại");
     error.statusCode = 404;
+    error.code = "KEYWORD_NOT_FOUND";
     throw error;
   }
-
-  // Kiểm tra đã bị soft delete chưa
   if (existing.rows[0].is_deleted) {
     const error = new Error("Keyword đã bị xóa trước đó");
     error.statusCode = 400;
+    error.code = "KEYWORD_ALREADY_DELETED";
     throw error;
   }
 
   const { rows } = await pool.query(
-    `UPDATE "Keyword"
-     SET is_deleted = true
+    `UPDATE "Keyword" SET is_deleted = true
      WHERE keyword_id = $1
      RETURNING keyword_id, display_name, is_deleted`,
     [id],
   );
-
   return rows[0];
 };
 
@@ -598,33 +573,29 @@ export const deleteKeyword = async (id) => {
  * @returns {Promise<Object>} keyword sau khi restore
  */
 export const restoreKeyword = async (id) => {
-  // Kiểm tra keyword tồn tại
   const existing = await pool.query(
     `SELECT keyword_id, is_deleted FROM "Keyword"
      WHERE keyword_id = $1`,
     [id],
   );
-
   if (!existing.rows.length) {
     const error = new Error("Keyword không tồn tại");
     error.statusCode = 404;
+    error.code = "KEYWORD_NOT_FOUND";
     throw error;
   }
-
-  // Chỉ restore keyword đã bị soft delete
   if (!existing.rows[0].is_deleted) {
     const error = new Error("Keyword này đang active, không cần restore");
     error.statusCode = 400;
+    error.code = "KEYWORD_ALREADY_ACTIVE";
     throw error;
   }
 
   const { rows } = await pool.query(
-    `UPDATE "Keyword"
-     SET is_deleted = false
+    `UPDATE "Keyword" SET is_deleted = false
      WHERE keyword_id = $1
      RETURNING keyword_id, display_name, is_deleted`,
     [id],
   );
-
   return rows[0];
 };

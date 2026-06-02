@@ -223,88 +223,35 @@ export const watchKeywords = async (req, res) => {
  * GET /api/v1/keywords/:id
  * Lấy keyword theo ID
  */
-export const getKeywordByIdController = async (req, res) => {
-  try {
-    const id = parseInt(req.params.id);
-
-    if (isNaN(id) || id <= 0) {
-      return res.status(400).json({
-        success: false,
-        message: "ID không hợp lệ",
-      });
-    }
-
-    const keyword = await getKeywordById(id);
-
-    return res.status(200).json({
-      success: true,
-      message: "Lấy keyword thành công",
-      data: keyword,
-    });
-  } catch (error) {
-    if (error.statusCode) {
-      return res.status(error.statusCode).json({
-        success: false,
-        message: error.message,
-      });
-    }
-    logger.error("[Keyword Controller] Lỗi khi lấy keyword theo ID:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Có lỗi xảy ra ở Server!",
-    });
-  }
-};
-
-/**
- * GET /api/v1/keywords
- * Lấy danh sách keywords với pagination và search
- */
 export const getAllKeywordsController = async (req, res) => {
   try {
     const page = Math.max(parseInt(req.query.page) || 1, 1);
     const limit = Math.min(parseInt(req.query.limit) || 10, 100);
     const search = req.query.search || "";
-
     const result = await getAllKeywords({ page, limit, search });
-
     return res.status(200).json({
       success: true,
+      code: "KEYWORD_LIST_FETCHED",
       message: "Lấy danh sách keyword thành công",
       data: result.data,
       pagination: result.pagination,
     });
   } catch (error) {
-    if (error.statusCode) {
-      return res.status(error.statusCode).json({
-        success: false,
-        message: error.message,
-      });
-    }
     logger.error("[Keyword Controller] Lỗi khi lấy danh sách keyword:", error);
     return res.status(500).json({
       success: false,
+      code: "KEYWORD_SERVER_ERROR",
       message: "Có lỗi xảy ra ở Server!",
     });
   }
 };
 
-/**
- * POST /api/v1/keywords
- * Tạo mới một keyword
- */
 export const createKeywordController = async (req, res) => {
   try {
-    const display_name = req.body.display_name?.trim();
-
-    const validationError = validateDisplayName(display_name);
-    if (validationError) {
-      return res.status(400).json({ success: false, message: validationError });
-    }
-    const keyword = await createKeyword(display_name);
-
+    const keyword = await createKeyword(req.body.display_name);
     return res.status(201).json({
       success: true,
+      code: "KEYWORD_CREATED",
       message: "Tạo keyword thành công",
       data: keyword,
     });
@@ -312,42 +259,51 @@ export const createKeywordController = async (req, res) => {
     if (error.statusCode) {
       return res.status(error.statusCode).json({
         success: false,
+        code: error.code,
         message: error.message,
       });
     }
     logger.error("[Keyword Controller] Lỗi khi tạo keyword:", error);
     return res.status(500).json({
       success: false,
+      code: "KEYWORD_SERVER_ERROR",
       message: "Có lỗi xảy ra ở Server!",
     });
   }
 };
-/**
- * PUT /api/v1/keywords/:id
- * Cập nhật keyword theo ID
- */
-export const updateKeywordController = async (req, res) => {
+
+export const getKeywordByIdController = async (req, res) => {
   try {
-    const id = parseInt(req.params.id);
-
-    if (isNaN(id) || id <= 0) {
-      return res.status(400).json({
-        success: false,
-        message: "ID không hợp lệ",
-      });
-    }
-
-    const display_name = req.body.display_name?.trim();
-
-    const validationError = validateDisplayName(display_name);
-    if (validationError) {
-      return res.status(400).json({ success: false, message: validationError });
-    }
-
-    const keyword = await updateKeyword(id, display_name);
-
+    const keyword = await getKeywordById(req.keywordId);
     return res.status(200).json({
       success: true,
+      code: "KEYWORD_FETCHED",
+      message: "Lấy keyword thành công",
+      data: keyword,
+    });
+  } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({
+        success: false,
+        code: error.code,
+        message: error.message,
+      });
+    }
+    logger.error("[Keyword Controller] Lỗi khi lấy keyword theo ID:", error);
+    return res.status(500).json({
+      success: false,
+      code: "KEYWORD_SERVER_ERROR",
+      message: "Có lỗi xảy ra ở Server!",
+    });
+  }
+};
+
+export const updateKeywordController = async (req, res) => {
+  try {
+    const keyword = await updateKeyword(req.keywordId, req.body.display_name);
+    return res.status(200).json({
+      success: true,
+      code: "KEYWORD_UPDATED",
       message: "Cập nhật keyword thành công",
       data: keyword,
     });
@@ -355,72 +311,50 @@ export const updateKeywordController = async (req, res) => {
     if (error.statusCode) {
       return res.status(error.statusCode).json({
         success: false,
+        code: error.code,
         message: error.message,
       });
     }
     logger.error("[Keyword Controller] Lỗi khi cập nhật keyword:", error);
     return res.status(500).json({
       success: false,
+      code: "KEYWORD_SERVER_ERROR",
       message: "Có lỗi xảy ra ở Server!",
     });
   }
 };
 
-/**
- * DELETE /api/v1/keywords/:id
- * Soft delete keyword theo ID
- */
 export const deleteKeywordController = async (req, res) => {
   try {
-    const id = parseInt(req.params.id);
-
-    if (isNaN(id) || id <= 0) {
-      return res.status(400).json({
-        success: false,
-        message: "ID không hợp lệ",
-      });
-    }
-
-    await deleteKeyword(id);
-
+    await deleteKeyword(req.keywordId);
     return res.status(200).json({
       success: true,
+      code: "KEYWORD_DELETED",
       message: "Xóa keyword thành công",
     });
   } catch (error) {
     if (error.statusCode) {
       return res.status(error.statusCode).json({
         success: false,
+        code: error.code,
         message: error.message,
       });
     }
     logger.error("[Keyword Controller] Lỗi khi xóa keyword:", error);
     return res.status(500).json({
       success: false,
+      code: "KEYWORD_SERVER_ERROR",
       message: "Có lỗi xảy ra ở Server!",
     });
   }
 };
 
-/**
- * PATCH /api/v1/keywords/:id/restore
- * Restore keyword đã bị soft delete
- */
 export const restoreKeywordController = async (req, res) => {
   try {
-    const id = parseInt(req.params.id);
-
-    if (isNaN(id) || id <= 0) {
-      return res.status(400).json({
-        success: false,
-        message: "ID không hợp lệ",
-      });
-    }
-
-    const keyword = await restoreKeyword(id);
-
+    const keyword = await restoreKeyword(req.keywordId);
     return res.status(200).json({
       success: true,
+      code: "KEYWORD_RESTORED",
       message: "Khôi phục keyword thành công",
       data: keyword,
     });
@@ -428,12 +362,14 @@ export const restoreKeywordController = async (req, res) => {
     if (error.statusCode) {
       return res.status(error.statusCode).json({
         success: false,
+        code: error.code,
         message: error.message,
       });
     }
     logger.error("[Keyword Controller] Lỗi khi restore keyword:", error);
     return res.status(500).json({
       success: false,
+      code: "KEYWORD_SERVER_ERROR",
       message: "Có lỗi xảy ra ở Server!",
     });
   }
