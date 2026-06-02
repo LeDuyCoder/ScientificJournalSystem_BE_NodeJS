@@ -11,6 +11,7 @@ import {
   deleteKeywordController,
   restoreKeywordController,
 } from "../controllers/keyword.controller.js";
+import { validateKeywordBody, validateKeywordId } from "../middlewares/keyword.middleware.js";
 
 const router = express.Router();
 
@@ -269,7 +270,9 @@ router.get(
 // POST /api/v1/projects/:id/keywords/watch
 router.post("/:id/keywords/watch", requireAuth, watchKeywords);
 
-//Keyword management
+// ==========================================
+// Keyword Management CRUD
+// ==========================================
 
 /**
  * @swagger
@@ -277,89 +280,6 @@ router.post("/:id/keywords/watch", requireAuth, watchKeywords);
  *   name: Keyword Management
  *   description: API CRUD quản lý bảng Keywords
  */
-/**
- * @swagger
- * /api/v1/keywords/{id}:
- *   get:
- *     summary: Lấy keyword theo ID
- *     tags:
- *        - Keyword Management
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: integer
- *           minimum: 1
- *         description: ID của keyword
- *     responses:
- *       200:
- *         description: Lấy keyword thành công
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 message:
- *                   type: string
- *                   example: Lấy keyword thành công
- *                 data:
- *                   type: object
- *                   properties:
- *                     keyword_id:
- *                       type: integer
- *                       example: 1
- *                     display_name:
- *                       type: string
- *                       example: Machine Learning
- *       400:
- *         description: ID không hợp lệ
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 message:
- *                   type: string
- *                   example: ID không hợp lệ
- *       401:
- *         description: Chưa xác thực hoặc token không hợp lệ
- *       404:
- *         description: Keyword không tồn tại
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 message:
- *                   type: string
- *                   example: Keyword không tồn tại
- *       500:
- *         description: Lỗi server
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 message:
- *                   type: string
- *                   example: Có lỗi xảy ra ở Server!
- */
-router.get("/:id", requireAuth, getKeywordByIdController);
 
 /**
  * @swagger
@@ -432,17 +352,6 @@ router.get("/:id", requireAuth, getKeywordByIdController);
  *         description: Chưa xác thực hoặc token không hợp lệ
  *       500:
  *         description: Lỗi server
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 message:
- *                   type: string
- *                   example: Có lỗi xảy ra ở Server!
  */
 router.get("/", requireAuth, getAllKeywordsController);
 
@@ -492,47 +401,14 @@ router.get("/", requireAuth, getAllKeywordsController);
  *                       example: Machine Learning
  *       400:
  *         description: Dữ liệu đầu vào không hợp lệ
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 message:
- *                   type: string
- *                   example: Tên keyword không được để trống
  *       401:
  *         description: Chưa xác thực hoặc token không hợp lệ
  *       409:
  *         description: Keyword đã tồn tại
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 message:
- *                   type: string
- *                   example: Keyword đã tồn tại
  *       500:
  *         description: Lỗi server
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 message:
- *                   type: string
- *                   example: Có lỗi xảy ra ở Server!
  */
-router.post("/", requireAuth, createKeywordController);
+router.post("/", requireAuth, validateKeywordBody, createKeywordController);
 
 /**
  * @swagger
@@ -579,34 +455,40 @@ router.post("/", requireAuth, createKeywordController);
  *                       example: false
  *       400:
  *         description: ID không hợp lệ hoặc keyword đang active
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 message:
- *                   type: string
- *                   example: Keyword này đang active, không cần restore
  *       401:
  *         description: Chưa xác thực hoặc token không hợp lệ
  *       404:
  *         description: Keyword không tồn tại
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 message:
- *                   type: string
- *                   example: Keyword không tồn tại
  *       500:
  *         description: Lỗi server
+ */
+router.patch(
+  "/:id/restore",
+  requireAuth,
+  validateKeywordId,
+  restoreKeywordController,
+);
+
+/**
+ * @swagger
+ * /api/v1/keywords/{id}:
+ *   get:
+ *     summary: Lấy keyword theo ID
+ *     tags:
+ *       - Keyword Management
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *         description: ID của keyword
+ *     responses:
+ *       200:
+ *         description: Lấy keyword thành công
  *         content:
  *           application/json:
  *             schema:
@@ -614,12 +496,30 @@ router.post("/", requireAuth, createKeywordController);
  *               properties:
  *                 success:
  *                   type: boolean
- *                   example: false
+ *                   example: true
  *                 message:
  *                   type: string
- *                   example: Có lỗi xảy ra ở Server!
+ *                   example: Lấy keyword thành công
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     keyword_id:
+ *                       type: integer
+ *                       example: 1
+ *                     display_name:
+ *                       type: string
+ *                       example: Machine Learning
+ *       400:
+ *         description: ID không hợp lệ
+ *       401:
+ *         description: Chưa xác thực hoặc token không hợp lệ
+ *       404:
+ *         description: Keyword không tồn tại
+ *       500:
+ *         description: Lỗi server
  */
-router.patch("/:id/restore", requireAuth, restoreKeywordController);
+router.get("/:id", requireAuth, validateKeywordId, getKeywordByIdController);
+
 /**
  * @swagger
  * /api/v1/keywords/{id}:
@@ -674,60 +574,22 @@ router.patch("/:id/restore", requireAuth, restoreKeywordController);
  *                       example: Deep Learning
  *       400:
  *         description: Dữ liệu đầu vào không hợp lệ
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 message:
- *                   type: string
- *                   example: Tên keyword không được để trống
  *       401:
  *         description: Chưa xác thực hoặc token không hợp lệ
  *       404:
  *         description: Keyword không tồn tại
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 message:
- *                   type: string
- *                   example: Keyword không tồn tại
  *       409:
  *         description: Keyword đã tồn tại
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 message:
- *                   type: string
- *                   example: Keyword đã tồn tại
  *       500:
  *         description: Lỗi server
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 message:
- *                   type: string
- *                   example: Có lỗi xảy ra ở Server!
  */
-router.put("/:id", requireAuth, updateKeywordController);
+router.put(
+  "/:id",
+  requireAuth,
+  validateKeywordId,
+  validateKeywordBody,
+  updateKeywordController,
+);
 
 /**
  * @swagger
@@ -762,46 +624,13 @@ router.put("/:id", requireAuth, updateKeywordController);
  *                   example: Xóa keyword thành công
  *       400:
  *         description: ID không hợp lệ hoặc keyword đã bị xóa trước đó
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 message:
- *                   type: string
- *                   example: Keyword đã bị xóa trước đó
  *       401:
  *         description: Chưa xác thực hoặc token không hợp lệ
  *       404:
  *         description: Keyword không tồn tại
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 message:
- *                   type: string
- *                   example: Keyword không tồn tại
  *       500:
  *         description: Lỗi server
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 message:
- *                   type: string
- *                   example: Có lỗi xảy ra ở Server!
  */
-router.delete("/:id", requireAuth, deleteKeywordController);
+router.delete("/:id", requireAuth, validateKeywordId, deleteKeywordController);
 
 export default router;
