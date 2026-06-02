@@ -51,7 +51,7 @@ export const getProjectById = async (projectId, userId) => {
 
   // 3. Lấy danh sách Journal đã cấu hình
   const journalsResult = await pool.query(
-    `SELECT j.journal_id, j.display_name, j.issn, j.type, j.is_open_access, j.homepage_url
+    `SELECT j.journal_id, j.display_name, j.issn, j.type, j.is_open_access
      FROM "Project_Journal" pj
      JOIN "Journal" j ON pj.journal_id = j.journal_id
      WHERE pj.project_id = $1`,

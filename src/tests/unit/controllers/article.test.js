@@ -4,14 +4,12 @@ import { mock } from 'node:test';
 import request from 'supertest';
 import jwt from 'jsonwebtoken';
 
-// Đảm bảo JWT_SECRET luôn có giá trị khi chạy test
-process.env.JWT_SECRET = process.env.JWT_SECRET || 'scientific_journal_secret_key';
-
 import app from '../../../app.js';
 import pool from '../../../config/database.js';
+import * as articleService from '../../../services/article.service.js';
 
 const JWT_SECRET = process.env.JWT_SECRET;
-const userId = 'a8e9c612-40db-4ff0-87a0-0f8b3b4f6cf7';
+const userId = '11111111-1111-1111-1111-111111111111';
 const testToken = jwt.sign({ user_id: userId, role: 'STUDENT', email: 'test@example.com' }, JWT_SECRET);
 
 test.after(async () => {
@@ -59,15 +57,6 @@ test.describe('Article Controller - GET /api/v1/articles Unit Test Suite', () =>
   // 2. Kiểm tra validation (Input)
   // ==========================================
   test.describe('Validation', () => {
-    test('Lỗi 400 - Thiếu tham số keywords', async () => {
-      const res = await request(app)
-        .get('/api/v1/articles')
-        .set('Authorization', `Bearer ${testToken}`);
-
-      assert.strictEqual(res.status, 400);
-      assert.strictEqual(res.body.success, false);
-      assert.ok(res.body.message.includes('keywords'));
-    });
 
     test('Lỗi 400 - keywords là chuỗi rỗng', async () => {
       const res = await request(app)
@@ -243,6 +232,98 @@ test.describe('Article Controller - GET /api/v1/articles Unit Test Suite', () =>
       assert.strictEqual(res.status, 500);
       assert.strictEqual(res.body.success, false);
       assert.strictEqual(res.body.message, 'Có lỗi xảy ra ở Server!');
+    });
+  });
+
+  // ==========================================
+  // 6. Public API (getArticles)
+  // ==========================================
+  test.describe('Public API - GET /api/v1/articles', () => {
+    test('Thành công: Lấy danh sách bài báo (không cần token, có search query)', async () => {
+      const mockArticles = [
+        {
+          article_id: 1,
+          title: 'Public Article',
+          abstract: 'Test',
+          publication_year: 2025,
+          doi: '10.xxxx',
+          journal_id: 2,
+          journal_name: 'Test Journal'
+        }
+      ];
+
+      mock.method(pool, 'query', async (sql, params) => {
+        if (typeof sql === 'string' && sql.includes('COUNT')) {
+          return { rows: [{ total: '1' }] };
+        }
+        return { rows: mockArticles };
+      });
+
+      const res = await request(app)
+        .get('/api/v1/articles?search=test');
+
+      assert.strictEqual(res.status, 200);
+      assert.strictEqual(res.body.success, true);
+      assert.strictEqual(res.body.data.items.length, 1);
+      assert.strictEqual(res.body.data.items[0].journal.display_name, 'Test Journal');
+      assert.strictEqual(res.body.data.pagination.page, 1);
+      assert.strictEqual(res.body.data.pagination.limit, 10);
+      assert.strictEqual(res.body.data.pagination.total, 1);
+    });
+
+    test('Thành công: Trả về mảng rỗng (không gọi DB) nếu bỏ trống search query', async () => {
+      // Mock db query để đảm bảo nó KHÔNG được gọi
+      const queryMock = mock.method(pool, 'query', async () => {
+        throw new Error('Should not call DB if search is empty');
+      });
+
+      const res = await request(app)
+        .get('/api/v1/articles');
+
+      assert.strictEqual(res.status, 200);
+      assert.strictEqual(res.body.success, true);
+      assert.deepStrictEqual(res.body.data.items, []);
+      assert.strictEqual(queryMock.mock.callCount(), 0);
+    });
+
+    test('Thành công: Trả về mảng rỗng nếu không có dữ liệu', async () => {
+      mock.method(pool, 'query', async (sql, params) => {
+        if (typeof sql === 'string' && sql.includes('COUNT')) {
+          return { rows: [{ total: '0' }] };
+        }
+        return { rows: [] };
+      });
+
+      const res = await request(app)
+        .get('/api/v1/articles?search=NON_EXISTENT');
+
+      assert.strictEqual(res.status, 200);
+      assert.strictEqual(res.body.success, true);
+      assert.deepStrictEqual(res.body.data.items, []);
+      assert.strictEqual(res.body.data.pagination.total, 0);
+    });
+
+    test('Không bị lỗi khi page, limit truyền sai định dạng (sử dụng mặc định)', async () => {
+      let capturedParams = null;
+      mock.method(pool, 'query', async (sql, params) => {
+        if (typeof sql === 'string' && sql.includes('COUNT')) {
+          return { rows: [{ total: '0' }] };
+        }
+        capturedParams = params;
+        return { rows: [] };
+      });
+
+      const res = await request(app)
+        .get('/api/v1/articles?page=abc&limit=-5&search=test');
+
+      assert.strictEqual(res.status, 200);
+      assert.strictEqual(res.body.success, true);
+      assert.strictEqual(res.body.data.pagination.page, 1);
+      assert.strictEqual(res.body.data.pagination.limit, 10);
+      
+      // params truyền vào SQL: search ($1), limit ($2) = 10, offset ($3) = 0
+      assert.strictEqual(capturedParams[1], 10);
+      assert.strictEqual(capturedParams[2], 0);
     });
   });
 });
