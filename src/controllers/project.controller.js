@@ -348,3 +348,50 @@ export const getRelatedArticles = async (req, res) => {
     });
   }
 };
+
+/**
+ * API Lấy dữ liệu phân tích/thống kê của một dự án (Trending Charts)
+ * 
+ * @async
+ * @param {Object} req - Express request object
+ * @param {Object} req.params - Các tham số trên URL
+ * @param {string} req.params.id - ID của dự án cần phân tích
+ * @param {Object} req.user - Thông tin người dùng đã xác thực
+ * @param {string} req.user.user_id - ID người dùng
+ * @param {Object} res - Express response object
+ * @returns {Promise<Object>} JSON response chứa dữ liệu phân tích dự án
+ */
+export const getProjectAnalytics = async (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const userId = req.user.user_id;
+
+    // Validate ID dự án phải là số nguyên dương
+    if (!/^\d+$/.test(projectId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'ID dự án không hợp lệ'
+      });
+    }
+
+    const analyticsData = await projectServiceRef.getProjectAnalytics(projectId, userId);
+    if (!analyticsData) {
+      return res.status(404).json({
+        success: false,
+        message: 'Không tìm thấy dự án hoặc bạn không có quyền truy cập dự án này'
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Lấy dữ liệu phân tích dự án thành công',
+      data: analyticsData
+    });
+  } catch (error) {
+    logger.error('[Project Controller] Lỗi khi lấy dữ liệu phân tích dự án:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Có lỗi xảy ra khi lấy dữ liệu phân tích dự án'
+    });
+  }
+};

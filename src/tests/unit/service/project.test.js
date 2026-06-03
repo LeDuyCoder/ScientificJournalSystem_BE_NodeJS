@@ -309,4 +309,104 @@ test.describe('Project Management API - CRUD Operations (BIGINT)', () => {
       assert.strictEqual(res.body.message, 'Không tìm thấy dự án hoặc bạn không có quyền truy cập dự án này');
     });
   });
+
+  // ==========================================
+  // 5. GET /api/v1/projects/:id/analytics - Phân tích dự án
+  // ==========================================
+  test.describe('GET /api/v1/projects/:id/analytics', () => {
+    test('Lấy dữ liệu phân tích dự án thành công', async () => {
+      const projectId = '12';
+      let queryCallCount = 0;
+      mock.method(pool, 'query', async (sql, params) => {
+        queryCallCount++;
+        if (queryCallCount === 1) {
+          // Check ownership
+          return { rows: [{ 1: 1 }] };
+        } else if (queryCallCount === 2) {
+          // Article Trend
+          return {
+            rows: [
+              { year: 2024, article_count: 10 },
+              { year: 2025, article_count: 15 }
+            ]
+          };
+        } else {
+          // Metrics Comparison
+          return {
+            rows: [
+              {
+                journal_name: 'Nature',
+                journal_id: '1',
+                metric_code: 'SJR',
+                metric_name: 'SJR Score',
+                metric_type: 'SCORE',
+                year: 2025,
+                value_txt: null,
+                value_float: 15.2,
+                value_int: null
+              }
+            ]
+          };
+        }
+      });
+
+      const res = await request(app)
+        .get(`/api/v1/projects/${projectId}/analytics`)
+        .set('Authorization', `Bearer ${testToken}`);
+
+      assert.strictEqual(res.status, 200);
+      assert.strictEqual(res.body.success, true);
+      assert.strictEqual(res.body.message, 'Lấy dữ liệu phân tích dự án thành công');
+      assert.deepStrictEqual(res.body.data.article_volume_trend, [
+        { year: 2024, article_count: 10 },
+        { year: 2025, article_count: 15 }
+      ]);
+      assert.deepStrictEqual(res.body.data.journal_metrics_comparison, [
+        {
+          journal_name: 'Nature',
+          journal_id: '1',
+          metric_code: 'SJR',
+          metric_name: 'SJR Score',
+          metric_type: 'SCORE',
+          value: 15.2,
+          year: 2025
+        }
+      ]);
+    });
+
+    test('Lỗi 400 - ID dự án không hợp lệ', async () => {
+      const res = await request(app)
+        .get('/api/v1/projects/not-a-number/analytics')
+        .set('Authorization', `Bearer ${testToken}`);
+
+      assert.strictEqual(res.status, 400);
+      assert.strictEqual(res.body.success, false);
+      assert.strictEqual(res.body.message, 'ID dự án không hợp lệ');
+    });
+
+    test('Lỗi 404 - Dự án không tồn tại hoặc không thuộc quyền sở hữu', async () => {
+      mock.method(pool, 'query', async (sql, params) => {
+        // Project check trả về rỗng
+        return { rows: [] };
+      });
+
+      const res = await request(app)
+        .get('/api/v1/projects/999/analytics')
+        .set('Authorization', `Bearer ${testToken}`);
+
+      assert.strictEqual(res.status, 404);
+      assert.strictEqual(res.body.success, false);
+      assert.strictEqual(res.body.message, 'Không tìm thấy dự án hoặc bạn không có quyền truy cập dự án này');
+    });
+
+    test('Lỗi 401 - Chưa xác thực (Không truyền Token)', async () => {
+      const res = await request(app)
+        .get('/api/v1/projects/12/analytics');
+
+      assert.strictEqual(res.status, 401);
+      assert.strictEqual(res.body.success, false);
+      assert.strictEqual(res.body.message, 'Không tìm thấy token xác thực hoặc token không hợp lệ');
+    });
+  });
 });
+
