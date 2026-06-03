@@ -10,6 +10,7 @@ import {
     deleteArticle,
     restoreArticle
 } from '../controllers/article.controller.js';
+import { validateCreateArticle, validateId, validateUpdateArticle } from '../middlewares/articleValidation.middleware.js';
 
 const router = express.Router();
 
@@ -85,7 +86,7 @@ const router = express.Router();
  * - Kiểm tra nếu có param `keywords` -> Chạy qua lớp bảo mật `requireAuth` rồi gọi controller xử lý keyword.
  * - Nếu không đi kèm `keywords` -> Cho phép truy cập công khai (Public) thông qua hàm gộp tổng `getArticles`.
  */
-router.get('/', (req, res, next) => {
+router.get('/', validateId, async (req, res, next) => {
     if (req.query.keywords !== undefined && req.query.keywords.trim() !== '') {
         // Có keywords -> Bắt buộc kiểm tra token tài khoản
         return requireAuth(req, res, () => getArticlesByKeywords(req, res));
@@ -126,7 +127,7 @@ router.get('/', (req, res, next) => {
  *       500:
  *         description: Lỗi server
  */
-router.get('/:id', requireAuth, getArticleById);
+router.get('/:id', requireAuth, validateId, getArticleById);
 
 /**
  * @swagger
@@ -200,7 +201,7 @@ router.get('/:id', requireAuth, getArticleById);
  *       500:
  *         description: Lỗi server
  */
-router.post('/', requireAuth, createArticle);
+router.post('/', requireAuth, validateCreateArticle, createArticle);
 
 /**
  * @swagger
@@ -277,7 +278,7 @@ router.post('/', requireAuth, createArticle);
  *       500:
  *         description: Lỗi server
  */
-router.put('/:id', requireAuth, updateArticle);
+router.put('/:id', requireAuth, validateUpdateArticle, updateArticle);
 
 /**
  * @swagger
@@ -317,7 +318,7 @@ router.put('/:id', requireAuth, updateArticle);
  *       500:
  *         description: Lỗi server
  */
-router.delete('/:id', requireAuth, deleteArticle);
+router.delete('/:id', requireAuth, validateId, deleteArticle);
 
 /**
  * @swagger
@@ -357,6 +358,6 @@ router.delete('/:id', requireAuth, deleteArticle);
  *       500:
  *         description: Lỗi server
  */
-router.patch('/:id/restore', requireAuth, restoreArticle);
+router.patch('/:id/restore', requireAuth, validateId, restoreArticle);
 
 export default router;
