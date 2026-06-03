@@ -480,3 +480,22 @@ export const restoreArticle = async (articleId) => {
         throw error;
     }
 };
+
+/**
+ * Kiểm tra sự tồn tại của một bài báo dựa trên `article_id`.
+ * Hàm này sẽ trả về `true` nếu bài báo tồn tại (bất kể đã bị xóa mềm hay chưa), và `false` nếu không tìm thấy.
+ *
+ * @param {number|string} articleId - ID của bài báo cần kiểm tra
+ * @returns {Promise<boolean>} `true` nếu bài báo tồn tại, `false` nếu không tìm thấy
+ */
+export const articleExists = async (articleId) => {
+    try {
+        const query = `SELECT EXISTS (SELECT 1 FROM "Article" WHERE "article_id" = $1);`;
+        const result = await pool.query(query, [articleId]);
+        return result.rows[0].exists;
+    } catch (error) {
+        logger.error(`Error checking if article with ID ${articleId} exists:`, error);
+        throw error;
+    }
+
+}
