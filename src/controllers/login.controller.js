@@ -27,6 +27,7 @@ export const login = async (req, res) => {
     if (!email || !email.trim()) {
       return res.status(400).json({
         success: false,
+        code: 'EMAIL_REQUIRED',
         message: 'Email không được để trống'
       });
     }
@@ -34,6 +35,7 @@ export const login = async (req, res) => {
     if (!isValidEmail(email)) {
       return res.status(400).json({
         success: false,
+        code: 'INVALID_EMAIL_FORMAT',
         message: 'Email không đúng định dạng'
       });
     }
@@ -41,6 +43,7 @@ export const login = async (req, res) => {
     if (!password || !password.trim()) {
       return res.status(400).json({
         success: false,
+        code: 'PASSWORD_REQUIRED',
         message: 'Password không được để trống'
       });
     }
@@ -49,6 +52,7 @@ export const login = async (req, res) => {
 
     return res.status(200).json({
       success: true,
+      code: 'LOGIN_SUCCESS',
       message: 'Đăng nhập thành công',
       data
     });
@@ -58,6 +62,7 @@ export const login = async (req, res) => {
     }
     return res.status(error.statusCode || 500).json({
       success: false,
+      code: 'INTERNAL_SERVER_ERROR',
       message: error.statusCode ? error.message : 'Có lỗi xảy ra ở server'
     });
   }
