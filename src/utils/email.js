@@ -1,48 +1,247 @@
-import nodemailer from 'nodemailer';
+import { google } from 'googleapis';
 import logger from './logger.js';
 
-// Khởi tạo transporter để gửi email
-let transporter = null;
+const OAuth2 = google.auth.OAuth2;
 
-const isSmtpConfigured = () => {
-  const { SMTP_USER, SMTP_PASS } = process.env;
-  return (
-    SMTP_USER &&
-    SMTP_PASS &&
-    SMTP_USER !== 'your_email@gmail.com' &&
-    SMTP_PASS !== 'your_gmail_app_password'
-  );
+// ======================================================
+// GOOGLE OAUTH2 CLIENT
+// ======================================================
+
+const oauth2Client = new OAuth2(
+  process.env.CLIENT_ID,
+  process.env.CLIENT_SECRET,
+  'https://developers.google.com/oauthplayground'
+);
+
+oauth2Client.setCredentials({
+  refresh_token: process.env.REFRESH_TOKEN
+});
+
+// ======================================================
+// GMAIL API CLIENT
+// ======================================================
+
+const gmail = google.gmail({
+  version: 'v1',
+  auth: oauth2Client
+});
+
+// ======================================================
+// CREATE RAW EMAIL
+// ======================================================
+
+const createRawEmail = ({
+  to,
+  from,
+  subject,
+  html
+}) => {
+  const email = [
+    `From: ${from}`,
+    `To: ${to}`,
+    'Content-Type: text/html; charset=UTF-8',
+    'MIME-Version: 1.0',
+    `Subject: ${subject}`,
+    '',
+    html
+  ].join('\n');
+
+  return Buffer.from(email)
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
 };
 
-if (isSmtpConfigured()) {
-  transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port: parseInt(process.env.SMTP_PORT || '587', 10),
-    secure: process.env.SMTP_PORT === '465', // true cho port 465, false cho các port khác
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS
-    },
-    tls: {
-      rejectUnauthorized: false
-    }
-  });
-} else {
-  logger.warn(
-    '[SMTP]: Chưa cấu hình SMTP đầy đủ trong file .env. Hệ thống sẽ ghi nhận nội dung Email ra Console thay vì gửi thực tế.'
-  );
-}
+// ======================================================
+// EMAIL TEMPLATE
+// ======================================================
+
+const activationTemplate = ({
+  firstName,
+  activationUrl
+}) => {
+  return `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="UTF-8" />
+        <title>Account Activation</title>
+      </head>
+
+      <body
+        style="
+          font-family: Arial, sans-serif;
+          background: #f5f5f5;
+          padding: 20px;
+        "
+      >
+        <div
+          style="
+            max-width: 600px;
+            margin: auto;
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+          "
+        >
+          <div
+            style="
+              background: #2563eb;
+              color: white;
+              padding: 30px;
+              text-align: center;
+            "
+          >
+            <h1>Scientific Journal System</h1>
+          </div>
+
+          <div style="padding: 30px">
+            <p>
+              Hello <strong>${firstName}</strong>,
+            </p>
+
+            <p>
+              Thank you for registering an account with our system.
+            </p>
+
+            <p>
+              Please click the button below to activate your account:
+            </p>
+
+            <div
+              style="
+                margin: 30px 0;
+                text-align: center;
+              "
+            >
+              <a
+                href="${activationUrl}"
+                style="
+                  background: #2563eb;
+                  color: white;
+                  text-decoration: none;
+                  padding: 14px 28px;
+                  border-radius: 8px;
+                  display: inline-block;
+                  font-weight: bold;
+                "
+              >
+                Activate Account
+              </a>
+            </div>
+
+            <p>
+              If the button above does not work, please copy and paste the following link into your browser:
+            </p>
+
+            <p
+              style="
+                word-break: break-all;
+                background: #f3f4f6;
+                padding: 12px;
+                border-radius: 6px;
+              "
+            >
+              ${activationUrl}
+            </p>
+
+            <p>
+              This activation link will expire in 24 hours.
+            </p>
+          </div>
+
+          <div
+            style="
+              background: #f9fafb;
+              padding: 20px;
+              text-align: center;
+              color: #6b7280;
+              font-size: 13px;
+            "
+          >
+            This is an automated email. Please do not reply to this message.
+          </div>
+        </div>
+      </body>
+    </html>
+    `;
+
+};
+
+// ======================================================
+// EMAIL HELPER
+// ======================================================
 
 export const emailHelper = {
+  sendActivationEmail: async (
+    toEmail,
+    firstName,
+    token
+  ) => {
+    try {
+      const baseUrl =
+        process.env.BASE_URL ||
+        'http://localhost:8000';
+
+      const activationUrl =
+        `${baseUrl}/api/v1/auth/verify?token=${token}`;
+
+      const html = activationTemplate({
+        firstName,
+        activationUrl
+      });
+
+      const raw = createRawEmail({
+        to: toEmail,
+
+        from:
+          `Scientific Journal System <${process.env.EMAIL_USER}>`,
+
+        subject:
+          'Activate Your Scientific Journal System Account',
+
+        html
+      });
+
+      const response =
+        await gmail.users.messages.send({
+          userId: 'me',
+
+          requestBody: {
+            raw
+          }
+        });
+
+      logger.info(
+        `[MAIL]: Đã gửi email tới ${toEmail}`
+      );
+
+      console.log(response.data);
+
+      return response.data;
+
+    } catch (error) {
+      logger.error(
+        `[MAIL]: Lỗi gửi activation email tới ${toEmail}`,
+        error
+      );
+
+      throw new Error(
+        'Không thể gửi email kích hoạt tài khoản'
+      );
+    }
+  },
+
   /**
-   * Gửi email kích hoạt tài khoản
+   * Gửi email đặt lại mật khẩu
    * @param {string} toEmail Email người nhận
    * @param {string} firstName Tên người nhận
-   * @param {string} token Token kích hoạt tài khoản
+   * @param {string} token Token đặt lại mật khẩu (dạng plain text)
    */
-  sendActivationEmail: async (toEmail, firstName, token) => {
+  sendResetPasswordEmail: async (toEmail, firstName, token) => {
     const baseUrl = process.env.BASE_URL || 'http://localhost:8080';
-    const activationUrl = `${baseUrl}/api/v1/auth/verify?token=${token}`;
+    const resetUrl = `${baseUrl}/reset-password?token=${token}`;
 
     const htmlContent = `
       <!DOCTYPE html>
@@ -50,7 +249,7 @@ export const emailHelper = {
       <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Kích hoạt tài khoản</title>
+        <title>Đặt lại mật khẩu</title>
         <style>
           body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -101,7 +300,7 @@ export const emailHelper = {
             font-weight: 600;
             border-radius: 8px;
             font-size: 16px;
-            box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.2), 0 2px 4px -1px rgba(37, 99, 235, 0.1);
+            box-shadow: 0 4px 6px -1px rgba(239, 68, 68, 0.2), 0 2px 4px -1px rgba(239, 68, 68, 0.1);
             transition: background-color 0.2s;
           }
           .btn:hover {
@@ -124,19 +323,20 @@ export const emailHelper = {
       <body>
         <div class="container">
           <div class="header">
-            <h1>Chào mừng đến với Scientific Journal System</h1>
+            <h1>Đặt lại mật khẩu tài khoản</h1>
           </div>
           <div class="content">
             <p>Xin chào <strong>${firstName}</strong>,</p>
-            <p>Cảm ơn bạn đã đăng ký tài khoản tại hệ thống của chúng tôi. Để hoàn tất thủ tục đăng ký và bắt đầu sử dụng dịch vụ, vui lòng xác thực email bằng cách click vào nút dưới đây:</p>
+            <p>Bạn nhận được email này vì đã gửi yêu cầu đặt lại mật khẩu cho tài khoản của mình tại Scientific Journal System.</p>
+            <p>Vui lòng click vào nút dưới đây để tiến hành đặt lại mật khẩu mới:</p>
             <div class="btn-wrapper">
-              <a href="${activationUrl}" class="btn" target="_blank">Kích hoạt tài khoản</a>
+              <a href="${resetUrl}" class="btn" target="_blank">Đặt lại mật khẩu</a>
             </div>
-            <p>Nếu nút kích hoạt trên không hoạt động, bạn có thể sao chép liên kết dưới đây và dán vào trình duyệt:</p>
+            <p>Nếu nút đặt lại mật khẩu trên không hoạt động, bạn có thể sao chép liên kết dưới đây và dán vào trình duyệt:</p>
             <p style="word-break: break-all; font-size: 14px; color: #4b5563; background-color: #f3f4f6; padding: 12px; border-radius: 6px;">
-              ${activationUrl}
+              ${resetUrl}
             </p>
-            <p>Liên kết này có hiệu lực trong vòng <strong>24 giờ</strong>.</p>
+            <p>Liên kết này có hiệu lực trong vòng <strong>15 phút</strong>. Nếu bạn không yêu cầu đặt lại mật khẩu, bạn có thể bỏ qua email này.</p>
           </div>
           <div class="footer">
             <p>Đây là email tự động từ hệ thống. Vui lòng không phản hồi email này.</p>
@@ -150,29 +350,24 @@ export const emailHelper = {
     const mailOptions = {
       from: process.env.SMTP_FROM || '"Scientific Journal System" <your_email@gmail.com>',
       to: toEmail,
-      subject: 'Kích hoạt tài khoản Scientific Journal System',
+      subject: 'Đặt lại mật khẩu tài khoản Scientific Journal System',
       html: htmlContent
     };
 
     if (transporter) {
       try {
         await transporter.sendMail(mailOptions);
-        logger.info(`[SMTP]: Đã gửi email kích hoạt tới ${toEmail} thành công.`);
+        logger.info(`[SMTP]: Đã gửi email đặt lại mật khẩu tới ${toEmail} thành công.`);
       } catch (err) {
-          console.error('SMTP FULL ERROR:', err);
-          console.error('SMTP MESSAGE:', err.message);
-          console.error('SMTP RESPONSE:', err.response);
-
-          logger.error(`[SMTP]: Lỗi khi gửi email tới ${toEmail}:`, err);
-
-          throw err;
+        logger.error(`[SMTP]: Lỗi khi gửi email tới ${toEmail}:`, err);
+        throw new Error('Không thể gửi email đặt lại mật khẩu');
       }
     } else {
       // MOCK mode: ghi nhận ra log
       logger.info('================= [SMTP MOCK EMAIL] =================');
       logger.info(`To: ${toEmail}`);
       logger.info(`Subject: ${mailOptions.subject}`);
-      logger.info(`Activation URL: ${activationUrl}`);
+      logger.info(`Reset URL: ${resetUrl}`);
       logger.info('=====================================================');
     }
   }
