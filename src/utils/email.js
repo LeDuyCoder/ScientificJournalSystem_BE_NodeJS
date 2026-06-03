@@ -1,179 +1,235 @@
-import nodemailer from 'nodemailer';
+import { google } from 'googleapis';
 import logger from './logger.js';
 
-// Khởi tạo transporter để gửi email
-let transporter = null;
+const OAuth2 = google.auth.OAuth2;
 
-const isSmtpConfigured = () => {
-  const { SMTP_USER, SMTP_PASS } = process.env;
-  return (
-    SMTP_USER &&
-    SMTP_PASS &&
-    SMTP_USER !== 'your_email@gmail.com' &&
-    SMTP_PASS !== 'your_gmail_app_password'
-  );
+// ======================================================
+// GOOGLE OAUTH2 CLIENT
+// ======================================================
+
+const oauth2Client = new OAuth2(
+  process.env.CLIENT_ID,
+  process.env.CLIENT_SECRET,
+  'https://developers.google.com/oauthplayground'
+);
+
+oauth2Client.setCredentials({
+  refresh_token: process.env.REFRESH_TOKEN
+});
+
+// ======================================================
+// GMAIL API CLIENT
+// ======================================================
+
+const gmail = google.gmail({
+  version: 'v1',
+  auth: oauth2Client
+});
+
+// ======================================================
+// CREATE RAW EMAIL
+// ======================================================
+
+const createRawEmail = ({
+  to,
+  from,
+  subject,
+  html
+}) => {
+  const email = [
+    `From: ${from}`,
+    `To: ${to}`,
+    'Content-Type: text/html; charset=UTF-8',
+    'MIME-Version: 1.0',
+    `Subject: ${subject}`,
+    '',
+    html
+  ].join('\n');
+
+  return Buffer.from(email)
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
 };
 
-if (isSmtpConfigured()) {
-  transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port: parseInt(process.env.SMTP_PORT || '587', 10),
-    secure: process.env.SMTP_PORT === '465', // true cho port 465, false cho các port khác
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS
-    },
-    tls: {
-      rejectUnauthorized: false
-    }
-  });
-} else {
-  logger.warn(
-    '[SMTP]: Chưa cấu hình SMTP đầy đủ trong file .env. Hệ thống sẽ ghi nhận nội dung Email ra Console thay vì gửi thực tế.'
-  );
-}
+// ======================================================
+// EMAIL TEMPLATE
+// ======================================================
 
-export const emailHelper = {
-  /**
-   * Gửi email kích hoạt tài khoản
-   * @param {string} toEmail Email người nhận
-   * @param {string} firstName Tên người nhận
-   * @param {string} token Token kích hoạt tài khoản
-   */
-  sendActivationEmail: async (toEmail, firstName, token) => {
-    const baseUrl = process.env.BASE_URL || 'http://localhost:8080';
-    const activationUrl = `${baseUrl}/api/v1/auth/verify?token=${token}`;
-
-    const htmlContent = `
-      <!DOCTYPE html>
-      <html>
+const activationTemplate = ({
+  firstName,
+  activationUrl
+}) => {
+  return `
+    <!DOCTYPE html>
+    <html>
       <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Kích hoạt tài khoản</title>
-        <style>
-          body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #f3f4f6;
-            color: #1f2937;
-            margin: 0;
-            padding: 0;
-          }
-          .container {
-            max-width: 600px;
-            margin: 40px auto;
-            background: #ffffff;
-            border-radius: 16px;
-            overflow: hidden;
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-            border: 1px solid #e5e7eb;
-          }
-          .header {
-            background: linear-gradient(135deg, #2563eb, #1d4ed8);
-            padding: 40px 20px;
-            text-align: center;
-            color: #ffffff;
-          }
-          .header h1 {
-            margin: 0;
-            font-size: 24px;
-            font-weight: 700;
-            letter-spacing: 0.5px;
-          }
-          .content {
-            padding: 30px 40px;
-            line-height: 1.6;
-          }
-          .content p {
-            margin-bottom: 24px;
-            font-size: 16px;
-          }
-          .btn-wrapper {
-            text-align: center;
-            margin: 35px 0;
-          }
-          .btn {
-            display: inline-block;
-            background-color: #2563eb;
-            color: #ffffff !important;
-            padding: 14px 32px;
-            text-decoration: none;
-            font-weight: 600;
-            border-radius: 8px;
-            font-size: 16px;
-            box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.2), 0 2px 4px -1px rgba(37, 99, 235, 0.1);
-            transition: background-color 0.2s;
-          }
-          .btn:hover {
-            background-color: #1d4ed8;
-          }
-          .footer {
-            background-color: #f9fafb;
-            padding: 20px 40px;
-            text-align: center;
-            font-size: 13px;
-            color: #6b7280;
-            border-top: 1px solid #f3f4f6;
-          }
-          .footer a {
-            color: #2563eb;
-            text-decoration: none;
-          }
-        </style>
+        <meta charset="UTF-8" />
+        <title>Account Activation</title>
       </head>
-      <body>
-        <div class="container">
-          <div class="header">
-            <h1>Chào mừng đến với Scientific Journal System</h1>
+
+      <body
+        style="
+          font-family: Arial, sans-serif;
+          background: #f5f5f5;
+          padding: 20px;
+        "
+      >
+        <div
+          style="
+            max-width: 600px;
+            margin: auto;
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+          "
+        >
+          <div
+            style="
+              background: #2563eb;
+              color: white;
+              padding: 30px;
+              text-align: center;
+            "
+          >
+            <h1>Scientific Journal System</h1>
           </div>
-          <div class="content">
-            <p>Xin chào <strong>${firstName}</strong>,</p>
-            <p>Cảm ơn bạn đã đăng ký tài khoản tại hệ thống của chúng tôi. Để hoàn tất thủ tục đăng ký và bắt đầu sử dụng dịch vụ, vui lòng xác thực email bằng cách click vào nút dưới đây:</p>
-            <div class="btn-wrapper">
-              <a href="${activationUrl}" class="btn" target="_blank">Kích hoạt tài khoản</a>
+
+          <div style="padding: 30px">
+            <p>
+              Hello <strong>${firstName}</strong>,
+            </p>
+
+            <p>
+              Thank you for registering an account with our system.
+            </p>
+
+            <p>
+              Please click the button below to activate your account:
+            </p>
+
+            <div
+              style="
+                margin: 30px 0;
+                text-align: center;
+              "
+            >
+              <a
+                href="${activationUrl}"
+                style="
+                  background: #2563eb;
+                  color: white;
+                  text-decoration: none;
+                  padding: 14px 28px;
+                  border-radius: 8px;
+                  display: inline-block;
+                  font-weight: bold;
+                "
+              >
+                Activate Account
+              </a>
             </div>
-            <p>Nếu nút kích hoạt trên không hoạt động, bạn có thể sao chép liên kết dưới đây và dán vào trình duyệt:</p>
-            <p style="word-break: break-all; font-size: 14px; color: #4b5563; background-color: #f3f4f6; padding: 12px; border-radius: 6px;">
+
+            <p>
+              If the button above does not work, please copy and paste the following link into your browser:
+            </p>
+
+            <p
+              style="
+                word-break: break-all;
+                background: #f3f4f6;
+                padding: 12px;
+                border-radius: 6px;
+              "
+            >
               ${activationUrl}
             </p>
-            <p>Liên kết này có hiệu lực trong vòng <strong>24 giờ</strong>.</p>
+
+            <p>
+              This activation link will expire in 24 hours.
+            </p>
           </div>
-          <div class="footer">
-            <p>Đây là email tự động từ hệ thống. Vui lòng không phản hồi email này.</p>
-            <p>&copy; 2026 Scientific Journal System. All rights reserved.</p>
+
+          <div
+            style="
+              background: #f9fafb;
+              padding: 20px;
+              text-align: center;
+              color: #6b7280;
+              font-size: 13px;
+            "
+          >
+            This is an automated email. Please do not reply to this message.
           </div>
         </div>
       </body>
-      </html>
+    </html>
     `;
 
-    const mailOptions = {
-      from: process.env.SMTP_FROM || '"Scientific Journal System" <your_email@gmail.com>',
-      to: toEmail,
-      subject: 'Kích hoạt tài khoản Scientific Journal System',
-      html: htmlContent
-    };
+};
 
-    if (transporter) {
-      try {
-        await transporter.sendMail(mailOptions);
-        logger.info(`[SMTP]: Đã gửi email kích hoạt tới ${toEmail} thành công.`);
-      } catch (err) {
-          console.error('SMTP FULL ERROR:', err);
-          console.error('SMTP MESSAGE:', err.message);
-          console.error('SMTP RESPONSE:', err.response);
+// ======================================================
+// EMAIL HELPER
+// ======================================================
 
-          logger.error(`[SMTP]: Lỗi khi gửi email tới ${toEmail}:`, err);
+export const emailHelper = {
+  sendActivationEmail: async (
+    toEmail,
+    firstName,
+    token
+  ) => {
+    try {
+      const baseUrl =
+        process.env.BASE_URL ||
+        'http://localhost:8000';
 
-          throw err;
-      }
-    } else {
-      // MOCK mode: ghi nhận ra log
-      logger.info('================= [SMTP MOCK EMAIL] =================');
-      logger.info(`To: ${toEmail}`);
-      logger.info(`Subject: ${mailOptions.subject}`);
-      logger.info(`Activation URL: ${activationUrl}`);
-      logger.info('=====================================================');
+      const activationUrl =
+        `${baseUrl}/api/v1/auth/verify?token=${token}`;
+
+      const html = activationTemplate({
+        firstName,
+        activationUrl
+      });
+
+      const raw = createRawEmail({
+        to: toEmail,
+
+        from:
+          `Scientific Journal System <${process.env.EMAIL_USER}>`,
+
+        subject:
+          'Activate Your Scientific Journal System Account',
+
+        html
+      });
+
+      const response =
+        await gmail.users.messages.send({
+          userId: 'me',
+
+          requestBody: {
+            raw
+          }
+        });
+
+      logger.info(
+        `[MAIL]: Đã gửi email tới ${toEmail}`
+      );
+
+      console.log(response.data);
+
+      return response.data;
+
+    } catch (error) {
+      logger.error(
+        `[MAIL]: Lỗi gửi activation email tới ${toEmail}`,
+        error
+      );
+
+      throw new Error(
+        'Không thể gửi email kích hoạt tài khoản'
+      );
     }
   }
 };
