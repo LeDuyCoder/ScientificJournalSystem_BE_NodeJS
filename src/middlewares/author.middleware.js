@@ -26,9 +26,7 @@ export const AUTHOR_CODES = {
 
 // Biểu thức Regex kiểm tra tên hợp lệ (Chữ, số, khoảng trắng, ., -, ')
 // Hỗ trợ đầy đủ tiếng Việt Unicode nhờ flag /u (Unicode)
-const VALID_NAME_REGEX =
-  /^[a-zA-Z0-9\s.\-'aAàÀảẢãÃáÁạẠăĂằẰẳẲẵẴắẮặẶâÂầẦẩẨẫẪấẤậẬbBcCdDđĐeEèÈẻẺẽẼéÉẹẸêÊềỀểỂễỄếẾệỆfFgGhHiIìÌỉỈĩĨíÍịỊjJkKlLmMnNoOòÒỏỎõÕóÓọỌôÔồỒổỔỗỖốỐộỘơƠờỜởỞỡỠớỚợỢpPqQrRsStTuUùÙủỦũŨúÚụỤưƯừỪửỬữỮứỨựỰvVwWxXyYỳỲỷỶỹỸýÝỵY_]+$/u;
-
+const VALID_NAME_REGEX = /^[\p{L}]+(?:[\s'-][\p{L}]+)*$/u;
 /**
  * Validate author ID từ params
  */
