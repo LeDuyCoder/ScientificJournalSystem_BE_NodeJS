@@ -9,6 +9,7 @@ import {
   deleteProject,
   getProjectAnalytics
 } from '../controllers/project.controller.js';
+import { validateCreateProject, validateProjectId, validateUpdateProject } from '../middlewares/projectValidation.middleware.js';
 
 const router = express.Router();
 
@@ -153,7 +154,7 @@ router.get('/', requireAuth, getProjects);
  * Route GET /api/v1/projects/:id
  * Lấy chi tiết thông tin một dự án cụ thể theo ID (Yêu cầu xác thực)
  */
-router.get('/:id', requireAuth, getProjectById);
+router.get('/:id', requireAuth, validateProjectId, getProjectById);
 
 /**
  * @swagger
@@ -302,7 +303,7 @@ router.get('/:id/related-articles', requireAuth, getRelatedArticles);
  * Route POST /api/v1/projects
  * Tạo mới một dự án khoa học (Yêu cầu xác thực)
  */
-router.post('/', requireAuth, createProject);
+router.post('/', requireAuth, validateCreateProject, createProject);
 
 /**
  * @swagger
@@ -359,7 +360,7 @@ router.post('/', requireAuth, createProject);
  * Route PUT /api/v1/projects/:id
  * Cập nhật thông tin dự án khoa học hiện tại (Yêu cầu xác thực)
  */
-router.put('/:id', requireAuth, updateProject);
+router.put('/:id', requireAuth, validateProjectId, validateUpdateProject, updateProject);
 
 /**
  * @swagger
@@ -404,7 +405,7 @@ router.put('/:id', requireAuth, updateProject);
  * Route DELETE /api/v1/projects/:id
  * Xóa một dự án khoa học và các liên kết trung gian (Yêu cầu xác thực)
  */
-router.delete('/:id', requireAuth, deleteProject);
+router.delete('/:id', requireAuth, validateProjectId, deleteProject);
 
 /**
  * @swagger
