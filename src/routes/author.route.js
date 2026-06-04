@@ -344,15 +344,7 @@ router.get("/:id/articles", requireAuth, getAuthorArticles);
  */
 router.get("/leaderboard", requireAuth, getAuthorLeaderboard);
 
-//****************** */
-// Author Management CRUD
 
-/**
- * @swagger
- * tags:
- *   name: Author Management
- *   description: API CRUD quản lý bảng Author
- */
 
 /**
  * @swagger
@@ -360,7 +352,7 @@ router.get("/leaderboard", requireAuth, getAuthorLeaderboard);
  *   get:
  *     summary: Lấy danh sách tác giả
  *     tags:
- *       - Author Management
+ *       - Author
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -430,7 +422,7 @@ router.get("/", requireAuth, validatePagination, getAllAuthorsController);
  *   post:
  *     summary: Tạo mới tác giả
  *     tags:
- *       - Author Management
+ *       - Author
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -490,7 +482,7 @@ router.post("/", requireAuth, validateCreateAuthor, createAuthorController);
  *   patch:
  *     summary: Khôi phục tác giả đã bị xóa mềm
  *     tags:
- *       - Author Management
+ *       - Author
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -526,7 +518,7 @@ router.patch(
  *   get:
  *     summary: Lấy thông tin tác giả theo ID
  *     tags:
- *       - Author Management
+ *       - Author
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -557,7 +549,7 @@ router.get("/:id", requireAuth, validateAuthorId, getAuthorByIdController);
  *   put:
  *     summary: Cập nhật thông tin tác giả
  *     tags:
- *       - Author Management
+ *       - Author
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -621,7 +613,7 @@ router.put(
  *   delete:
  *     summary: Xóa mềm tác giả
  *     tags:
- *       - Author Management
+ *       - Author
  *     security:
  *       - bearerAuth: []
  *     parameters:
