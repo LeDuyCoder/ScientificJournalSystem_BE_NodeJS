@@ -22,6 +22,7 @@ export const getAuthorAreasBreakdown = async (req, res) => {
     if (!Number.isInteger(authorId) || authorId <= 0) {
       return res.status(400).json({
         success: false,
+        code: AUTHOR_CODES.INVALID_AUTHOR_ID,
         message: "ID tác giả không hợp lệ",
       });
     }
@@ -35,6 +36,7 @@ export const getAuthorAreasBreakdown = async (req, res) => {
     return res.status(200).json({
       success: true,
       message: "Phân tích lĩnh vực nghiên cứu của tác giả thành công",
+      code: AUTHOR_CODES.AREA_BREAKDOWN_FETCHED,
       data: {
         ...authorInfo,
         breakdown: areasBreakdown,
@@ -44,6 +46,7 @@ export const getAuthorAreasBreakdown = async (req, res) => {
     logger.error("Lỗi phân tích lĩnh vực nghiên cứu của tác giả:", error);
     return res.status(500).json({
       success: false,
+      code: AUTHOR_CODES.AUTHOR_SERVER_ERROR,
       message: "Có lỗi xảy ra ở Server!",
     });
   }
@@ -73,6 +76,7 @@ export const getAuthorArticles = async (req, res) => {
     if (!Number.isInteger(authorId) || authorId <= 0) {
       return res.status(400).json({
         success: false,
+        code: AUTHOR_CODES.AUTHOR_INVALID_ID,
         message: "ID tác giả không hợp lệ",
       });
     }
@@ -80,6 +84,7 @@ export const getAuthorArticles = async (req, res) => {
     if (!Number.isInteger(safeLimit) || safeLimit < 0) {
       return res.status(400).json({
         success: false,
+        code: AUTHOR_CODES.AUTHOR_INVALID_LIMIT,
         message: "Giá trị limit không hợp lệ",
       });
     }
@@ -87,6 +92,7 @@ export const getAuthorArticles = async (req, res) => {
     if (!Number.isInteger(safePage) || safePage < 1) {
       return res.status(400).json({
         success: false,
+        code: AUTHOR_CODES.AUTHOR_INVALID_PAGINATION,
         message: "Giá trị page không hợp lệ",
       });
     }
@@ -99,6 +105,7 @@ export const getAuthorArticles = async (req, res) => {
 
     return res.status(200).json({
       success: true,
+      code: AUTHOR_CODES.AUTHOR_ARTICLES_FETCHED,
       message: "Lấy bài viết của tác giả thành công",
       pagination: {
         page: safePage,
@@ -111,6 +118,7 @@ export const getAuthorArticles = async (req, res) => {
     logger.error("Lỗi lấy bài viết của tác giả:", error);
     return res.status(500).json({
       success: false,
+      code: AUTHOR_CODES.AUTHOR_SERVER_ERROR,
       message: "Có lỗi xảy ra ở Server!",
     });
   }
@@ -131,6 +139,7 @@ export const getAuthorLeaderboard = async (req, res) => {
     if (!Number.isInteger(limit) || limit < 0) {
       return res.status(400).json({
         success: false,
+        code: AUTHOR_CODES.AUTHOR_INVALID_LIMIT,
         message: "Giá trị limit không hợp lệ",
       });
     }
@@ -138,6 +147,7 @@ export const getAuthorLeaderboard = async (req, res) => {
     if (!Number.isInteger(page) || page < 1) {
       return res.status(400).json({
         success: false,
+        code: AUTHOR_CODES.AUTHOR_INVALID_PAGINATION,
         message: "Giá trị page không hợp lệ",
       });
     }
@@ -149,6 +159,7 @@ export const getAuthorLeaderboard = async (req, res) => {
 
     return res.status(200).json({
       success: true,
+      code: AUTHOR_CODES.AUTHOR_LEADERBOARD_FETCHED,
       message: "Lấy bảng xếp hạng tác giả thành công",
       data: leaderboard,
     });
@@ -156,6 +167,7 @@ export const getAuthorLeaderboard = async (req, res) => {
     logger.error("Lỗi lấy bảng xếp hạng tác giả:", error);
     return res.status(500).json({
       success: false,
+      code: AUTHOR_CODES.AUTHOR_SERVER_ERROR,
       message: "Có lỗi xảy ra ở Server!",
     });
   }
@@ -169,7 +181,11 @@ export const getAllAuthorsController = async (req, res) => {
   try {
     const { page, limit } = req.pagination;
     const search = req.query.search || "";
-    const result = await authorServiceRef.getAllAuthors({ page, limit, search });
+    const result = await authorServiceRef.getAllAuthors({
+      page,
+      limit,
+      search,
+    });
     return res.status(200).json({
       success: true,
       code: AUTHOR_CODES.AUTHOR_LIST_FETCHED,
