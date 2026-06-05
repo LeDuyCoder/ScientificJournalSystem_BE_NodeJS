@@ -27,8 +27,9 @@ export const login = async (req, res) => {
     if (!email || !email.trim()) {
       return res.status(400).json({
         success: false,
-        code: "EMAIL_REQUIRED",
-        message: "Email không được để trống",
+        code: 'EMAIL_REQUIRED',
+        message: 'Email không được để trống'
+
       });
     }
 
