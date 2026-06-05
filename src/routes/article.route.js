@@ -86,7 +86,7 @@ const router = express.Router();
  * - Kiểm tra nếu có param `keywords` -> Chạy qua lớp bảo mật `requireAuth` rồi gọi controller xử lý keyword.
  * - Nếu không đi kèm `keywords` -> Cho phép truy cập công khai (Public) thông qua hàm gộp tổng `getArticles`.
  */
-router.get('/', validateId, async (req, res, next) => {
+router.get('/', async (req, res, next) => {
     if (req.query.keywords !== undefined && req.query.keywords.trim() !== '') {
         // Có keywords -> Bắt buộc kiểm tra token tài khoản
         return requireAuth(req, res, () => getArticlesByKeywords(req, res));
