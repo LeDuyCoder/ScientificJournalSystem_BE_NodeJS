@@ -13,20 +13,21 @@ export const createVolume = async (req, res) => {
     const newVolume = await volumeServiceRef.createVolume({
       journal_id,
       volume_number,
-      publication_year
+      publication_year,
     });
 
     return res.status(201).json({
       success: true,
+      code: "CREATE_VOLUME_SUCCESS",
       message: "Tạo Volume thành công",
-      data: newVolume
+      data: newVolume,
     });
   } catch (error) {
     logger.error("Lỗi khi tạo Volume ở controller:", error.message);
     return res.status(500).json({
       success: false,
       code: "SERVER_ERROR",
-      message: "Lỗi hệ thống khi tạo mới Volume"
+      message: "Lỗi hệ thống khi tạo mới Volume",
     });
   }
 };
@@ -36,7 +37,15 @@ export const createVolume = async (req, res) => {
  */
 export const getVolumes = async (req, res) => {
   try {
-    const { page, limit, search, journal_id, publication_year, sort_by, sort_order } = req.query;
+    const {
+      page,
+      limit,
+      search,
+      journal_id,
+      publication_year,
+      sort_by,
+      sort_order,
+    } = req.query;
     const { items, total } = await volumeServiceRef.getVolumes({
       page,
       limit,
@@ -44,7 +53,7 @@ export const getVolumes = async (req, res) => {
       journal_id,
       publication_year,
       sort_by,
-      sort_order
+      sort_order,
     });
 
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
@@ -52,22 +61,23 @@ export const getVolumes = async (req, res) => {
 
     return res.status(200).json({
       success: true,
+      code: "GET_VOLUMES_SUCCESS",
       message: "Lấy danh sách volume thành công",
       data: {
         items,
         pagination: {
           page: pageNum,
           limit: limitNum,
-          total
-        }
-      }
+          total,
+        },
+      },
     });
   } catch (error) {
     logger.error("Lỗi khi lấy danh sách Volume ở controller:", error.message);
     return res.status(500).json({
       success: false,
       code: "SERVER_ERROR",
-      message: "Lỗi hệ thống khi lấy danh sách Volume"
+      message: "Lỗi hệ thống khi lấy danh sách Volume",
     });
   }
 };
@@ -84,21 +94,25 @@ export const getVolumeById = async (req, res) => {
       return res.status(404).json({
         success: false,
         code: "VOLUME_NOT_FOUND",
-        message: "Không tìm thấy volume hoặc volume đã bị xóa mềm"
+        message: "Không tìm thấy volume hoặc volume đã bị xóa mềm",
       });
     }
 
     return res.status(200).json({
       success: true,
+      code: "GET_VOLUME_DETAIL_SUCCESS",
       message: "Lấy chi tiết volume thành công",
-      data: volume
+      data: volume,
     });
   } catch (error) {
-    logger.error(`Lỗi khi lấy chi tiết Volume ID ${req.params.id} ở controller:`, error.message);
+    logger.error(
+      `Lỗi khi lấy chi tiết Volume ID ${req.params.id} ở controller:`,
+      error.message,
+    );
     return res.status(500).json({
       success: false,
       code: "SERVER_ERROR",
-      message: "Lỗi hệ thống khi lấy thông tin chi tiết Volume"
+      message: "Lỗi hệ thống khi lấy thông tin chi tiết Volume",
     });
   }
 };
@@ -113,20 +127,24 @@ export const updateVolume = async (req, res) => {
 
     const updatedVolume = await volumeServiceRef.updateVolume(id, {
       volume_number,
-      publication_year
+      publication_year,
     });
 
     return res.status(200).json({
       success: true,
+      code: "UPDATE_VOLUME_SUCCESS",
       message: "Cập nhật Volume thành công",
-      data: updatedVolume
+      data: updatedVolume,
     });
   } catch (error) {
-    logger.error(`Lỗi khi cập nhật Volume ID ${req.params.id} ở controller:`, error.message);
+    logger.error(
+      `Lỗi khi cập nhật Volume ID ${req.params.id} ở controller:`,
+      error.message,
+    );
     return res.status(500).json({
       success: false,
       code: "SERVER_ERROR",
-      message: "Lỗi hệ thống khi cập nhật Volume"
+      message: "Lỗi hệ thống khi cập nhật Volume",
     });
   }
 };
@@ -144,7 +162,7 @@ export const deleteVolume = async (req, res) => {
       return res.status(404).json({
         success: false,
         code: "VOLUME_NOT_FOUND",
-        message: "Volume không tồn tại"
+        message: "Volume không tồn tại",
       });
     }
 
@@ -154,7 +172,7 @@ export const deleteVolume = async (req, res) => {
       return res.status(400).json({
         success: false,
         code: "VOLUME_ALREADY_DELETED",
-        message: "Không delete volume đã bị delete"
+        message: "Không delete volume đã bị delete",
       });
     }
 
@@ -163,15 +181,19 @@ export const deleteVolume = async (req, res) => {
 
     return res.status(200).json({
       success: true,
+      code: "DELETE_VOLUME_SUCCESS",
       message: "Xóa Volume thành công",
-      data: deletedVolume
+      data: deletedVolume,
     });
   } catch (error) {
-    logger.error(`Lỗi khi xóa mềm Volume ID ${req.params.id} ở controller:`, error.message);
+    logger.error(
+      `Lỗi khi xóa mềm Volume ID ${req.params.id} ở controller:`,
+      error.message,
+    );
     return res.status(500).json({
       success: false,
       code: "SERVER_ERROR",
-      message: "Lỗi hệ thống khi xóa Volume"
+      message: "Lỗi hệ thống khi xóa Volume",
     });
   }
 };
@@ -189,7 +211,7 @@ export const restoreVolume = async (req, res) => {
       return res.status(404).json({
         success: false,
         code: "VOLUME_NOT_FOUND",
-        message: "Volume không tồn tại"
+        message: "Volume không tồn tại",
       });
     }
 
@@ -199,7 +221,7 @@ export const restoreVolume = async (req, res) => {
       return res.status(400).json({
         success: false,
         code: "VOLUME_NOT_DELETED",
-        message: "Không khôi phục volume chưa bị delete"
+        message: "Không khôi phục volume chưa bị delete",
       });
     }
 
@@ -208,15 +230,19 @@ export const restoreVolume = async (req, res) => {
 
     return res.status(200).json({
       success: true,
+      code: "RESTORE_VOLUME_SUCCESS",
       message: "Khôi phục Volume thành công",
-      data: restoredVolume
+      data: restoredVolume,
     });
   } catch (error) {
-    logger.error(`Lỗi khi khôi phục Volume ID ${req.params.id} ở controller:`, error.message);
+    logger.error(
+      `Lỗi khi khôi phục Volume ID ${req.params.id} ở controller:`,
+      error.message,
+    );
     return res.status(500).json({
       success: false,
       code: "SERVER_ERROR",
-      message: "Lỗi hệ thống khi khôi phục Volume"
+      message: "Lỗi hệ thống khi khôi phục Volume",
     });
   }
 };

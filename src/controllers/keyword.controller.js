@@ -132,22 +132,22 @@ export const watchKeywords = async (req, res) => {
       return res.status(400).json({
         success: false,
         code: "ERROR_KEYWORDS_ALREADY_WATCHED",
-        message: "Có từ khóa đã tồn tại trong danh sách theo dõi của dự án, không thể thêm mới"
+        message:
+          "Có từ khóa đã tồn tại trong danh sách theo dõi của dự án, không thể thêm mới",
       });
     }
 
     return res.status(201).json({
       success: true,
       code: "SUCCESS_CREATE_WATCHED_KEYWORDS",
-      message: `Thêm thành công ${result.insertedCount} từ khóa vào danh sách theo dõi`
+      message: `Thêm thành công ${result.insertedCount} từ khóa vào danh sách theo dõi`,
     });
-
   } catch (error) {
     logger.error("[watchKeywords] Error:", error);
     return res.status(500).json({
       success: false,
       code: "ERROR_SERVER_CREATE_WATCHED_KEYWORD",
-      message: "Có lỗi xảy ra ở Server!"
+      message: "Có lỗi xảy ra ở Server!",
     });
   }
 };
@@ -163,7 +163,7 @@ export const deleteWatchedKeyword = async (req, res) => {
     if (isNaN(projectId) || isNaN(keywordId)) {
       return res.status(400).json({
         success: false,
-        message: "ID dự án hoặc ID từ khóa không hợp lệ"
+        message: "ID dự án hoặc ID từ khóa không hợp lệ",
       });
     }
 
@@ -173,7 +173,9 @@ export const deleteWatchedKeyword = async (req, res) => {
     if (!isOwner) {
       return res.status(403).json({
         success: false,
-        message: "Không tìm thấy dự án hoặc bạn không có quyền truy cập dự án này",
+        code: "ERROR_FORBIDDEN_DELETE_WATCHED_KEYWORD",
+        message:
+          "Không tìm thấy dự án hoặc bạn không có quyền truy cập dự án này",
       });
     }
 
@@ -183,21 +185,21 @@ export const deleteWatchedKeyword = async (req, res) => {
       return res.status(404).json({
         success: false,
         code: "ERROR_KEYWORD_NOT_FOUND",
-        message: "Từ khóa không nằm trong danh sách theo dõi của dự án"
+        message: "Từ khóa không nằm trong danh sách theo dõi của dự án",
       });
     }
 
     return res.status(200).json({
       success: true,
       code: "SUCCESS_DELETE_WATCHED_KEYWORD",
-      message: "Đã xóa từ khóa khỏi dự án thành công"
+      message: "Đã xóa từ khóa khỏi dự án thành công",
     });
   } catch (error) {
     logger.error("[deleteWatchedKeyword] Lỗi khi xóa từ khóa theo dõi:", error);
     return res.status(500).json({
       success: false,
       code: "ERROR_SERVER_DELETE_WATCHED_KEYWORD",
-      message: "Có lỗi xảy ra ở server khi xóa từ khóa"
+      message: "Có lỗi xảy ra ở server khi xóa từ khóa",
     });
   }
 };
@@ -211,7 +213,9 @@ export const updateWatchedKeywords = async (req, res) => {
     const { keyword_ids } = req.body || {};
 
     if (isNaN(projectId)) {
-      return res.status(400).json({ success: false, message: "ID dự án không hợp lệ" });
+      return res
+        .status(400)
+        .json({ success: false, message: "ID dự án không hợp lệ" });
     }
 
     await replaceWatchedKeywords(projectId, keyword_ids || []);
@@ -219,14 +223,17 @@ export const updateWatchedKeywords = async (req, res) => {
     return res.status(200).json({
       success: true,
       code: "SUCCESS_UPDATE_WATCHED_KEYWORD",
-      message: "Cập nhật danh sách từ khóa theo dõi thành công"
+      message: "Cập nhật danh sách từ khóa theo dõi thành công",
     });
   } catch (error) {
-    logger.error("[updateWatchedKeywords] Lỗi khi cập nhật từ khóa theo dõi:", error);
+    logger.error(
+      "[updateWatchedKeywords] Lỗi khi cập nhật từ khóa theo dõi:",
+      error,
+    );
     return res.status(500).json({
       success: false,
       code: "ERROR_SERVER_UPDATE_WATCHED_KEYWORD",
-      message: "Có lỗi xảy ra ở server khi cập nhật từ khóa"
+      message: "Có lỗi xảy ra ở server khi cập nhật từ khóa",
     });
   }
 };

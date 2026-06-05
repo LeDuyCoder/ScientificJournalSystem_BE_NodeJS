@@ -1,5 +1,5 @@
-import * as catalogService from '../services/catalog.service.js';
-import logger from '../utils/logger.js';
+import * as catalogService from "../services/catalog.service.js";
+import logger from "../utils/logger.js";
 
 /**
  * Controller lấy danh sách các lĩnh vực học thuật lớn (Subject Area).
@@ -14,14 +14,16 @@ export const getSubjectAreas = async (req, res) => {
     const result = await catalogService.getSubjectAreas();
     return res.status(200).json({
       success: true,
-      message: 'Lấy danh sách subject area thành công',
-      data: result
+      code: "CATALOG_SUBJECT_AREA_LIST_SUCCESS",
+      message: "Lấy danh sách subject area thành công",
+      data: result,
     });
   } catch (error) {
-    logger.error('Lỗi khi lấy danh sách subject areas:', error);
+    logger.error("Lỗi khi lấy danh sách subject areas:", error);
     return res.status(500).json({
       success: false,
-      message: 'Lỗi hệ thống khi lấy danh sách subject areas'
+      code: "CATALOG_SUBJECT_AREA_LIST_ERROR",
+      message: "Lỗi hệ thống khi lấy danh sách subject areas",
     });
   }
 };
@@ -39,19 +41,21 @@ export const getSubjectCategories = async (req, res) => {
     const { subject_area_id } = req.query;
 
     const result = await catalogService.getSubjectCategories({
-      subjectAreaId: subject_area_id
+      subjectAreaId: subject_area_id,
     });
 
     return res.status(200).json({
       success: true,
-      message: 'Lấy danh sách subject category thành công',
-      data: result
+      code: "CATALOG_SUBJECT_CATEGORY_LIST_SUCCESS",
+      message: "Lấy danh sách subject category thành công",
+      data: result,
     });
   } catch (error) {
-    logger.error('Lỗi khi lấy danh sách subject categories:', error);
+    logger.error("Lỗi khi lấy danh sách subject categories:", error);
     return res.status(500).json({
       success: false,
-      message: 'Lỗi hệ thống khi lấy danh sách subject categories'
+      code: "CATALOG_SUBJECT_CATEGORY_LIST_ERROR",
+      message: "Lỗi hệ thống khi lấy danh sách subject categories",
     });
   }
 };
@@ -69,10 +73,11 @@ export const getJournalRankings = async (req, res) => {
     const { id } = req.params;
     const { year, metric_code, quartile, source } = req.query;
 
-    if (!id || id.trim() === '') {
+    if (!id || id.trim() === "") {
       return res.status(400).json({
         success: false,
-        message: 'ID của journal không được bỏ trống'
+        code: "CATALOG_JOURNAL_ID_REQUIRED",
+        message: "ID của journal không được bỏ trống",
       });
     }
 
@@ -80,27 +85,32 @@ export const getJournalRankings = async (req, res) => {
       year,
       metric_code,
       quartile,
-      source
+      source,
     });
 
     return res.status(200).json({
       success: true,
-      message: 'Lấy lịch sử ranking của journal thành công',
-      data: result
+      code: "CATALOG_JOURNAL_RANKING_HISTORY_SUCCESS",
+      message: "Lấy lịch sử ranking của journal thành công",
+      data: result,
     });
   } catch (error) {
-    logger.error(`Lỗi khi lấy lịch sử ranking cho journal ${req.params?.id}:`, error);
+    logger.error(
+      `Lỗi khi lấy lịch sử ranking cho journal ${req.params?.id}:`,
+      error,
+    );
 
     if (error.statusCode) {
       return res.status(error.statusCode).json({
         success: false,
-        message: error.message
+        message: error.message,
       });
     }
 
     return res.status(500).json({
       success: false,
-      message: 'Lỗi hệ thống khi lấy lịch sử ranking của journal'
+      code: "CATALOG_JOURNAL_RANKING_HISTORY_ERROR",
+      message: "Lỗi hệ thống khi lấy lịch sử ranking của journal",
     });
   }
 };
@@ -119,26 +129,33 @@ export const getVolumes = async (req, res) => {
 
     if (journal_id !== undefined) {
       const idNum = Number(journal_id);
-      if (isNaN(idNum) || idNum <= 0 || !/^\d+$/.test(String(journal_id).trim())) {
+      if (
+        isNaN(idNum) ||
+        idNum <= 0 ||
+        !/^\d+$/.test(String(journal_id).trim())
+      ) {
         return res.status(400).json({
           success: false,
-          message: 'Tham số journal_id phải là số nguyên dương lớn hơn 0'
+          code: "CATALOG_JOURNAL_ID_INVALID",
+          message: "Tham số journal_id phải là số nguyên dương lớn hơn 0",
         });
       }
     }
 
     const result = await catalogService.getVolumes({ journalId: journal_id });
-    
+
     return res.status(200).json({
       success: true,
-      message: 'Lấy danh sách volume thành công',
-      data: result
+      code: "CATALOG_VOLUME_LIST_SUCCESS",
+      message: "Lấy danh sách volume thành công",
+      data: result,
     });
   } catch (error) {
-    logger.error('Lỗi khi lấy danh sách volume:', error);
+    logger.error("Lỗi khi lấy danh sách volume:", error);
     return res.status(500).json({
       success: false,
-      message: 'Lỗi hệ thống khi lấy danh sách volume'
+      code: "CATALOG_VOLUME_LIST_ERROR",
+      message: "Lỗi hệ thống khi lấy danh sách volume",
     });
   }
 };
@@ -157,10 +174,15 @@ export const getIssues = async (req, res) => {
 
     if (volume_id !== undefined) {
       const idNum = Number(volume_id);
-      if (isNaN(idNum) || idNum <= 0 || !/^\d+$/.test(String(volume_id).trim())) {
+      if (
+        isNaN(idNum) ||
+        idNum <= 0 ||
+        !/^\d+$/.test(String(volume_id).trim())
+      ) {
         return res.status(400).json({
           success: false,
-          message: 'Tham số volume_id phải là số nguyên dương lớn hơn 0'
+          code: "CATALOG_VOLUME_ID_INVALID",
+          message: "Tham số volume_id phải là số nguyên dương lớn hơn 0",
         });
       }
     }
@@ -169,14 +191,16 @@ export const getIssues = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: 'Lấy danh sách issue thành công',
-      data: result
+      code: "CATALOG_ISSUE_LIST_SUCCESS",
+      message: "Lấy danh sách issue thành công",
+      data: result,
     });
   } catch (error) {
-    logger.error('Lỗi khi lấy danh sách issue:', error);
+    logger.error("Lỗi khi lấy danh sách issue:", error);
     return res.status(500).json({
       success: false,
-      message: 'Lỗi hệ thống khi lấy danh sách issue'
+      code: "CATALOG_ISSUE_LIST_ERROR",
+      message: "Lỗi hệ thống khi lấy danh sách issue",
     });
   }
 };

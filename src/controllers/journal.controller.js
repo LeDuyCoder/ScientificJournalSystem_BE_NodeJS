@@ -1,5 +1,5 @@
-import logger from '../utils/logger.js';
-import * as journalService from '../services/journal.service.js';
+import logger from "../utils/logger.js";
+import * as journalService from "../services/journal.service.js";
 
 /**
  * Controller lấy danh sách journal có tìm kiếm và phân trang.
@@ -19,40 +19,43 @@ export const getJournals = async (req, res) => {
     if (isNaN(pageNum) || pageNum <= 0) {
       return res.status(400).json({
         success: false,
-        message: 'Tham số page phải là số nguyên dương lớn hơn 0'
+        code: "CATALOG_JOURNAL_PAGINATION_INVALID",
+        message: "Tham số page phải là số nguyên dương lớn hơn 0",
       });
     }
 
     if (isNaN(limitNum) || limitNum <= 0) {
       return res.status(400).json({
         success: false,
-        message: 'Tham số limit phải là số nguyên dương lớn hơn 0'
+        code: "CATALOG_JOURNAL_LIMIT_INVALID",
+        message: "Tham số limit phải là số nguyên dương lớn hơn 0",
       });
     }
 
     const result = await journalService.getJournals({
       search,
       page: pageNum,
-      limit: limitNum
+      limit: limitNum,
     });
 
     return res.status(200).json({
       success: true,
-      message: 'Lấy danh sách journal thành công',
+      message: "Lấy danh sách journal thành công",
       data: {
         items: result.items,
         pagination: {
           page: pageNum,
           limit: limitNum,
-          total: result.total
-        }
-      }
+          total: result.total,
+        },
+      },
     });
   } catch (error) {
-    logger.error('Lỗi khi lấy danh sách journal trong catalog:', error);
+    logger.error("Lỗi khi lấy danh sách journal trong catalog:", error);
     return res.status(500).json({
       success: false,
-      message: 'Lỗi hệ thống khi lấy danh sách journal'
+      code: "CATALOG_JOURNAL_LIST_ERROR",
+      message: "Lỗi hệ thống khi lấy danh sách journal",
     });
   }
 };
@@ -69,12 +72,13 @@ export const getJournals = async (req, res) => {
  * @returns {Promise<import('express').Response>} JSON response với thông tin journal hoặc lỗi
  */
 export const getJournalsById = async (req, res) => {
-  try{
+  try {
     const { id } = req.params;
 
     if (isNaN(id) || id <= 0) {
       return res.status(400).json({
         success: false,
+        code: "CATALOG_JOURNAL_ID_INVALID",
         message: "Id không hợp lệ",
       });
     }
@@ -83,17 +87,18 @@ export const getJournalsById = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: 'Lấy journal thành công',
-      data: journal
+      code: "CATALOG_JOURNAL_DETAIL_SUCCESS",
+      message: "Lấy thông tin journal thành công",
+      data: journal,
     });
-
-  }catch(error){
+  } catch (error) {
     return res.status(500).json({
       success: false,
-      message: 'Lỗi hệ thống khi lấy journal'
+      code: "CATALOG_JOURNAL_DETAIL_ERROR",
+      message: "Lỗi hệ thống khi lấy thông tin journal",
     });
   }
-}
+};
 
 /**
  * Controller tạo mới một journal.
@@ -114,16 +119,17 @@ export const createJournal = async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      message: 'Tạo Journal thành công',
-      data: result
+      code: "CREATE_JOURNAL_SUCCESS",
+      message: "Tạo Journal thành công",
+      data: result,
     });
-
   } catch (error) {
     // Bắt các lỗi phát sinh từ database (như lỗi trùng unique key, sai kiểu dữ liệu...)
     return res.status(500).json({
       success: false,
-      message: 'Lỗi hệ thống khi tạo Journal',
-      detail: error.message
+      code: "CREATE_JOURNAL_ERROR",
+      message: "Lỗi hệ thống khi tạo Journal",
+      detail: error.message,
     });
   }
 };
@@ -147,25 +153,28 @@ export const updateJournal = async (req, res) => {
     if (!result) {
       return res.status(404).json({
         success: false,
-        code: 'JOURNAL_NOT_FOUND',
-        message: 'Journal không tồn tại'
+        code: "JOURNAL_NOT_FOUND",
+        message: "Journal không tồn tại",
       });
     }
     return res.status(200).json({
       success: true,
-      code: 'UPDATE_JOURNAL_SUCCESS',
-      message: 'Cập nhật Journal thành công',
+      code: "UPDATE_JOURNAL_SUCCESS",
+      message: "Cập nhật Journal thành công",
     });
   } catch (error) {
-    logger.error(`Lỗi khi cập nhật journal với ID ${req.params.id}:`, error.message);
+    logger.error(
+      `Lỗi khi cập nhật journal với ID ${req.params.id}:`,
+      error.message,
+    );
 
     return res.status(500).json({
       success: false,
-      code: 'SERVER_VALIDATION_ERROR',
-      message: 'Lỗi hệ thống khi cập nhật Journal',
+      code: "SERVER_VALIDATION_ERROR",
+      message: "Lỗi hệ thống khi cập nhật Journal",
     });
   }
-}
+};
 
 export const deleteJournal = async (req, res) => {
   try {
@@ -173,19 +182,19 @@ export const deleteJournal = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      code: 'DELETE_JOURNAL_SUCCESS',
-      message: 'Xóa Journal thành công',
+      code: "DELETE_JOURNAL_SUCCESS",
+      message: "Xóa Journal thành công",
     });
-  }catch (error) {
+  } catch (error) {
     logger.error(`Lỗi khi xóa journal với ID ${req.params.id}:`, error.message);
 
     return res.status(500).json({
       success: false,
-      code: 'SERVER_VALIDATION_ERROR',
-      message: 'Lỗi hệ thống khi xóa Journal',
+      code: "SERVER_VALIDATION_ERROR",
+      message: "Lỗi hệ thống khi xóa Journal",
     });
   }
-}
+};
 
 export const restoreJournal = async (req, res) => {
   try {
@@ -193,16 +202,19 @@ export const restoreJournal = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      code: 'RESTORE_JOURNAL_SUCCESS',
-      message: 'Khôi phục Journal thành công',
+      code: "RESTORE_JOURNAL_SUCCESS",
+      message: "Khôi phục Journal thành công",
     });
-  }catch (error) {
-    logger.error(`Lỗi khi khôi phục journal với ID ${req.params.id}:`, error.message);
+  } catch (error) {
+    logger.error(
+      `Lỗi khi khôi phục journal với ID ${req.params.id}:`,
+      error.message,
+    );
 
     return res.status(500).json({
       success: false,
-      code: 'SERVER_VALIDATION_ERROR',
-      message: 'Lỗi hệ thống khi khôi phục Journal',
+      code: "SERVER_VALIDATION_ERROR",
+      message: "Lỗi hệ thống khi khôi phục Journal",
     });
   }
-}
+};

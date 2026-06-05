@@ -1,5 +1,5 @@
-import * as zoneService from '../services/zone.service.js';
-import logger from '../utils/logger.js';
+import * as zoneService from "../services/zone.service.js";
+import logger from "../utils/logger.js";
 
 /**
  * Controller lấy danh sách thống kê sản lượng bài viết của tất cả quốc gia (có phân trang).
@@ -22,7 +22,8 @@ export const getCountryStats = async (req, res) => {
       if (!Number.isInteger(page) || page <= 0) {
         return res.status(400).json({
           success: false,
-          message: 'Trang phải là số nguyên dương'
+          code: "PAGE_INVALID",
+          message: "Trang phải là số nguyên dương",
         });
       }
     }
@@ -32,29 +33,35 @@ export const getCountryStats = async (req, res) => {
       if (!Number.isInteger(limit) || limit <= 0) {
         return res.status(400).json({
           success: false,
-          message: 'Số lượng phần tử mỗi trang phải là số nguyên dương'
+          code: "LIMIT_INVALID",
+          message: "Số lượng phần tử mỗi trang phải là số nguyên dương",
         });
       }
     }
 
-    const { countries, total } = await zoneService.getCountryStats({ page, limit });
+    const { countries, total } = await zoneService.getCountryStats({
+      page,
+      limit,
+    });
 
     return res.status(200).json({
       success: true,
-      message: 'Lấy danh sách thống kê quốc gia thành công',
+      code: "GET_COUNTRY_STATS_SUCCESS",
+      message: "Lấy danh sách thống kê quốc gia thành công",
       data: countries,
       pagination: {
         total,
         page,
         limit,
-        totalPages: Math.ceil(total / limit)
-      }
+        totalPages: Math.ceil(total / limit),
+      },
     });
   } catch (error) {
-    logger.error('Lỗi khi lấy danh sách thống kê quốc gia:', error);
+    logger.error("Lỗi khi lấy danh sách thống kê quốc gia:", error);
     return res.status(500).json({
       success: false,
-      message: 'Lỗi hệ thống khi lấy thống kê quốc gia'
+      code: "SERVER_ERROR",
+      message: "Lỗi hệ thống khi lấy thống kê quốc gia",
     });
   }
 };
@@ -79,24 +86,27 @@ export const getRegionStats = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: countryCode 
-        ? `Lấy danh sách phân vùng của quốc gia '${countryCode}' thành công` 
-        : 'Lấy danh sách phân vùng toàn cầu thành công',
-      data: regions
+      code: "GET_REGION_STATS_SUCCESS",
+      message: countryCode
+        ? `Lấy danh sách phân vùng của quốc gia '${countryCode}' thành công`
+        : "Lấy danh sách phân vùng toàn cầu thành công",
+      data: regions,
     });
   } catch (error) {
-    logger.error('Lỗi khi lấy thống kê phân vùng:', error);
-    
+    logger.error("Lỗi khi lấy thống kê phân vùng:", error);
+
     if (error.statusCode) {
       return res.status(error.statusCode).json({
         success: false,
-        message: error.message
+        code: error.statusCode === 400 ? "REGION_STATS_ERROR" : "SERVER_ERROR",
+        message: error.message,
       });
     }
 
     return res.status(500).json({
       success: false,
-      message: 'Lỗi hệ thống khi lấy thống kê phân vùng'
+      code: "SERVER_ERROR",
+      message: "Lỗi hệ thống khi lấy thống kê phân vùng",
     });
   }
 };
@@ -115,10 +125,11 @@ export const getCountryRegionsStats = async (req, res) => {
   try {
     const { code } = req.params;
 
-    if (!code || code.trim() === '') {
+    if (!code || code.trim() === "") {
       return res.status(400).json({
         success: false,
-        message: 'Mã quốc gia không được để trống'
+        code: "COUNTRY_CODE_REQUIRED",
+        message: "Mã quốc gia không được để trống",
       });
     }
 
@@ -126,25 +137,34 @@ export const getCountryRegionsStats = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: 'Lấy thống kê region theo quốc gia thành công',
+      code: "GET_COUNTRY_REGIONS_STATS_SUCCESS",
+      message: "Lấy thống kê region theo quốc gia thành công",
       data: {
         country: result.country,
-        regions: result.regions
-      }
+        regions: result.regions,
+      },
     });
   } catch (error) {
-    logger.error(`Lỗi khi lấy thống kê phân vùng cho quốc gia ${req.params?.code}:`, error);
+    logger.error(
+      `Lỗi khi lấy thống kê phân vùng cho quốc gia ${req.params?.code}:`,
+      error,
+    );
 
     if (error.statusCode) {
       return res.status(error.statusCode).json({
         success: false,
-        message: error.message
+        code:
+          error.statusCode === 400
+            ? "COUNTRY_REGIONS_STATS_ERROR"
+            : "SERVER_ERROR",
+        message: error.message,
       });
     }
 
     return res.status(500).json({
       success: false,
-      message: 'Lỗi hệ thống khi lấy thống kê phân vùng theo quốc gia'
+      code: "SERVER_ERROR",
+      message: "Lỗi hệ thống khi lấy thống kê phân vùng theo quốc gia",
     });
   }
 };
