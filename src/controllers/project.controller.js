@@ -1,5 +1,5 @@
-import * as projectService from '../services/project.service.js';
-import logger from '../utils/logger.js';
+import * as projectService from "../services/project.service.js";
+import logger from "../utils/logger.js";
 
 export const projectServiceRef = { ...projectService };
 
@@ -15,18 +15,19 @@ export const getProjects = async (req, res) => {
   try {
     const userId = req.user.user_id;
     const projects = await projectServiceRef.getUserProjects(userId);
-    
+
     return res.status(200).json({
       success: true,
-      message: 'Lấy danh sách dự án thành công',
+      message: "Lấy danh sách dự án thành công",
       code: "SUCCESS_GET_PROJECTS",
-      data: projects
+      data: projects,
     });
   } catch (error) {
-    logger.error('[Project Controller] Lỗi khi lấy danh sách dự án:', error);
+    logger.error("[Project Controller] Lỗi khi lấy danh sách dự án:", error);
     return res.status(500).json({
       success: false,
-      message: 'Có lỗi xảy ra khi lấy danh sách dự án'
+      code: "INTERNAL_SERVER_ERROR",
+      message: "Có lỗi xảy ra khi lấy danh sách dự án",
     });
   }
 };
@@ -51,22 +52,23 @@ export const getProjectById = async (req, res) => {
       return res.status(404).json({
         success: false,
         code: "PROJECT_NOT_FOUND_OR_ACCESS_DENIED",
-        message: 'Không tìm thấy dự án hoặc bạn không có quyền truy cập dự án này'
+        message:
+          "Không tìm thấy dự án hoặc bạn không có quyền truy cập dự án này",
       });
     }
 
     return res.status(200).json({
       success: true,
       code: "SUCCESS_GET_PROJECT",
-      message: 'Lấy chi tiết dự án thành công',
-      data: project
+      message: "Lấy chi tiết dự án thành công",
+      data: project,
     });
   } catch (error) {
-    logger.error('[Project Controller] Lỗi khi lấy chi tiết dự án:', error);
+    logger.error("[Project Controller] Lỗi khi lấy chi tiết dự án:", error);
     return res.status(500).json({
       success: false,
       code: "INTERNAL_SERVER_ERROR",
-      message: 'Có lỗi xảy ra khi lấy chi tiết dự án'
+      message: "Có lỗi xảy ra khi lấy chi tiết dự án",
     });
   }
 };
@@ -88,44 +90,52 @@ export const getProjectById = async (req, res) => {
 export const createProject = async (req, res) => {
   try {
     const userId = req.user.user_id;
-    const { title, subject_area, subject_area_id, subject_category_ids = [], journal_ids = [] } = req.body;
-    
+    const {
+      title,
+      subject_area,
+      subject_area_id,
+      subject_category_ids = [],
+      journal_ids = [],
+    } = req.body;
+
     // Hỗ trợ cả hai cách đặt tên trường
-    const finalSubjectArea = subject_area !== undefined ? subject_area : subject_area_id;
+    const finalSubjectArea =
+      subject_area !== undefined ? subject_area : subject_area_id;
 
     const newProject = await projectServiceRef.createProject({
       userId,
       title: title.trim(),
       subject_area: finalSubjectArea,
       subject_category_ids,
-      journal_ids
+      journal_ids,
     });
 
     return res.status(201).json({
       success: true,
       code: "SUCCESS_CREATE_PROJECT",
-      message: 'Tạo dự án thành công',
-      data: newProject
+      message: "Tạo dự án thành công",
+      data: newProject,
     });
   } catch (error) {
-    logger.error('Lỗi khi tạo dự án mới:', error);
+    logger.error("Lỗi khi tạo dự án mới:", error);
 
-    if (error.message && (
-      error.message.includes('không tồn tại') || 
-      error.message.includes('chưa tồn tại')
-    )) {
+    if (
+      error.message &&
+      (error.message.includes("không tồn tại") ||
+        error.message.includes("chưa tồn tại"))
+    ) {
       return res.status(400).json({
         success: false,
         code: "PROJECT_CREATION_FAILED",
-        message: error.message
+        message: error.message,
       });
     }
 
-    logger.error('[Project Controller] Lỗi khi tạo dự án:', error);
+    logger.error("[Project Controller] Lỗi khi tạo dự án:", error);
     return res.status(500).json({
       success: false,
       code: "INTERNAL_SERVER_ERROR",
-      message: 'Có lỗi xảy ra ở server khi tạo dự án'
+      message: "Có lỗi xảy ra ở server khi tạo dự án",
     });
   }
 };
@@ -150,47 +160,56 @@ export const updateProject = async (req, res) => {
   try {
     const projectId = req.params.id;
     const userId = req.user.user_id;
-    const { title, subject_area, subject_area_id, subject_category_ids, journal_ids } = req.body;
+    const {
+      title,
+      subject_area,
+      subject_area_id,
+      subject_category_ids,
+      journal_ids,
+    } = req.body;
 
-    const finalSubjectArea = subject_area !== undefined ? subject_area : subject_area_id;
+    const finalSubjectArea =
+      subject_area !== undefined ? subject_area : subject_area_id;
 
     const updated = await projectServiceRef.updateProject(projectId, userId, {
       title: title ? title.trim() : undefined,
       subject_area: finalSubjectArea,
       subject_category_ids,
-      journal_ids
+      journal_ids,
     });
 
     if (!updated) {
       return res.status(404).json({
         success: false,
         code: "PROJECT_NOT_FOUND_OR_ACCESS_DENIED",
-        message: 'Không tìm thấy dự án hoặc bạn không có quyền truy cập dự án này'
+        message:
+          "Không tìm thấy dự án hoặc bạn không có quyền truy cập dự án này",
       });
     }
 
     return res.status(200).json({
       success: true,
       code: "SUCCESS_UPDATE_PROJECT",
-      message: 'Cập nhật dự án thành công'
+      message: "Cập nhật dự án thành công",
     });
   } catch (error) {
-    if (error.message && (
-      error.message.includes('không tồn tại') || 
-      error.message.includes('chưa tồn tại')
-    )) {
+    if (
+      error.message &&
+      (error.message.includes("không tồn tại") ||
+        error.message.includes("chưa tồn tại"))
+    ) {
       return res.status(400).json({
         success: false,
         code: "PROJECT_NOT_FOUND_OR_ACCESS_DENIED",
-        message: error.message
+        message: error.message,
       });
     }
 
-    logger.error('[Project Controller] Lỗi khi cập nhật dự án:', error);
+    logger.error("[Project Controller] Lỗi khi cập nhật dự án:", error);
     return res.status(500).json({
       success: false,
       code: "INTERNAL_SERVER_ERROR",
-      message: 'Có lỗi xảy ra ở server khi cập nhật dự án'
+      message: "Có lỗi xảy ra ở server khi cập nhật dự án",
     });
   }
 };
@@ -215,25 +234,24 @@ export const deleteProject = async (req, res) => {
       return res.status(404).json({
         success: false,
         code: "PROJECT_NOT_FOUND_OR_ACCESS_DENIED",
-        message: 'Không tìm thấy dự án hoặc bạn không có quyền xóa dự án này'
+        message: "Không tìm thấy dự án hoặc bạn không có quyền xóa dự án này",
       });
     }
 
     return res.status(200).json({
       success: true,
       code: "SUCCESS_DELETE_PROJECT",
-      message: 'Xóa dự án thành công'
+      message: "Xóa dự án thành công",
     });
   } catch (error) {
-    logger.error('[Project Controller] Lỗi khi xóa dự án:', error);
+    logger.error("[Project Controller] Lỗi khi xóa dự án:", error);
     return res.status(500).json({
       success: false,
       code: "INTERNAL_SERVER_ERROR",
-      message: 'Có lỗi xảy ra ở server khi xóa dự án'
+      message: "Có lỗi xảy ra ở server khi xóa dự án",
     });
   }
 };
-
 
 /**
  * Controller xử lý yêu cầu lấy danh sách bài viết liên quan của một dự án.
@@ -258,32 +276,36 @@ export const getRelatedArticles = async (req, res) => {
     const projectId = Number(req.params.id);
     let limit = Number(req.query.limit);
 
+    const journalIds =
+      await projectServiceRef.getJournalIdsByProjectId(projectId);
+    const categoryIds =
+      await projectServiceRef.getCategoryIdsByProjectId(projectId);
 
-    const journalIds = await projectServiceRef.getJournalIdsByProjectId(projectId);
-    const categoryIds = await projectServiceRef.getCategoryIdsByProjectId(projectId);
-
-    const relatedArticles = await projectServiceRef.getRelatedArticles(journalIds, categoryIds, { limit });
+    const relatedArticles = await projectServiceRef.getRelatedArticles(
+      journalIds,
+      categoryIds,
+      { limit },
+    );
 
     return res.status(200).json({
       success: true,
       code: "SUCCESS_GET_RELATED_ARTICLES",
-      message: 'Lấy bài viết liên quan thành công',
-      data: relatedArticles
+      message: "Lấy bài viết liên quan thành công",
+      data: relatedArticles,
     });
   } catch (error) {
-
-    logger.error('Lỗi khi lấy bài viết liên quan:', error);
+    logger.error("Lỗi khi lấy bài viết liên quan:", error);
     return res.status(500).json({
       success: false,
       code: "INTERNAL_SERVER_ERROR",
-      message: 'Có lỗi xảy ra ở server khi lấy bài viết liên quan'
+      message: "Có lỗi xảy ra ở server khi lấy bài viết liên quan",
     });
   }
 };
 
 /**
  * API Lấy dữ liệu phân tích/thống kê của một dự án (Trending Charts)
- * 
+ *
  * @async
  * @param {Object} req - Express request object
  * @param {Object} req.params - Các tham số trên URL
@@ -298,26 +320,34 @@ export const getProjectAnalytics = async (req, res) => {
     const projectId = req.params.id;
     const userId = req.user.user_id;
 
-    const analyticsData = await projectServiceRef.getProjectAnalytics(projectId, userId);
+    const analyticsData = await projectServiceRef.getProjectAnalytics(
+      projectId,
+      userId,
+    );
     if (!analyticsData) {
       return res.status(404).json({
         success: false,
         code: "PROJECT_NOT_FOUND_OR_ACCESS_DENIED",
-        message: 'Không tìm thấy dự án hoặc bạn không có quyền truy cập dự án này'
+        message:
+          "Không tìm thấy dự án hoặc bạn không có quyền truy cập dự án này",
       });
     }
 
     return res.status(200).json({
       success: true,
       code: "SUCCESS_GET_PROJECT_ANALYTICS",
-      message: 'Lấy dữ liệu phân tích dự án thành công',
-      data: analyticsData
+      message: "Lấy dữ liệu phân tích dự án thành công",
+      data: analyticsData,
     });
   } catch (error) {
-    logger.error('[Project Controller] Lỗi khi lấy dữ liệu phân tích dự án:', error);
+    logger.error(
+      "[Project Controller] Lỗi khi lấy dữ liệu phân tích dự án:",
+      error,
+    );
     return res.status(500).json({
       success: false,
-      message: 'Có lỗi xảy ra khi lấy dữ liệu phân tích dự án'
+      code: "INTERNAL_SERVER_ERROR",
+      message: "Có lỗi xảy ra khi lấy dữ liệu phân tích dự án",
     });
   }
 };
