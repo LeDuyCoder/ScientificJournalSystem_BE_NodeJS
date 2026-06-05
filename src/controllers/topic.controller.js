@@ -226,7 +226,7 @@ export const createTopic = async (req, res) => {
 export const getArticlesByTopic = async (req, res) => {
   try {
     // 1. Validate topic_id
-    const topicId = parseInt(req.params.id);
+    const topicId = parseInt(req.params.id, 10);
     if (isNaN(topicId) || topicId <= 0) {
       return res.status(400).json({
         success: false,
