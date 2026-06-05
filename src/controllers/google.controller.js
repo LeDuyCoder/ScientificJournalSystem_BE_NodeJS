@@ -1,5 +1,5 @@
-import { loginOrCreateWithGoogle } from '../services/google.service.js';
-import logger from '../utils/logger.js';
+import { loginOrCreateWithGoogle } from "../services/google.service.js";
+import logger from "../utils/logger.js";
 
 /**
  * API Đăng nhập hoặc Đăng ký tài khoản tự động bằng Google ID Token gửi từ phía Client
@@ -16,26 +16,34 @@ export const googleLogin = async (req, res) => {
     if (!idToken || !idToken.trim()) {
       return res.status(400).json({
         success: false,
-        message: 'idToken không được để trống'
+        code: "GOOGLE_ID_TOKEN_MISSING",
+        message: "idToken không được để trống",
       });
     }
 
     const data = await loginOrCreateWithGoogle(idToken);
 
-    logger.info(`[Google Auth]: Đăng nhập/Đăng ký Google thành công cho tài khoản: ${data.user.email}`);
+    logger.info(
+      `[Google Auth]: Đăng nhập/Đăng ký Google thành công cho tài khoản: ${data.user.email}`,
+    );
 
     return res.status(200).json({
       success: true,
-      message: 'Đăng nhập bằng Google thành công',
-      data
+      code: "GOOGLE_LOGIN_SUCCESS",
+      message: "Đăng nhập bằng Google thành công",
+      data,
     });
   } catch (error) {
     if (!error.statusCode || error.statusCode === 500) {
-      logger.error('Lỗi hệ thống trong controller đăng nhập Google:', error);
+      logger.error("Lỗi hệ thống trong controller đăng nhập Google:", error);
     }
     return res.status(error.statusCode || 500).json({
       success: false,
-      message: error.statusCode ? error.message : 'Có lỗi xảy ra ở server'
+      code:
+        error.statusCode === 400
+          ? "GOOGLE_LOGIN_ERROR"
+          : "GOOGLE_LOGIN_SERVER_ERROR",
+      message: error.statusCode ? error.message : "Có lỗi xảy ra ở server",
     });
   }
 };

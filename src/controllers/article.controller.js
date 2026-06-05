@@ -3,7 +3,10 @@ import {
   createAuthorArticleRelationships,
   updateAuthorArticleRelationships,
 } from "../services/author.service.js";
-import { addKeywordsToArticle, updateKeywordsToArticle } from "../services/keyword.service.js";
+import {
+  addKeywordsToArticle,
+  updateKeywordsToArticle,
+} from "../services/keyword.service.js";
 import { createSubTopicArticleRelationships } from "../services/topic.service.js";
 import logger from "../utils/logger.js";
 
@@ -18,7 +21,8 @@ export const getArticlesByKeywords = async (req, res) => {
       return res.status(400).json({
         success: false,
         code: "MISSING_KEYWORDS",
-        message: "Vui lòng cung cấp tham số 'keywords' trong query string! Ví dụ: ?keywords=Machine Learning,Deep Learning",
+        message:
+          "Vui lòng cung cấp tham số 'keywords' trong query string! Ví dụ: ?keywords=Machine Learning,Deep Learning",
       });
     }
 
@@ -114,11 +118,17 @@ export const getArticles = async (req, res) => {
       if (!["ASC", "DESC"].includes(sortOrder)) {
         return res.status(400).json({
           success: false,
+          code: "INVALID_SORT_ORDER",
           message: "Tham số 'sortOrder' phải là 'asc' hoặc 'desc'!",
         });
       }
 
-      articles = await articleService.getAllArticles(limit, offset, sortBy, sortOrder);
+      articles = await articleService.getAllArticles(
+        limit,
+        offset,
+        sortBy,
+        sortOrder,
+      );
       total = await articleService.getTotalArticles();
 
       return res.status(200).json({
@@ -127,13 +137,24 @@ export const getArticles = async (req, res) => {
         message: "Lấy danh sách bài báo thành công!",
         data: {
           articles: articles,
-          pagination: { page, limit, total, total_pages: Math.ceil(total / limit) },
+          pagination: {
+            page,
+            limit,
+            total,
+            total_pages: Math.ceil(total / limit),
+          },
         },
       });
     }
   } catch (error) {
     logger.error("Lỗi khi lấy danh sách bài báo:", error);
-    return res.status(500).json({ success: false, code: "INTERNAL_SERVER_ERROR", message: "Có lỗi xảy ra ở Server!" });
+    return res
+      .status(500)
+      .json({
+        success: false,
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Có lỗi xảy ra ở Server!",
+      });
   }
 };
 
@@ -158,11 +179,23 @@ export const getArticleById = async (req, res) => {
     const article = await articleService.getArticleById(id);
 
     if (!article) {
-      return res.status(404).json({ success: false, code: "ARTICLE_NOT_FOUND", message: "Bài báo không tồn tại!" });
+      return res
+        .status(404)
+        .json({
+          success: false,
+          code: "ARTICLE_NOT_FOUND",
+          message: "Bài báo không tồn tại!",
+        });
     }
 
     if (article.is_deleted === true) {
-      return res.status(410).json({ success: false, code: "ARTICLE_DELETED", message: "Bài báo này đã bị xóa khỏi hệ thống!" });
+      return res
+        .status(410)
+        .json({
+          success: false,
+          code: "ARTICLE_DELETED",
+          message: "Bài báo này đã bị xóa khỏi hệ thống!",
+        });
     }
 
     return res.status(200).json({
@@ -173,7 +206,13 @@ export const getArticleById = async (req, res) => {
     });
   } catch (error) {
     logger.error("Lỗi khi lấy thông tin bài báo theo ID:", error);
-    return res.status(500).json({ success: false, code: "INTERNAL_SERVER_ERROR", message: "Có lỗi xảy ra ở Server!" });
+    return res
+      .status(500)
+      .json({
+        success: false,
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Có lỗi xảy ra ở Server!",
+      });
   }
 };
 
@@ -205,15 +244,22 @@ export const createArticle = async (req, res) => {
       primary_topic: primary_topic == 0 ? null : primary_topic,
     });
 
-    // 2. Tạo các quan hệ đồng bộ 
-    await createAuthorArticleRelationships(newArticle.article_id, authors || []);
+    // 2. Tạo các quan hệ đồng bộ
+    await createAuthorArticleRelationships(
+      newArticle.article_id,
+      authors || [],
+    );
     await createSubTopicArticleRelationships(
       newArticle.article_id,
       sub_topic || [],
       primary_topic == 0 ? null : primary_topic,
     );
 
-    const hasKeywords = keywords && (Array.isArray(keywords) ? keywords.length > 0 : Object.keys(keywords).length > 0);
+    const hasKeywords =
+      keywords &&
+      (Array.isArray(keywords)
+        ? keywords.length > 0
+        : Object.keys(keywords).length > 0);
     if (hasKeywords) {
       await addKeywordsToArticle(newArticle.article_id, keywords);
     }
@@ -227,9 +273,21 @@ export const createArticle = async (req, res) => {
   } catch (error) {
     logger.error("Lỗi khi tạo dữ liệu bài báo tại Controller:", error);
     if (error.statusCode === 400) {
-      return res.status(400).json({ success: false, code: "VALIDATION_ERROR", message: error.message });
+      return res
+        .status(400)
+        .json({
+          success: false,
+          code: "VALIDATION_ERROR",
+          message: error.message,
+        });
     }
-    return res.status(500).json({ success: false, code: "INTERNAL_SERVER_ERROR", message: "Có lỗi xảy ra ở Server!" });
+    return res
+      .status(500)
+      .json({
+        success: false,
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Có lỗi xảy ra ở Server!",
+      });
   }
 };
 
@@ -243,9 +301,15 @@ export const updateArticle = async (req, res) => {
   try {
     const article = await articleService.getArticleById(id);
     if (!article) {
-      return res.status(404).json({ success: false, code: "ARTICLE_NOT_FOUND", message: "Article không tìm thấy" });
+      return res
+        .status(404)
+        .json({
+          success: false,
+          code: "ARTICLE_NOT_FOUND",
+          message: "Article không tìm thấy",
+        });
     }
-    
+
     const updatedArticle = await articleService.updateArticle({
       article_id: article.article_id,
       ...dataBody,
@@ -268,9 +332,21 @@ export const updateArticle = async (req, res) => {
   } catch (error) {
     if (error.message && error.message.startsWith("VALIDATION_ERROR:")) {
       const cleanMessage = error.message.replace("VALIDATION_ERROR: ", "");
-      return res.status(400).json({ success: false, code: "VALIDATION_ERROR", message: cleanMessage });
+      return res
+        .status(400)
+        .json({
+          success: false,
+          code: "VALIDATION_ERROR",
+          message: cleanMessage,
+        });
     }
-    return res.status(500).json({ success: false, code: "INTERNAL_SERVER_ERROR", message: "Internal server error" });
+    return res
+      .status(500)
+      .json({
+        success: false,
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Internal server error",
+      });
   }
 };
 
@@ -282,17 +358,29 @@ export const deleteArticle = async (req, res) => {
   try {
     const article = await articleService.getArticleById(id);
     if (!article) {
-      return res.status(404).json({ 
-        success: false, 
+      return res.status(404).json({
+        success: false,
         code: "ARTICLE_NOT_FOUND",
-        message: "Article không tìm thấy" 
+        message: "Article không tìm thấy",
       });
     }
-    
+
     await articleService.deleteArticle(id);
-    return res.status(200).json({ success: true, code: "ARTICLE_DELETE_SUCCESS", message: "Article đã xóa thành công" });
+    return res
+      .status(200)
+      .json({
+        success: true,
+        code: "ARTICLE_DELETE_SUCCESS",
+        message: "Article đã xóa thành công",
+      });
   } catch (error) {
-    return res.status(500).json({ success: false, code: "INTERNAL_SERVER_ERROR", message: "Internal server error" });
+    return res
+      .status(500)
+      .json({
+        success: false,
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Internal server error",
+      });
   }
 };
 
@@ -304,11 +392,30 @@ export const restoreArticle = async (req, res) => {
   try {
     const restored = await articleService.restoreArticle(id);
     if (!restored) {
-      return res.status(404).json({ success: false, code: "ARTICLE_NOT_FOUND", message: "Article không tìm thấy hoặc đã được khôi phục" });
+      return res
+        .status(404)
+        .json({
+          success: false,
+          code: "ARTICLE_NOT_FOUND",
+          message: "Article không tìm thấy hoặc đã được khôi phục",
+        });
     }
-    return res.status(200).json({ success: true, code: "ARTICLE_RESTORE_SUCCESS", message: "Article đã khôi phục thành công", data: restored });
+    return res
+      .status(200)
+      .json({
+        success: true,
+        code: "ARTICLE_RESTORE_SUCCESS",
+        message: "Article đã khôi phục thành công",
+        data: restored,
+      });
   } catch (error) {
     logger.error(`Error restoring article ${id}:`, error);
-    return res.status(500).json({ success: false, code: "INTERNAL_SERVER_ERROR", message: "Internal server error" });
+    return res
+      .status(500)
+      .json({
+        success: false,
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Internal server error",
+      });
   }
 };

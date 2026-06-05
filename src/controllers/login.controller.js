@@ -1,5 +1,5 @@
-import { loginWithEmailPassword } from '../services/login.service.js';
-import logger from '../utils/logger.js';
+import { loginWithEmailPassword } from "../services/login.service.js";
+import logger from "../utils/logger.js";
 
 /**
  * Kiểm tra định dạng của một chuỗi email có hợp lệ hay không
@@ -29,22 +29,23 @@ export const login = async (req, res) => {
         success: false,
         code: 'EMAIL_REQUIRED',
         message: 'Email không được để trống'
+
       });
     }
 
     if (!isValidEmail(email)) {
       return res.status(400).json({
         success: false,
-        code: 'INVALID_EMAIL_FORMAT',
-        message: 'Email không đúng định dạng'
+        code: "EMAIL_INVALID",
+        message: "Email không đúng định dạng",
       });
     }
 
     if (!password || !password.trim()) {
       return res.status(400).json({
         success: false,
-        code: 'PASSWORD_REQUIRED',
-        message: 'Password không được để trống'
+        code: "PASSWORD_REQUIRED",
+        message: "Password không được để trống",
       });
     }
 
@@ -52,18 +53,18 @@ export const login = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      code: 'LOGIN_SUCCESS',
-      message: 'Đăng nhập thành công',
-      data
+      code: "LOGIN_SUCCESS",
+      message: "Đăng nhập thành công",
+      data,
     });
   } catch (error) {
     if (!error.statusCode || error.statusCode === 500) {
-      logger.error('Lỗi hệ thống trong controller đăng nhập:', error);
+      logger.error("Lỗi hệ thống trong controller đăng nhập:", error);
     }
     return res.status(error.statusCode || 500).json({
       success: false,
-      code: 'INTERNAL_SERVER_ERROR',
-      message: error.statusCode ? error.message : 'Có lỗi xảy ra ở server'
+      code: error.code || "LOGIN_FAILED",
+      message: error.statusCode ? error.message : "Có lỗi xảy ra ở server",
     });
   }
 };

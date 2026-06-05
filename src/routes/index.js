@@ -12,7 +12,11 @@ import authorRouter from "./author.route.js";
 import topicRouter from "./topic.route.js";
 import journalRouter from "./journal.route.js";
 import volumeRouter from "./volume.route.js";
+import issueRouter from "./issue.route.js";
 import authRouter from "./auth.route.js";
+import subjectAreaRouter from "./subjectArea.route.js";
+import subjectCategoryRouter from "./subjectCategory.route.js";
+import searchRotuer from "./search.route.js";
 
 const router = express.Router();
 
@@ -42,5 +46,10 @@ router.use("/topics", topicRouter);
 router.use("/keywords", keywordRouter);
 router.use("/journal", journalRouter);
 router.use("/volumes", volumeRouter);
+router.use("/subject-areas", subjectAreaRouter);
+router.use("/subject-categories", subjectCategoryRouter);
+router.use("/issues", issueRouter);
+
+router.use("/search", searchRotuer);
 
 export default router;
