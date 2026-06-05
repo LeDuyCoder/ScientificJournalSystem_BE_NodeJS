@@ -9,7 +9,7 @@ import {
   deleteProject,
   getProjectAnalytics
 } from '../controllers/project.controller.js';
-import { validateCreateProject, validateProjectId, validateUpdateProject } from '../middlewares/projectValidation.middleware.js';
+import { validateCreateProject, validateProjectId, validateRelatedArticlesLimit, validateUpdateProject } from '../middlewares/projectValidation.middleware.js';
 
 const router = express.Router();
 
@@ -226,7 +226,7 @@ router.get('/:id', requireAuth, validateProjectId, getProjectById);
  *       500:
  *         description: Lỗi hệ thống hoặc lỗi máy chủ kết nối Database
  */
-router.get('/:id/related-articles', requireAuth, getRelatedArticles);
+router.get('/:id/related-articles', requireAuth, validateProjectId, validateRelatedArticlesLimit, getRelatedArticles);
 
 /**
  * @swagger
@@ -487,7 +487,7 @@ router.delete('/:id', requireAuth, validateProjectId, deleteProject);
  *       500:
  *         description: Lỗi máy chủ
  */
-router.get('/:id/analytics', requireAuth, getProjectAnalytics);
+router.get('/:id/analytics', requireAuth, validateProjectId, getProjectAnalytics);
 
 export default router;
 
