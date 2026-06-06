@@ -1,6 +1,8 @@
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import pool from '../config/database.js';
+import logger from '../utils/logger.js';
+import axios from 'axios';
 
 /**
  * Tạo token JWT để duy trì phiên đăng nhập cho user
@@ -166,4 +168,45 @@ export const loginOrCreateWithGoogle = async (idToken) => {
       gender: user.gender
     }
   };
+};
+
+/**
+ * Hàm đổi Authorization Code lấy id_token từ Google
+ * @param {string} code - Mã code nhận từ useGoogleLogin (chuỗi 4/0A...)
+ * @returns {Promise<string|null>} - Trả về chuỗi id_token (JWT) nếu thành công
+ */
+export const getTokenId = async (code) => {
+  // 1. Cấu hình các thông số cần thiết
+  const tokenUrl = process.env.TOKEN_URL;
+  
+  const payload = {
+    code: code,
+    client_id: process.env.CLIENT_ID, 
+    client_secret: process.env.CLIENT_SECRET, 
+    redirect_uri: process.env.FRONTEND_URL,                    
+    grant_type: 'authorization_code',
+  };
+
+  try {
+    // 2. Thực hiện gọi API với định dạng x-www-form-urlencoded
+    const response = await axios.post(tokenUrl, payload, {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+    });
+
+    // 3. Google trả về data thành công, lấy ra id_token
+    if (response.data && response.data.id_token) {
+      console.log('Lấy id_token thành công!');
+      return response.data.id_token; // Đây là chuỗi JWT bạn cần đem về Backend
+    }
+    
+    return null;
+  } catch (error) {
+    logger.error(
+      'Lỗi khi đổi code lấy id_token:', 
+      error.response?.data || error.message
+    );
+    throw error;
+  }
 };

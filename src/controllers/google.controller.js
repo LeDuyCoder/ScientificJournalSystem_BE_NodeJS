@@ -1,4 +1,4 @@
-import { loginOrCreateWithGoogle } from "../services/google.service.js";
+import { getTokenId, loginOrCreateWithGoogle } from "../services/google.service.js";
 import logger from "../utils/logger.js";
 
 /**
@@ -11,15 +11,19 @@ import logger from "../utils/logger.js";
  */
 export const googleLogin = async (req, res) => {
   try {
-    const { idToken } = req.body;
+    const { code } = req.body;
 
-    if (!idToken || !idToken.trim()) {
+    //check code
+    if (!code) {
       return res.status(400).json({
         success: false,
-        code: "GOOGLE_ID_TOKEN_MISSING",
-        message: "idToken không được để trống",
+        code: "GOOGLE_LOGIN_CODE_REQUIRED",
+        message: "Code không được để trống",
       });
     }
+    
+    //call service get id_token
+    const idToken = await getTokenId(code);
 
     const data = await loginOrCreateWithGoogle(idToken);
 
