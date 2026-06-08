@@ -152,7 +152,7 @@ router.post('/login', login);
  *           Set-Cookie:
  *             schema:
  *               type: string
- *               example: access_token=abc.def.ghi; Path=/; HttpOnly; SameSite=Strict; Max-Age=86400
+ *               example: access_token=abc.def.ghi; Path=/; HttpOnly; SameSite=none; Max-Age=86400
  *             description: Cookie chứa Access Token mới.
  *         content:
  *           application/json:
