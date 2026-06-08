@@ -18,7 +18,7 @@ const buildLoginError = () => {
  * @returns {string} Chuỗi JWT token
  * @throws {Error} Ném lỗi nếu chưa định nghĩa JWT_SECRET trong môi trường
  */
-const signToken = (user) => {
+export const signToken = (user) => {
   if (!process.env.JWT_SECRET) {
     throw new Error('Missing JWT_SECRET in environment variables');
   }
@@ -32,6 +32,24 @@ const signToken = (user) => {
     process.env.JWT_SECRET,
     {
       expiresIn: process.env.JWT_EXPIRES_IN || '1d'
+    }
+  );
+};
+
+export const signRefreshToken = (user) => {
+  if (!process.env.JWT_REFRESH_SECRET) {
+    throw new Error('Missing JWT_REFRESH_SECRET in environment variables');
+  }
+
+  return jwt.sign(
+    {
+      user_id: user.user_id,
+      email: user.email,
+      role: user.role
+    },
+    process.env.JWT_REFRESH_SECRET,
+    {
+      expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '30d'
     }
   );
 };
@@ -101,17 +119,9 @@ export const loginWithEmailPassword = async ({ email, password }) => {
   const token = signToken(user);
 
   return {
-    token,
+    token: token,
     user: {
       user_id: user.user_id,
-      email: user.email,
-      role: user.role,
-      status: user.status,
-      last_name: user.last_name,
-      first_name: user.first_name,
-      url_image: user.url_image,
-      date_of_birth: user.date_of_birth,
-      gender: user.gender
     }
   };
 };

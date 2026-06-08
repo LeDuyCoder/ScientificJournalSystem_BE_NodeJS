@@ -72,3 +72,22 @@ export const updateMe = async (req, res) => {
     });
   }
 };
+
+export const getMe = async (req, res) => {
+  try{
+    const userId = req.user.user_id;
+    const user = await userService.getUserById(userId);
+
+    return res.status(200).json({
+      success: false,
+      code: "SUCCESS_GET_USER",
+      data: user
+    });
+  }catch(error){
+    return res.status(error.statusCode || 500).json({
+      success: false,
+      code: "SERVER_ERROR",
+      message: error.statusCode ? error.message : "Có lỗi xảy ra ở Server!",
+    });
+  }
+}
