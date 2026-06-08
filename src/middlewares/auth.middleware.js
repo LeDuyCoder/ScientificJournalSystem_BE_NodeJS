@@ -54,28 +54,36 @@ export const requireAuth = (req, res, next) => {
  * @returns {void|Object} Gọi hàm next() nếu xác thực thành công, ngược lại trả về response lỗi 401
  */
 export const verifyToken = (req, res, next) => {
-  const authHeader = req.headers.authorization;
+  let accessToken = null;
 
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    logger.warn('[Auth]: Xác thực thất bại: Thiếu hoặc sai định dạng Authorization header.');
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    accessToken = authHeader.split(' ')[1];
+  }
+
+  if (!accessToken && req.cookies) {
+    accessToken = req.cookies.access_token;
+  }
+
+  if (!accessToken) {
     return res.status(401).json({
       success: false,
-      message: 'Vui lòng đăng nhập để thực hiện hành động này.'
+      code: "ACCESS_TOKEN_MISSING",
+      message: "Bạn chưa đăng nhập hoặc phiên làm việc đã hết hạn"
     });
   }
 
-  const token = authHeader.split(' ')[1];
-
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'scientific_journal_secret_key');
-    req.user = decoded; // Gán thông tin user vào request (gồm user_id, email, role, etc)
-    logger.info(`[Auth]: Xác thực thành công cho người dùng: ${decoded.email}`);
+    const decoded = jwt.verify(accessToken, process.env.JWT_SECRET);
+
+    req.user = decoded; 
+    
     next();
   } catch (error) {
-    logger.error('[Auth]: Xác thực thất bại: Token hết hạn hoặc không hợp lệ.', error);
     return res.status(401).json({
       success: false,
-      message: 'Token đã hết hạn hoặc không hợp lệ. Vui lòng đăng nhập lại.'
+      code: "ACCESS_TOKEN_EXPIRED",
+      message: "Access token không hợp lệ hoặc đã hết hạn"
     });
   }
 };

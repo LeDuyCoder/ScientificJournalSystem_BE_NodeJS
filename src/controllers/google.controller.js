@@ -1,4 +1,5 @@
 import { getTokenId, loginOrCreateWithGoogle } from "../services/google.service.js";
+import { signRefreshToken } from "../services/login.service.js";
 import logger from "../utils/logger.js";
 
 /**
@@ -26,17 +27,31 @@ export const googleLogin = async (req, res) => {
     const idToken = await getTokenId(code);
 
     const data = await loginOrCreateWithGoogle(idToken);
+    const refreshToken = signRefreshToken(data.user.user_id);
 
     logger.info(
       `[Google Auth]: Đăng nhập/Đăng ký Google thành công cho tài khoản: ${data.user.email}`,
     );
 
-    return res.status(200).json({
-      success: true,
-      code: "GOOGLE_LOGIN_SUCCESS",
-      message: "Đăng nhập bằng Google thành công",
-      data,
-    });
+    return res.status(200)
+      .cookie("access_token", data.token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "strict",
+        maxAge: process.env.COOKIE_ACCESS_MAX_AGE,
+      })
+      .cookie("refresh_token", refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "strict",
+        maxAge: process.env.COOKIE_REFRESH_MAX_AGE,
+      })
+      .json({
+        success: true,
+        code: "GOOGLE_LOGIN_SUCCESS",
+        message: "Đăng nhập bằng Google thành công",
+        data,
+      });
   } catch (error) {
     if (!error.statusCode || error.statusCode === 500) {
       logger.error("Lỗi hệ thống trong controller đăng nhập Google:", error);

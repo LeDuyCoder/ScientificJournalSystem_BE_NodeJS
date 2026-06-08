@@ -1,5 +1,5 @@
 import express from 'express';
-import { login } from '../controllers/login.controller.js';
+import { login, refreshToken } from '../controllers/login.controller.js';
 
 const router = express.Router();
 
@@ -123,5 +123,100 @@ const router = express.Router();
  * Đăng nhập người dùng bằng email và mật khẩu truyền thống
  */
 router.post('/login', login);
+
+/**
+ * @swagger
+ * /api/v1/auth/refresh:
+ *   get:
+ *     summary: Cấp lại Access Token mới (Refresh Token)
+ *     description: API này đọc `refresh_token` và `access_token` từ Cookie. Sau đó xác thực và cấp lại một `access_token` mới, đồng thời tự động set cookie `access_token` mới vào trình duyệt.
+ *     tags: 
+ *       - Auth
+ *     parameters:
+ *       - in: cookie
+ *         name: refresh_token
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: Refresh token hợp lệ để xin cấp lại access token.
+ *       - in: cookie
+ *         name: access_token
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: Access token cũ (có thể đã hết hạn).
+ *     responses:
+ *       200:
+ *         description: Cấp lại token thành công.
+ *         headers:
+ *           Set-Cookie:
+ *             schema:
+ *               type: string
+ *               example: access_token=abc.def.ghi; Path=/; HttpOnly; SameSite=Strict; Max-Age=86400
+ *             description: Cookie chứa Access Token mới.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 code:
+ *                   type: string
+ *                   example: REFRESH_TOKEN_SUCCESS
+ *                 message:
+ *                   type: string
+ *                   example: Refresh token thành công
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     token:
+ *                       type: string
+ *                       example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+ *       401:
+ *         description: Lỗi xác thực (Thiếu token hoặc token bị giả mạo).
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 code:
+ *                   type: string
+ *                   example: REFRESH_TOKEN_REQUIRED
+ *                 message:
+ *                   type: string
+ *                   example: Refresh token không được để trống
+ *             examples:
+ *               MissingToken:
+ *                 summary: Thiếu Refresh Token
+ *                 value:
+ *                   success: false
+ *                   code: REFRESH_TOKEN_REQUIRED
+ *                   message: Refresh token không được để trống
+ *               InvalidOldToken:
+ *                 summary: Access token cũ không hợp lệ
+ *                 value:
+ *                   success: false
+ *                   code: INVALID_ACCESS_TOKEN
+ *                   message: Access token cũ không hợp lệ hoặc bị giả mạo
+ *       500:
+ *         description: Lỗi hệ thống từ phía server.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 code:
+ *                   type: string
+ *                   example: REFRESH_TOKEN_FAILED
+ */
+router.get('/refresh', refreshToken);
 
 export default router;
