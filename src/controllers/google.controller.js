@@ -37,13 +37,13 @@ export const googleLogin = async (req, res) => {
       .cookie("access_token", data.token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
-        sameSite: "strict",
+        sameSite: "none",
         maxAge: process.env.COOKIE_ACCESS_MAX_AGE,
       })
       .cookie("refresh_token", refreshToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
-        sameSite: "strict",
+        sameSite: "none",
         maxAge: process.env.COOKIE_REFRESH_MAX_AGE,
       })
       .json({
