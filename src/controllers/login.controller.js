@@ -43,7 +43,7 @@ export const login = async (req, res) => {
     res.cookie('access_token', data.token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      sameSite: 'none',
       maxAge: Number(process.env.COOKIE_ACCESS_MAX_AGE) // Ép kiểu Number để tránh lỗi cookie
     });
 
@@ -53,7 +53,7 @@ export const login = async (req, res) => {
       res.cookie('refresh_token', refreshToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',  
+        sameSite: 'none',  
         maxAge: Number(process.env.COOKIE_REFRESH_MAX_AGE) // Sống dài ngày (ví dụ 30 ngày)
       });
     } else {
@@ -62,7 +62,7 @@ export const login = async (req, res) => {
       res.clearCookie('refresh_token', {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict'
+        sameSite: 'none'
       });
     }
 
@@ -137,7 +137,7 @@ export const refreshToken = async (req, res) => {
       .cookie("access_token", newAccessToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
-        sameSite: "strict",
+        sameSite: "none",
         maxAge: process.env.COOKIE_ACCESS_MAX_AGE,
       })
       .json({
