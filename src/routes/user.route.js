@@ -1,5 +1,5 @@
 import express from 'express';
-import { deleteMe, updateMe } from '../controllers/user.controller.js';
+import { deleteMe, getMe, updateMe } from '../controllers/user.controller.js';
 import { verifyToken } from '../middlewares/auth.middleware.js';
 
 const router = express.Router();
@@ -115,5 +115,91 @@ router.delete('/me', verifyToken, deleteMe);
  *         description: Lỗi hệ thống server
  */
 router.put('/me', verifyToken, updateMe);
+
+/**
+ * @swagger
+ * /api/v1/users/me:
+ *   get:
+ *     summary: Lấy thông tin cá nhân của người dùng hiện tại
+ *     description: Lấy thông tin chi tiết (profile) của người dùng đang đăng nhập. Yêu cầu phải có token hợp lệ (thông qua Header Authorization hoặc Cookie tùy cấu hình hệ thống).
+ *     tags: 
+ *       - Users
+ *     security:
+ *       - bearerAuth: [] 
+ *       # Lưu ý: Nếu hệ thống của bạn dùng Cookie thay vì Bearer Token, bạn có thể thiết lập lại scheme security (ví dụ: cookieAuth: [])
+ *     responses:
+ *       200:
+ *         description: Lấy thông tin người dùng thành công.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Lấy thông tin người dùng thành công
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                       example: "64a2b9..."
+ *                     email:
+ *                       type: string
+ *                       example: "user@example.com"
+ *                     role:
+ *                       type: string
+ *                       example: "USER"
+ *                     name:
+ *                       type: string
+ *                       example: "Nguyễn Văn A"
+ *                     # Bạn có thể bổ sung thêm các field khác mà hàm getMe trả về (avatar, sdt,...)
+ *       401:
+ *         description: Lỗi xác thực (Chưa đăng nhập, thiếu token hoặc token đã hết hạn/không hợp lệ).
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 code:
+ *                   type: string
+ *                   example: UNAUTHORIZED
+ *                 message:
+ *                   type: string
+ *                   example: Token không hợp lệ hoặc đã hết hạn
+ *       404:
+ *         description: Không tìm thấy người dùng (Token hợp lệ nhưng user đã bị xóa khỏi database).
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: Người dùng không tồn tại
+ *       500:
+ *         description: Lỗi hệ thống từ phía server.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: Lỗi máy chủ cục bộ
+ */
+router.get('/me', verifyToken, getMe);
 
 export default router;

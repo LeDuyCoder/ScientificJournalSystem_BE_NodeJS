@@ -54,7 +54,7 @@ const router = express.Router();
  *       500:
  *         description: Lỗi hệ thống
  */
-router.get('/subject-areas', requireAuth, getSubjectAreas);
+router.get('/subject-areas', getSubjectAreas);
 
 /**
  * @swagger
@@ -109,7 +109,7 @@ router.get('/subject-areas', requireAuth, getSubjectAreas);
  *       500:
  *         description: Lỗi hệ thống
  */
-router.get('/subject-categories', requireAuth, getSubjectCategories);
+router.get('/subject-categories', getSubjectCategories);
 
 /**
  * @swagger
@@ -210,7 +210,7 @@ router.get('/subject-categories', requireAuth, getSubjectCategories);
  *       500:
  *         description: Lỗi hệ thống
  */
-router.get('/journals/:id/rankings', requireAuth, getJournalRankings);
+router.get('/journals/:id/rankings', getJournalRankings);
 
 /**
  * @swagger

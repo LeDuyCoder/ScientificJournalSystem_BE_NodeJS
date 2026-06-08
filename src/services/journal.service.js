@@ -13,57 +13,140 @@ import { zoneExist } from "./zone.service.js";
  * @param {number} [params.limit=10] - Số lượng bản ghi mỗi trang.
  * @returns {Promise<{ items: Array<Object>, total: number }>} Danh sách journal và tổng số lượng bản ghi phù hợp.
  */
-export const getJournals = async ({ search, page = 1, limit = 10 } = {}) => {
+export const getJournals = async ({
+  search,
+  page = 1,
+  limit = 10,
+  sort = 'relevance',
+  subjectAreaIds,
+  subjectCategoryIds,
+  isOpenAccess,
+  quartiles,
+  rankingYear,
+  isOaDiamond,
+} = {}) => {
   const pageNum = Math.max(1, parseInt(page, 10) || 1);
   const limitNum = Math.max(1, parseInt(limit, 10) || 10);
   const offset = (pageNum - 1) * limitNum;
 
-  let query = `
-    SELECT 
-      journal_id::text AS journal_id,
-      display_name,
-      issn,
-      type,
-      coverage,
-      is_open_access,
-      is_oa_diamond
-    FROM "Journal"
-  `;
-  
-  let countQuery = `SELECT COUNT(*)::integer AS total FROM "Journal"`;
-  
-  const whereClauses = ['is_deleted = false'];
-  const queryParams = [];
-  const countParams = [];
-  
-  // Nếu có từ khóa search, đẩy thêm điều kiện vào mảng
+  const values = [];
+  const whereClauses = ['j.is_deleted = false'];
+
+  const pushCsvFilter = (rawValue) => String(rawValue || '')
+    .split(',')
+    .map(value => value.trim())
+    .filter(Boolean);
+
   if (search && search.trim() !== '') {
-    const searchTerm = `%${search.trim()}%`;
-    
-    queryParams.push(searchTerm); 
-    countParams.push(searchTerm); 
-    
-    whereClauses.push(`display_name ILIKE $1`);
+    values.push(`%${search.trim()}%`);
+    whereClauses.push(`j.display_name ILIKE $${values.length}`);
   }
 
-  // Khâu nối mảng whereClauses lại bằng chữ "AND"
-  // Kết quả dạng: "WHERE is_deleted = false" HOẶC "WHERE is_deleted = false AND display_name ILIKE $1"
-  const whereSql = ` WHERE ${whereClauses.join(' AND ')}`;
-  
-  query += whereSql;
-  countQuery += whereSql;
+  const areaIds = pushCsvFilter(subjectAreaIds);
+  if (areaIds.length > 0) {
+    values.push(areaIds);
+    whereClauses.push(`EXISTS (
+      SELECT 1
+      FROM "Journal_Subject_Category" jsc
+      INNER JOIN "Subject_Category" sc ON sc.subject_category_id = jsc.subject_category_id
+      WHERE jsc.journal_id = j.journal_id
+        AND sc.subject_area_id::text = ANY($${values.length}::text[])
+    )`);
+  }
 
-  // 3. Xử lý phần ORDER BY, LIMIT, OFFSET cho câu query chính
-  const limitPlaceholder = `$${queryParams.length + 1}`;
-  const offsetPlaceholder = `$${queryParams.length + 2}`;
+  const categoryIds = pushCsvFilter(subjectCategoryIds);
+  if (categoryIds.length > 0) {
+    values.push(categoryIds);
+    whereClauses.push(`EXISTS (
+      SELECT 1
+      FROM "Journal_Subject_Category" jsc
+      WHERE jsc.journal_id = j.journal_id
+        AND jsc.subject_category_id::text = ANY($${values.length}::text[])
+    )`);
+  }
 
-  queryParams.push(limitNum, offset);
-  query += ` ORDER BY display_name ASC LIMIT ${limitPlaceholder} OFFSET ${offsetPlaceholder}`;
+  if (String(isOpenAccess) === 'true' || String(isOpenAccess) === 'false') {
+    values.push(String(isOpenAccess) === 'true');
+    whereClauses.push(`j.is_open_access = $${values.length}`);
+  }
 
-  // 4. Thực thi song song
+  // Filter by OA Diamond when requested
+  if (isOaDiamond === true || String(isOaDiamond) === 'true') {
+    whereClauses.push(`j.is_oa_diamond = true`);
+  }
+
+  const quartileValues = pushCsvFilter(quartiles).map(q => q.toUpperCase());
+  if (quartileValues.length > 0) {
+    values.push(quartileValues);
+    whereClauses.push(`EXISTS (
+      SELECT 1
+      FROM "Journal_Ranking" jr
+      INNER JOIN "Ranking_Metric" rm ON rm.metric_id = jr.metric_id
+      WHERE jr.journal_id = j.journal_id
+        AND rm.metric_type = 'QUARTILE'
+        AND UPPER(jr.value_txt) = ANY($${values.length}::text[])
+    )`);
+  }
+
+  const yearNum = rankingYear ? parseInt(rankingYear, 10) : null;
+
+  const fromSql = `
+    FROM "Journal" j
+    LEFT JOIN "Publisher" p ON p.publisher_id = j.publisher_id
+    LEFT JOIN "Zone" country_zone ON country_zone.zone_id = j.country
+    LEFT JOIN LATERAL (
+      SELECT jr.value_float AS metric_value, jr.year AS metric_year
+      FROM "Journal_Ranking" jr
+      INNER JOIN "Ranking_Metric" rm ON rm.metric_id = jr.metric_id
+      WHERE jr.journal_id = j.journal_id
+        AND UPPER(rm.code) = 'SJR'
+        ${yearNum ? `AND jr.year = ${yearNum}` : ''}
+      ORDER BY jr.year DESC NULLS LAST
+      LIMIT 1
+    ) latest_sjr ON true
+  `;
+
+  // Filter by rankingYear: only journals that have an SJR entry for that year
+  if (yearNum) {
+    whereClauses.push(`latest_sjr.metric_year = ${yearNum}`);
+  }
+
+  const whereSql = `WHERE ${whereClauses.join(' AND ')}`;
+
+  const orderBySql = sort === 'name'
+    ? 'ORDER BY j.display_name ASC'
+    : sort === 'metric'
+      ? 'ORDER BY latest_sjr.metric_value DESC NULLS LAST, j.display_name ASC'
+      : 'ORDER BY j.display_name ASC';
+
+  const query = `
+    SELECT
+      j.journal_id::text AS journal_id,
+      j.display_name,
+      j.issn,
+      j.type,
+      j.coverage,
+      j.is_open_access,
+      j.is_oa_diamond,
+      p.display_name AS publisher_name,
+      country_zone.name AS country_name,
+      latest_sjr.metric_value,
+      latest_sjr.metric_year
+    ${fromSql}
+    ${whereSql}
+    ${orderBySql}
+    LIMIT $${values.length + 1} OFFSET $${values.length + 2}
+  `;
+
+  const countQuery = `
+    SELECT COUNT(DISTINCT j.journal_id)::integer AS total
+    ${fromSql}
+    ${whereSql}
+  `;
+
   const [itemsRes, countRes] = await Promise.all([
-    pool.query(query, queryParams),
-    pool.query(countQuery, countParams)
+    pool.query(query, [...values, limitNum, offset]),
+    pool.query(countQuery, values)
   ]);
 
   return {
@@ -80,32 +163,107 @@ export const getJournals = async ({ search, page = 1, limit = 10 } = {}) => {
  * @throws {Error} Ném lỗi nếu có lỗi hệ thống trong quá trình truy vấn database.
  */
 export const getJournalsById = async (id) => {
-  try{
+  try {
     const query = `
-      SELECT 
-        journal_id::text AS journal_id,
-        display_name,
-        issn,
-        type,
-        coverage,
-        is_open_access,
-        is_oa_diamond
-      FROM "Journal"
-      WHERE journal_id = $1
+      SELECT
+        j.journal_id::text AS journal_id,
+        j.source_id,
+        j.display_name,
+        j.issn,
+        j.type,
+        j.coverage,
+        j.scope_detail,
+        j.is_open_access,
+        j.is_oa_diamond,
+        p.publisher_id::text AS publisher_id,
+        p.display_name AS publisher_name,
+        p.image_url AS publisher_image_url,
+        country_zone.zone_id::text AS country_id,
+        country_zone.name AS country_name,
+        country_zone.code AS country_code,
+        country_zone.iso_code AS country_iso_code,
+        region_zone.zone_id::text AS region_id,
+        region_zone.name AS region_name,
+        region_zone.code AS region_code,
+        NULLIF(substring(j.coverage from '([0-9]{4})'), '')::int AS established_year
+      FROM "Journal" j
+      LEFT JOIN "Publisher" p ON p.publisher_id = j.publisher_id
+      LEFT JOIN "Zone" country_zone ON country_zone.zone_id = j.country
+      LEFT JOIN "Zone" region_zone ON region_zone.zone_id = j.region
+      WHERE j.journal_id = $1 AND j.is_deleted = false
     `;
 
-    const result = await pool.query(query, [id]);
+    const [journalRes, metricsRes, categoriesRes] = await Promise.all([
+      pool.query(query, [id]),
+      pool.query(`
+        SELECT DISTINCT ON (UPPER(rm.code))
+          UPPER(rm.code) AS metric_code,
+          rm.display_name AS metric_name,
+          rm.metric_type,
+          jr.year,
+          jr.value_txt,
+          jr.value_int,
+          jr.value_float
+        FROM "Journal_Ranking" jr
+        INNER JOIN "Ranking_Metric" rm ON rm.metric_id = jr.metric_id
+        WHERE jr.journal_id = $1
+        ORDER BY UPPER(rm.code), jr.year DESC NULLS LAST
+      `, [id]),
+      pool.query(`
+        SELECT
+          sc.subject_category_id::text AS id,
+          sc.display_name,
+          sc.subject_area_id::text AS subject_area_id
+        FROM "Journal_Subject_Category" jsc
+        INNER JOIN "Subject_Category" sc ON sc.subject_category_id = jsc.subject_category_id
+        WHERE jsc.journal_id = $1 AND COALESCE(sc.is_deleted, false) = false
+        ORDER BY sc.display_name ASC
+        LIMIT 12
+      `, [id])
+    ]);
 
-    if (result.rows.length === 0) {
+    if (journalRes.rows.length === 0) {
       return null;
     }
 
-    return result.rows[0];
-  }catch(error){
-    logger.error('Lỗi khi lấy danh sách journal trong catalog:', error);
+    const journal = journalRes.rows[0];
+    const metrics = metricsRes.rows;
+    const findMetric = (...codes) => metrics.find(metric => codes.includes(metric.metric_code));
+    const metricValue = (metric) => {
+      if (!metric) return null;
+      if (metric.value_float !== null && metric.value_float !== undefined) return Number(metric.value_float);
+      if (metric.value_int !== null && metric.value_int !== undefined) return Number(metric.value_int);
+      return metric.value_txt ?? null;
+    };
+
+    const sjrMetric = findMetric('SJR');
+    const hIndexMetric = findMetric('H_INDEX', 'H-INDEX', 'HINDEX');
+    const citeScoreMetric = findMetric('CITE_SCORE', 'CITESCORE', 'CITE SCORE');
+    const quartileMetric = metrics.find(metric => metric.metric_type === 'QUARTILE' && metric.value_txt);
+
+    return {
+      ...journal,
+      description: journal.scope_detail,
+      subject_categories: categoriesRes.rows,
+      quartile: quartileMetric?.value_txt || null,
+      metric_value: metricValue(sjrMetric),
+      metric_name: sjrMetric?.metric_name || 'SJR Score',
+      metric_year: sjrMetric?.year ? String(sjrMetric.year) : null,
+      h_index: metricValue(hIndexMetric),
+      cite_score: metricValue(citeScoreMetric),
+      latest_metrics: {
+        year: sjrMetric?.year || hIndexMetric?.year || citeScoreMetric?.year || quartileMetric?.year || null,
+        sjr: metricValue(sjrMetric),
+        h_index: metricValue(hIndexMetric),
+        cite_score: metricValue(citeScoreMetric),
+        quartile: quartileMetric?.value_txt || null,
+      }
+    };
+  } catch (error) {
+    logger.error('Lỗi khi lấy chi tiết journal:', error);
     throw error;
   }
-}
+};
 
 /**
  * Kiểm tra sự tồn tại của một journal trong database dựa trên ID.

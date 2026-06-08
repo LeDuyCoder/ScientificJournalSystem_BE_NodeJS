@@ -73,7 +73,7 @@ export const getArticlesByKeywords = async (req, res) => {
 };
 
 /**
- * Lấy danh sách bài báo (public) hoặc tìm kiếm theo `search`.
+ * Lấy danh sách bài báo public, hỗ trợ search/filter/sort/pagination.
  */
 export const getArticles = async (req, res) => {
   try {
@@ -81,80 +81,67 @@ export const getArticles = async (req, res) => {
     let limit = parseInt(req.query.limit, 10) || 10;
     if (page <= 0) page = 1;
     if (limit <= 0) limit = 10;
+    if (limit > 100) limit = 100;
+
     const offset = (page - 1) * limit;
+    const sortBy = req.query.sortBy || "created_at";
+    const sortOrder = (req.query.sortOrder || "DESC").toUpperCase();
 
-    const search = (req.query.search || "").trim();
-    let articles = [];
-    let total = 0;
-
-    if (search) {
-      [articles, total] = await Promise.all([
-        articleService.getAllArticles({ limit, offset, search }),
-        articleService.countAllArticles({ search }),
-      ]);
-
-      return res.status(200).json({
-        success: true,
-        code: "ARTICLES_GET_SUCCESS",
-        message: "Lấy danh sách bài báo thành công",
-        data: {
-          items: articles.map((a) => ({
-            article_id: a.article_id,
-            title: a.title,
-            abstract: a.abstract,
-            publication_year: a.publication_year,
-            doi: a.doi,
-            journal: a.journal_id
-              ? { journal_id: a.journal_id, display_name: a.journal_name }
-              : null,
-          })),
-          pagination: { page, limit, total },
-        },
-      });
-    } else {
-      const sortBy = req.query.sortBy || "created_at";
-      const sortOrder = (req.query.sortOrder || "DESC").toUpperCase();
-
-      if (!["ASC", "DESC"].includes(sortOrder)) {
-        return res.status(400).json({
-          success: false,
-          code: "INVALID_SORT_ORDER",
-          message: "Tham số 'sortOrder' phải là 'asc' hoặc 'desc'!",
-        });
-      }
-
-      articles = await articleService.getAllArticles(
-        limit,
-        offset,
-        sortBy,
-        sortOrder,
-      );
-      total = await articleService.getTotalArticles();
-
-      return res.status(200).json({
-        success: true,
-        code: "ARTICLES_GET_SUCCESS",
-        message: "Lấy danh sách bài báo thành công!",
-        data: {
-          articles: articles,
-          pagination: {
-            page,
-            limit,
-            total,
-            total_pages: Math.ceil(total / limit),
-          },
-        },
+    if (!["ASC", "DESC"].includes(sortOrder)) {
+      return res.status(400).json({
+        success: false,
+        code: "INVALID_SORT_ORDER",
+        message: "Tham số 'sortOrder' phải là 'asc' hoặc 'desc'!",
       });
     }
+
+    const serviceParams = {
+      limit,
+      offset,
+      search: (req.query.search || "").trim(),
+      sortBy,
+      sortOrder,
+      publicationYear: req.query.publication_year || req.query.year,
+      journalId: req.query.journal_id || req.query.journal,
+      topicId: req.query.topic_id || req.query.topic,
+      issueId: req.query.issue_id,
+      isOpenAccess: req.query.is_open_access || req.query.access,
+    };
+
+    if (serviceParams.isOpenAccess === "all" || serviceParams.isOpenAccess === "") {
+      serviceParams.isOpenAccess = undefined;
+    }
+    if (serviceParams.isOpenAccess === "oa") {
+      serviceParams.isOpenAccess = true;
+    }
+
+    const [articles, total] = await Promise.all([
+      articleService.getAllArticles(serviceParams),
+      articleService.countAllArticles(serviceParams),
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      code: "ARTICLES_GET_SUCCESS",
+      message: "Lấy danh sách bài báo thành công!",
+      data: {
+        articles,
+        items: articles,
+        pagination: {
+          page,
+          limit,
+          total,
+          total_pages: Math.ceil(total / limit),
+        },
+      },
+    });
   } catch (error) {
     logger.error("Lỗi khi lấy danh sách bài báo:", error);
-    return res
-      .status(500)
-      .json({
-        success: false,
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Có lỗi xảy ra ở Server!",
-      });
+    return res.status(500).json({
+      success: false,
+      code: "INTERNAL_SERVER_ERROR",
+      message: "Có lỗi xảy ra ở Server!",
+    });
   }
 };
 

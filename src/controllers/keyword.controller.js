@@ -13,6 +13,7 @@ import {
   removeWatchedKeyword,
   replaceWatchedKeywords,
   addWatchedKeywords,
+  getArticlesByKeyword,
 } from "../services/keyword.service.js";
 import logger from "../utils/logger.js";
 
@@ -245,7 +246,7 @@ export const getAllKeywordsController = async (req, res) => {
   try {
     const page = Math.max(parseInt(req.query.page) || 1, 1);
     const limit = Math.min(parseInt(req.query.limit) || 10, 100);
-    const search = req.query.search || "";
+    const search = req.query.search || req.query.keyword || "";
     const result = await getAllKeywords({ page, limit, search });
     return res.status(200).json({
       success: true,
@@ -316,6 +317,38 @@ export const getKeywordByIdController = async (req, res) => {
     return res.status(500).json({
       success: false,
       code: "KEYWORD_SERVER_ERROR",
+      message: "Có lỗi xảy ra ở Server!",
+    });
+  }
+};
+
+export const getArticlesByKeywordController = async (req, res) => {
+  try {
+    const page = Math.max(parseInt(req.query.page) || 1, 1);
+    const limit = Math.min(parseInt(req.query.limit) || 10, 50);
+    const sortBy = req.query.sortBy || req.query.sort_by || "publication_year";
+    const sortOrder = req.query.sortOrder || req.query.sort_order || "desc";
+
+    const result = await getArticlesByKeyword(req.keywordId, { page, limit, sortBy, sortOrder });
+    return res.status(200).json({
+      success: true,
+      code: "KEYWORD_ARTICLES_FETCHED",
+      message: "Lấy danh sách bài báo theo keyword thành công",
+      data: result.data,
+      pagination: result.pagination,
+    });
+  } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({
+        success: false,
+        code: error.code,
+        message: error.message,
+      });
+    }
+    logger.error("[Keyword Controller] Lỗi khi lấy bài báo theo keyword:", error);
+    return res.status(500).json({
+      success: false,
+      code: "KEYWORD_ARTICLE_SERVER_ERROR",
       message: "Có lỗi xảy ra ở Server!",
     });
   }

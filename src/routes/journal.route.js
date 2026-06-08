@@ -97,7 +97,7 @@ const router = express.Router();
  *       500:
  *         description: Lỗi hệ thống
  */
-router.get('/', requireAuth, getJournals);
+router.get('/', getJournals);
 
 /**
  * @swagger
@@ -162,7 +162,7 @@ router.get('/', requireAuth, getJournals);
  *       500:
  *         description: Lỗi hệ thống khi lấy journal
  */
-router.get('/:id', requireAuth, getJournalsById);
+router.get('/:id', getJournalsById);
 
 
 //viết tài liệu swagger cho endpoint tạo mới journal

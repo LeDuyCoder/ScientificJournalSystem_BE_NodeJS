@@ -176,16 +176,25 @@ export const getJournalRankings = async (journalId, filters = {}) => {
  * @param {string|number} [params.journalId] - ID của journal cần lọc.
  * @returns {Promise<Array<Object>>} Danh sách Volume.
  */
-export const getVolumes = async ({ journalId } = {}) => {
+export const getVolumes = async ({ journalId, page = 1, limit = 10 } = {}) => {
+  const pageNum = Math.max(1, parseInt(page, 10) || 1);
+  const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 10));
+  const offset = (pageNum - 1) * limitNum;
   let query = `
     SELECT 
       v.volume_id::text AS volume_id,
+      v.volume_id::text AS id,
       v.journal_id::text AS journal_id,
       j.display_name AS journal_name,
       v.volume_number,
-      v.publication_year
+      v.publication_year,
+      v.publication_year AS year,
+      COUNT(DISTINCT i.issue_id)::integer AS issue_count,
+      COUNT(DISTINCT a.article_id)::integer AS article_count
     FROM "Volume" v
     LEFT JOIN "Journal" j ON j.journal_id = v.journal_id
+    LEFT JOIN "Issue" i ON i.volume_id = v.volume_id
+    LEFT JOIN "Article" a ON a.issue_id = i.issue_id
   `;
   const params = [];
 
@@ -194,9 +203,33 @@ export const getVolumes = async ({ journalId } = {}) => {
     params.push(journalId);
   }
 
-  query += ` ORDER BY v.publication_year DESC, v.volume_number DESC`;
-  const res = await pool.query(query, params);
-  return res.rows;
+  query += `
+    GROUP BY v.volume_id, v.journal_id, j.display_name, v.volume_number, v.publication_year
+    ORDER BY v.publication_year DESC NULLS LAST, v.volume_number DESC NULLS LAST
+    LIMIT $${params.length + 1} OFFSET $${params.length + 2}
+  `;
+
+  const countQuery = `
+    SELECT COUNT(*)::integer AS total
+    FROM "Volume" v
+    ${journalId ? 'WHERE v.journal_id = $1' : ''}
+  `;
+
+  const [listRes, countRes] = await Promise.all([
+    pool.query(query, [...params, limitNum, offset]),
+    pool.query(countQuery, params),
+  ]);
+
+  const total = Number(countRes.rows[0]?.total || 0);
+  return {
+    items: listRes.rows,
+    pagination: {
+      page: pageNum,
+      limit: limitNum,
+      total,
+      total_pages: Math.max(1, Math.ceil(total / limitNum)),
+    },
+  };
 };
 
 /**
@@ -207,23 +240,54 @@ export const getVolumes = async ({ journalId } = {}) => {
  * @param {string|number} [params.volumeId] - ID của volume cần lọc.
  * @returns {Promise<Array<Object>>} Danh sách Issue.
  */
-export const getIssues = async ({ volumeId } = {}) => {
+export const getIssues = async ({ volumeId, page = 1, limit = 10 } = {}) => {
+  const pageNum = Math.max(1, parseInt(page, 10) || 1);
+  const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 10));
+  const offset = (pageNum - 1) * limitNum;
   let query = `
     SELECT 
-      issue_id::text AS issue_id,
-      volume_id::text AS volume_id,
-      issue_number,
-      publication_year
-    FROM "Issue"
+      i.issue_id::text AS issue_id,
+      i.issue_id::text AS id,
+      i.volume_id::text AS volume_id,
+      i.issue_number,
+      i.publication_year,
+      i.publication_year AS year,
+      COUNT(DISTINCT a.article_id)::integer AS article_count
+    FROM "Issue" i
+    LEFT JOIN "Article" a ON a.issue_id = i.issue_id
   `;
   const params = [];
 
   if (volumeId) {
-    query += ` WHERE volume_id = $1`;
+    query += ` WHERE i.volume_id = $1`;
     params.push(volumeId);
   }
 
-  query += ` ORDER BY publication_year DESC, issue_number DESC`;
-  const res = await pool.query(query, params);
-  return res.rows;
+  query += `
+    GROUP BY i.issue_id, i.volume_id, i.issue_number, i.publication_year
+    ORDER BY i.publication_year DESC NULLS LAST, i.issue_number DESC NULLS LAST
+    LIMIT $${params.length + 1} OFFSET $${params.length + 2}
+  `;
+
+  const countQuery = `
+    SELECT COUNT(*)::integer AS total
+    FROM "Issue" i
+    ${volumeId ? 'WHERE i.volume_id = $1' : ''}
+  `;
+
+  const [listRes, countRes] = await Promise.all([
+    pool.query(query, [...params, limitNum, offset]),
+    pool.query(countQuery, params),
+  ]);
+
+  const total = Number(countRes.rows[0]?.total || 0);
+  return {
+    items: listRes.rows,
+    pagination: {
+      page: pageNum,
+      limit: limitNum,
+      total,
+      total_pages: Math.max(1, Math.ceil(total / limitNum)),
+    },
+  };
 };

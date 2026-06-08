@@ -61,3 +61,38 @@ export const updateUserProfile = async (userId, updateData) => {
 
   return result.rows[0];
 };
+
+export const getUserById = async (userId) => {
+  try {
+    const query = `
+      SELECT 
+        "user_id", 
+        "email", 
+        "first_name", 
+        "last_name", 
+        "date_of_birth", 
+        "gender", 
+        "url_image", 
+        "role", 
+        "status", 
+        "type" 
+      FROM "user" 
+      WHERE "user_id" = $1
+    `;
+    
+    const result = await pool.query(query, [userId]);
+
+    // Nếu không tìm thấy user nào khớp với ID, trả về null
+    if (result.rows.length === 0) {
+      return null; 
+    }
+
+    // Trả về object thông tin user đầu tiên tìm được
+    return result.rows[0];
+    
+  } catch (error) {
+    // Log lỗi ở tầng database để dễ debug nếu có vấn đề (ví dụ: sai tên cột)
+    logger.error(`Lỗi database trong hàm getUserById với id ${userId}:`, error);
+    throw error; // Ném lỗi lên để tầng controller hứng và trả về 500
+  }
+};

@@ -158,14 +158,6 @@ export const loginOrCreateWithGoogle = async (idToken) => {
     token,
     user: {
       user_id: user.user_id,
-      email: user.email,
-      role: user.role,
-      status: user.status,
-      last_name: user.last_name,
-      first_name: user.first_name,
-      url_image: user.url_image,
-      date_of_birth: user.date_of_birth,
-      gender: user.gender
     }
   };
 };
