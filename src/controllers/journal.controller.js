@@ -11,7 +11,18 @@ import * as journalService from "../services/journal.service.js";
  */
 export const getJournals = async (req, res) => {
   try {
-    const { search, page = 1, limit = 10 } = req.query;
+    const {
+      search,
+      page = 1,
+      limit = 10,
+      sort,
+      subject_area_ids,
+      subject_category_ids,
+      is_open_access,
+      quartiles,
+      ranking_year,
+      is_oa_diamond,
+    } = req.query;
 
     const pageNum = parseInt(page, 10);
     const limitNum = parseInt(limit, 10);
@@ -36,6 +47,13 @@ export const getJournals = async (req, res) => {
       search,
       page: pageNum,
       limit: limitNum,
+      sort,
+      subjectAreaIds: subject_area_ids,
+      subjectCategoryIds: subject_category_ids,
+      isOpenAccess: is_open_access,
+      quartiles,
+      rankingYear: ranking_year,
+      isOaDiamond: is_oa_diamond,
     });
 
     return res.status(200).json({
@@ -84,6 +102,14 @@ export const getJournalsById = async (req, res) => {
     }
 
     const journal = await journalService.getJournalsById(id);
+
+    if (!journal) {
+      return res.status(404).json({
+        success: false,
+        code: "CATALOG_JOURNAL_NOT_FOUND",
+        message: "Không tìm thấy journal",
+      });
+    }
 
     return res.status(200).json({
       success: true,

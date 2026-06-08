@@ -19,6 +19,7 @@ import {
   restoreKeywordController,
   deleteWatchedKeyword,
   updateWatchedKeywords,
+  getArticlesByKeywordController,
 } from "../controllers/keyword.controller.js";
 
 const router = express.Router();
@@ -75,7 +76,7 @@ const router = express.Router();
  *       500:
  *         description: Lỗi hệ thống server
  */
-router.get("/:id/keywords/trending", requireAuth, getTrendingKeywords);
+router.get("/:id/keywords/trending", getTrendingKeywords);
 
 /**
  * @swagger
@@ -115,7 +116,7 @@ router.get("/:id/keywords/trending", requireAuth, getTrendingKeywords);
  *       500:
  *         description: Lỗi hệ thống server
  */
-router.get("/:id/keywords/watch/articles", requireAuth, getWatchedKeywordArticles);
+router.get("/:id/keywords/watch/articles", getWatchedKeywordArticles);
 
 /**
  * @swagger
@@ -279,7 +280,7 @@ router.delete("/:id/keywords/:keywordId", requireAuth, validateDeleteWatchedKeyw
  *       500:
  *         description: Lỗi server
  */
-router.get("/", requireAuth, getAllKeywordsController);
+router.get("/", getAllKeywordsController);
 
 /**
  * @swagger
@@ -373,7 +374,9 @@ router.patch("/:id/restore", requireAuth, validateKeywordId, restoreKeywordContr
  *       500:
  *         description: Lỗi server
  */
-router.get("/:id", requireAuth, validateKeywordId, getKeywordByIdController);
+router.get("/:id/articles", validateKeywordId, getArticlesByKeywordController);
+
+router.get("/:id", validateKeywordId, getKeywordByIdController);
 
 /**
  * @swagger
