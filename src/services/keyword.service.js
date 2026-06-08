@@ -538,7 +538,7 @@ export const updateKeywordsToArticle = async (articleId, keywordsInput) => {
 export const getKeywordById = async (id) => {
   const { rows } = await pool.query(
     `SELECT keyword_id, display_name FROM "Keyword"
-     WHERE keyword_id = $1 AND is_deleted = false`,
+     WHERE keyword_id = $1`,
     [id],
   );
   if (!rows.length) {
@@ -552,24 +552,23 @@ export const getKeywordById = async (id) => {
 
 export const getAllKeywords = async ({ page = 1, limit = 10, search = "" }) => {
   const offset = (page - 1) * limit;
-  const searchPattern = `%${search.trim()}%`;
+  const normalizedSearch = search.trim();
+  const searchPattern = `%${normalizedSearch}%`;
 
   const countQuery = `
     SELECT COUNT(*) AS total FROM "Keyword"
-    WHERE is_deleted = false
-      AND ($1 = '' OR LOWER(display_name) LIKE LOWER($1))
+    WHERE ($1 = '' OR LOWER(display_name) LIKE LOWER($2))
   `;
   const dataQuery = `
     SELECT keyword_id, display_name FROM "Keyword"
-    WHERE is_deleted = false
-      AND ($1 = '' OR LOWER(display_name) LIKE LOWER($1))
+    WHERE ($1 = '' OR LOWER(display_name) LIKE LOWER($2))
     ORDER BY display_name ASC
-    LIMIT $2 OFFSET $3
+    LIMIT $3 OFFSET $4
   `;
 
   const [countResult, dataResult] = await Promise.all([
-    pool.query(countQuery, [searchPattern]),
-    pool.query(dataQuery, [searchPattern, limit, offset]),
+    pool.query(countQuery, [normalizedSearch, searchPattern]),
+    pool.query(dataQuery, [normalizedSearch, searchPattern, limit, offset]),
   ]);
 
   const total = parseInt(countResult.rows[0].total);
@@ -578,6 +577,61 @@ export const getAllKeywords = async ({ page = 1, limit = 10, search = "" }) => {
     pagination: { page, limit, total, total_pages: Math.ceil(total / limit) },
   };
 };
+
+/**
+ * Lấy danh sách bài báo liên quan đến một keyword theo ID.
+ * Public — không cần auth.
+ *
+ * @param {number} keywordId - ID của keyword
+ * @param {Object} params - { page, limit, sortBy, sortOrder }
+ * @returns {Promise<{data: Array, pagination: Object}>}
+ */
+export const getArticlesByKeyword = async (keywordId, { page = 1, limit = 10, sortBy = 'publication_year', sortOrder = 'desc' } = {}) => {
+  const offset = (page - 1) * limit;
+
+  // Chỉ cho phép sort hợp lệ để tránh SQL injection
+  const allowedSortFields = ['publication_year', 'title', 'created_at'];
+  const safeSort = allowedSortFields.includes(sortBy) ? sortBy : 'publication_year';
+  const safeOrder = sortOrder === 'asc' ? 'ASC' : 'DESC';
+
+  const countQuery = `
+    SELECT COUNT(DISTINCT a.article_id) AS total
+    FROM "Article" a
+    JOIN "Keyword_Article" ka ON ka.article_id = a.article_id
+    WHERE ka.keyword_id = $1
+  `;
+
+  const dataQuery = `
+    SELECT
+      a.article_id,
+      a.title,
+      a.abstract,
+      a.publication_year,
+      a.doi,
+      j.display_name AS journal_name,
+      0 AS citations_count
+    FROM "Article" a
+    JOIN "Keyword_Article" ka ON ka.article_id = a.article_id
+    LEFT JOIN "Issue" i   ON i.issue_id   = a.issue_id
+    LEFT JOIN "Volume" v  ON v.volume_id  = i.volume_id
+    LEFT JOIN "Journal" j ON j.journal_id = v.journal_id
+    WHERE ka.keyword_id = $1
+    ORDER BY a.${safeSort} ${safeOrder} NULLS LAST
+    LIMIT $2 OFFSET $3
+  `;
+
+  const [countResult, dataResult] = await Promise.all([
+    pool.query(countQuery, [keywordId]),
+    pool.query(dataQuery, [keywordId, limit, offset]),
+  ]);
+
+  const total = parseInt(countResult.rows[0].total);
+  return {
+    data: dataResult.rows,
+    pagination: { page, limit, total, total_pages: Math.max(1, Math.ceil(total / limit)) },
+  };
+};
+
 
 /**
  * Tạo mới một keyword

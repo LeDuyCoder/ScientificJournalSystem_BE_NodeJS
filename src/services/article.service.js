@@ -64,21 +64,63 @@ export const countArticlesByKeywords = async (keywords) => {
 };
 
 /**
- * Đếm tổng số bài báo công khai (hỗ trợ lọc theo title khi search)
+ * Đếm tổng số bài báo công khai theo cùng bộ lọc với trang Article List.
  * @param {Object} params
- * @param {string} [params.search] - Từ khóa tìm kiếm theo title
  */
-export const countAllArticles = async ({ search = '' }) => {
-    let query = `SELECT COUNT(*) AS "total" FROM "Article" a WHERE a."is_deleted" = false`;
+export const countAllArticles = async ({
+    search = '',
+    publicationYear,
+    journalId,
+    topicId,
+    issueId,
+    isOpenAccess,
+} = {}) => {
     const values = [];
+    const where = ['a."is_deleted" = false'];
+
+    let query = `
+        SELECT COUNT(*) AS "total"
+        FROM "Article" a
+        LEFT JOIN "Issue" i   ON i."issue_id"   = a."issue_id" AND COALESCE(i."is_deleted", false) = false
+        LEFT JOIN "Volume" v  ON v."volume_id"  = i."volume_id" AND COALESCE(v."is_deleted", false) = false
+        LEFT JOIN "Journal" j ON j."journal_id" = v."journal_id" AND COALESCE(j."is_deleted", false) = false
+        LEFT JOIN "Topic" t   ON t."topic_id"   = a."primary_topic"
+    `;
 
     if (search) {
-        query += ` AND a."title" ILIKE $1`;
         values.push(`%${search}%`);
+        where.push(`(a."title" ILIKE $${values.length} OR a."doi" ILIKE $${values.length} OR a."abstract" ILIKE $${values.length})`);
     }
 
+    if (publicationYear) {
+        values.push(Number(publicationYear));
+        where.push(`a."publication_year" = $${values.length}`);
+    }
+
+    if (journalId) {
+        values.push(Number(journalId));
+        where.push(`j."journal_id" = $${values.length}`);
+    }
+
+    if (topicId) {
+        values.push(Number(topicId));
+        where.push(`a."primary_topic" = $${values.length}`);
+    }
+
+    if (issueId) {
+        values.push(Number(issueId));
+        where.push(`a."issue_id" = $${values.length}`);
+    }
+
+    if (isOpenAccess !== undefined) {
+        values.push(isOpenAccess === true || isOpenAccess === 'true');
+        where.push(`COALESCE(j."is_open_access", false) = $${values.length}`);
+    }
+
+    query += ` WHERE ${where.join(' AND ')}`;
+
     const result = await pool.query(query, values);
-    return parseInt(result.rows[0].total);
+    return parseInt(result.rows[0].total, 10);
 };
 
 /**
@@ -98,86 +140,114 @@ export const getTotalArticles = async () => {
 };
 
 /**
- * Lấy danh sách bài báo hỗ trợ hai kiểu gọi:
- * 1) `getAllArticles({ limit, offset, search })` — dùng cho public search
- * 2) `getAllArticles(limit, offset, sortBy, sortOrder)` — dùng cho admin/sort
+ * Lấy danh sách bài báo công khai cho Article List Page.
+ * Hỗ trợ search, filter, sort và JOIN metadata từ Issue → Volume → Journal → Topic.
  *
- * @param {Object|number} [firstParam={}] - Object chứa {limit, offset, search} hoặc numeric limit
- * @param {number} [offsetParam=0] - Offset khi gọi theo tham số rời
- * @param {string} [sortByParam='created_at'] - Trường sắp xếp khi gọi theo tham số rời
- * @param {string} [sortOrderParam='DESC'] - Thứ tự sắp xếp (ASC|DESC)
- * @returns {Promise<Array>} Mảng các bản ghi bài báo
+ * @param {Object|number} [firstParam={}] - Object params hoặc legacy numeric limit
+ * @param {number} [offsetParam=0]
+ * @param {string} [sortByParam='created_at']
+ * @param {string} [sortOrderParam='DESC']
+ * @returns {Promise<Array>} Mảng bài báo đã enrich metadata
  */
 export const getAllArticles = async (firstParam = {}, offsetParam = 0, sortByParam = 'created_at', sortOrderParam = 'DESC') => {
     try {
-        let limit, offset, search, sortBy, sortOrder;
+        const params = typeof firstParam === 'object' && firstParam !== null
+            ? firstParam
+            : {
+                limit: firstParam !== undefined ? firstParam : 20,
+                offset: offsetParam,
+                sortBy: sortByParam,
+                sortOrder: sortOrderParam,
+            };
 
-        // BƯỚC THẨM ĐỊNH: Kiểm tra xem controller đang gọi theo kiểu Bên 1 (Object) hay Bên 2 (Tham số rời)
-        if (typeof firstParam === 'object' && firstParam !== null) {
-            // Bên 1: Gọi dạng Object để search thông tin công khai kèm Journal thông qua LEFT JOIN
-            limit = firstParam.limit !== undefined ? firstParam.limit : 10;
-            offset = firstParam.offset !== undefined ? firstParam.offset : 0;
-            search = (firstParam.search || '').trim();
-            sortBy = 'publication_year'; // Fallback mặc định của bên 1
-            sortOrder = 'DESC';
-        } else {
-            // Bên 2: Gọi dạng tham số rời để lấy danh sách quản lý sắp xếp động nâng cao
-            limit = firstParam !== undefined ? firstParam : 20;
-            offset = offsetParam;
-            search = '';
-            sortBy = sortByParam;
-            sortOrder = sortOrderParam;
-        }
+        const {
+            limit = 10,
+            offset = 0,
+            search = '',
+            sortBy = 'created_at',
+            sortOrder = 'DESC',
+            publicationYear,
+            journalId,
+            topicId,
+            issueId,
+            isOpenAccess,
+        } = params;
 
-        // Kiểm tra an toàn bảo mật cho các cột truyền vào sắp xếp (Chống SQL Injection độc hại)
-        const allowedColumns = ['article_id', 'title', 'publication_year', 'created_at', 'doi'];
-        const column = allowedColumns.includes(sortBy) ? sortBy : 'created_at';
-        const order = ['ASC', 'DESC'].includes(sortOrder.toUpperCase()) ? sortOrder.toUpperCase() : 'DESC';
+        const allowedColumns = {
+            article_id: 'a."article_id"',
+            title: 'a."title"',
+            publication_year: 'a."publication_year"',
+            created_at: 'a."created_at"',
+            doi: 'a."doi"',
+        };
+        const column = allowedColumns[sortBy] || allowedColumns.created_at;
+        const order = ['ASC', 'DESC'].includes(String(sortOrder).toUpperCase())
+            ? String(sortOrder).toUpperCase()
+            : 'DESC';
 
-        let query = '';
         const values = [];
+        const where = ['a."is_deleted" = false'];
 
-        if (search) {
-            // Thực thi SQL dạng 1: Có chứa tính năng tìm kiếm văn bản và JOIN hệ thống tạp chí (Journal)
-            query = `
-                SELECT
-                    a."article_id",
-                    a."title",
-                    a."abstract",
-                    a."publication_year",
-                    a."doi",
-                    j."journal_id",
-                    j."display_name" AS "journal_name"
-                FROM "Article" a
-                LEFT JOIN "Issue" i   ON i."issue_id"   = a."issue_id"
-                LEFT JOIN "Volume" v  ON v."volume_id"  = i."volume_id"
-                LEFT JOIN "Journal" j ON j."journal_id" = v."journal_id"
-                WHERE a."title" ILIKE $1
-                  AND a."is_deleted" = false
-                ORDER BY a."publication_year" DESC NULLS LAST, a."article_id" DESC
-                LIMIT $2 OFFSET $3;
-            `;
-            values.push(`%${search}%`, limit, offset);
-        } else {
-            // Thực thi SQL dạng 2: Đọc danh sách cơ bản có khả năng đảo chiều Sort động (ASC / DESC)
-            query = `
-                SELECT 
-                    article_id,
-                    version,
-                    issue_id,
-                    title,
-                    abstract,
-                    publication_year,
-                    doi,
-                    primary_topic,
-                    created_at
-                FROM "Article"
-                WHERE "is_deleted" = false
-                ORDER BY "${column}" ${order}
-                LIMIT $1 OFFSET $2;
-            `;
-            values.push(limit, offset);
+        if (search && search.trim()) {
+            values.push(`%${search.trim()}%`);
+            where.push(`(a."title" ILIKE $${values.length} OR a."doi" ILIKE $${values.length} OR a."abstract" ILIKE $${values.length})`);
         }
+
+        if (publicationYear) {
+            values.push(Number(publicationYear));
+            where.push(`a."publication_year" = $${values.length}`);
+        }
+
+        if (journalId) {
+            values.push(Number(journalId));
+            where.push(`j."journal_id" = $${values.length}`);
+        }
+
+        if (topicId) {
+            values.push(Number(topicId));
+            where.push(`a."primary_topic" = $${values.length}`);
+        }
+
+        if (issueId) {
+            values.push(Number(issueId));
+            where.push(`a."issue_id" = $${values.length}`);
+        }
+
+        if (isOpenAccess !== undefined) {
+            values.push(isOpenAccess === true || isOpenAccess === 'true');
+            where.push(`COALESCE(j."is_open_access", false) = $${values.length}`);
+        }
+
+        values.push(Number(limit));
+        const limitIndex = values.length;
+        values.push(Number(offset));
+        const offsetIndex = values.length;
+
+        const query = `
+            SELECT
+                a."article_id"::text,
+                a."version",
+                a."issue_id"::text,
+                a."title",
+                a."abstract",
+                a."publication_year",
+                a."doi",
+                a."primary_topic"::text,
+                t."display_name" AS "topic_name",
+                a."created_at",
+                j."journal_id"::text,
+                j."display_name" AS "journal_name",
+                j."issn" AS "journal_issn",
+                COALESCE(j."is_open_access", false) AS "is_open_access"
+            FROM "Article" a
+            LEFT JOIN "Issue" i   ON i."issue_id"   = a."issue_id" AND COALESCE(i."is_deleted", false) = false
+            LEFT JOIN "Volume" v  ON v."volume_id"  = i."volume_id" AND COALESCE(v."is_deleted", false) = false
+            LEFT JOIN "Journal" j ON j."journal_id" = v."journal_id" AND COALESCE(j."is_deleted", false) = false
+            LEFT JOIN "Topic" t   ON t."topic_id"   = a."primary_topic"
+            WHERE ${where.join(' AND ')}
+            ORDER BY ${column} ${order} NULLS LAST, a."article_id" DESC
+            LIMIT $${limitIndex} OFFSET $${offsetIndex};
+        `;
 
         const result = await pool.query(query, values);
         return result.rows;
@@ -197,24 +267,103 @@ export const getAllArticles = async (firstParam = {}, offsetParam = 0, sortByPar
  */
 export const getArticleById = async (articleId) => {
     try {
-        const query = `
+        const detailQuery = `
             SELECT 
-                article_id,
-                version,
-                issue_id,
-                title,
-                abstract,
-                publication_year,
-                doi,
-                primary_topic,
-                is_deleted,
-                created_at
-            FROM "Article"
-            WHERE "article_id" = $1;
+                a."article_id"::text AS "article_id",
+                a."version",
+                a."issue_id"::text AS "issue_id",
+                a."title",
+                a."abstract",
+                a."publication_year",
+                a."doi",
+                a."primary_topic"::text AS "primary_topic",
+                pt."display_name" AS "topic_name",
+                a."is_deleted",
+                a."created_at",
+                i."issue_number" AS "issue_number",
+                v."volume_id"::text AS "volume_id",
+                v."volume_number" AS "volume_number",
+                j."journal_id"::text AS "journal_id",
+                j."display_name" AS "journal_name",
+                j."issn" AS "journal_issn",
+                COALESCE(j."is_open_access", false) AS "is_open_access",
+                CASE
+                    WHEN a."doi" IS NULL OR TRIM(a."doi") = '' THEN NULL
+                    WHEN a."doi" ILIKE 'http%' THEN a."doi"
+                    ELSE CONCAT('https://doi.org/', a."doi")
+                END AS "source_url"
+            FROM "Article" a
+            LEFT JOIN "Issue" i   ON i."issue_id" = a."issue_id"
+            LEFT JOIN "Volume" v  ON v."volume_id" = i."volume_id"
+            LEFT JOIN "Journal" j ON j."journal_id" = v."journal_id"
+            LEFT JOIN "Topic" pt  ON pt."topic_id" = a."primary_topic"
+            WHERE a."article_id" = $1;
         `;
 
-        const result = await pool.query(query, [articleId]);
-        return result.rows[0];
+        const detailResult = await pool.query(detailQuery, [articleId]);
+        const article = detailResult.rows[0] || null;
+
+        if (!article) {
+            return null;
+        }
+
+        const authorsQuery = `
+            SELECT 
+                au."author_id"::text AS "author_id",
+                au."display_name",
+                au."orcid",
+                au."url_image",
+                au."last_known_institution",
+                au."works_count"
+            FROM "Author_Article" aa
+            JOIN "Author" au ON au."author_id" = aa."author_id"
+            WHERE aa."article_id" = $1
+              AND COALESCE(au."is_deleted", false) = false
+            ORDER BY au."display_name" ASC;
+        `;
+
+        const keywordsQuery = `
+            SELECT 
+                k."keyword_id"::text AS "keyword_id",
+                k."display_name",
+                ka."score"
+            FROM "Keyword_Article" ka
+            JOIN "Keyword" k ON k."keyword_id" = ka."keyword_id"
+            WHERE ka."article_id" = $1
+            ORDER BY COALESCE(ka."score", 0) DESC, k."display_name" ASC;
+        `;
+
+        const topicsQuery = `
+            SELECT 
+                t."topic_id"::text AS "topic_id",
+                t."display_name",
+                (t."topic_id" = a."primary_topic") AS "is_primary"
+            FROM "Article" a
+            JOIN (
+                SELECT "article_id", "topic_id" FROM "Sub_Topic"
+                UNION
+                SELECT "article_id", "primary_topic" AS "topic_id"
+                FROM "Article"
+                WHERE "primary_topic" IS NOT NULL
+            ) at ON at."article_id" = a."article_id"
+            JOIN "Topic" t ON t."topic_id" = at."topic_id"
+            WHERE a."article_id" = $1
+              AND COALESCE(t."is_deleted", false) = false
+            ORDER BY "is_primary" DESC, t."display_name" ASC;
+        `;
+
+        const [authorsResult, keywordsResult, topicsResult] = await Promise.all([
+            pool.query(authorsQuery, [articleId]),
+            pool.query(keywordsQuery, [articleId]),
+            pool.query(topicsQuery, [articleId])
+        ]);
+
+        return {
+            ...article,
+            authors: authorsResult.rows,
+            keywords: keywordsResult.rows,
+            topics: topicsResult.rows,
+        };
     } catch (error) {
         logger.error('Lỗi khi lấy thông tin bài báo theo ID:', error);
         throw error;

@@ -125,7 +125,7 @@ export const getJournalRankings = async (req, res) => {
  */
 export const getVolumes = async (req, res) => {
   try {
-    const { journal_id } = req.query;
+    const { journal_id, page, limit } = req.query;
 
     if (journal_id !== undefined) {
       const idNum = Number(journal_id);
@@ -142,7 +142,7 @@ export const getVolumes = async (req, res) => {
       }
     }
 
-    const result = await catalogService.getVolumes({ journalId: journal_id });
+    const result = await catalogService.getVolumes({ journalId: journal_id, page, limit });
 
     return res.status(200).json({
       success: true,
@@ -170,7 +170,7 @@ export const getVolumes = async (req, res) => {
  */
 export const getIssues = async (req, res) => {
   try {
-    const { volume_id } = req.query;
+    const { volume_id, page, limit } = req.query;
 
     if (volume_id !== undefined) {
       const idNum = Number(volume_id);
@@ -187,7 +187,7 @@ export const getIssues = async (req, res) => {
       }
     }
 
-    const result = await catalogService.getIssues({ volumeId: volume_id });
+    const result = await catalogService.getIssues({ volumeId: volume_id, page, limit });
 
     return res.status(200).json({
       success: true,

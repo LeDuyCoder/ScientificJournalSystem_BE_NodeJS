@@ -127,7 +127,7 @@ router.get('/', async (req, res, next) => {
  *       500:
  *         description: Lỗi server
  */
-router.get('/:id', requireAuth, validateId, getArticleById);
+router.get('/:id', validateId, getArticleById);
 
 /**
  * @swagger
