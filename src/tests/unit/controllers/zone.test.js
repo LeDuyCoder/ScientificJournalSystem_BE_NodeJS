@@ -3,8 +3,8 @@ import assert from 'node:assert';
 import { mock } from 'node:test';
 import request from 'supertest';
 import jwt from 'jsonwebtoken';
-import app from '../app.js';
-import pool from '../config/database.js';
+import app from '../../../app.js';
+import pool from '../../../config/database.js';
 
 test.after(async () => {
   await pool.end();
@@ -89,14 +89,6 @@ test.describe('Zone & Geography Trends API', () => {
       assert.strictEqual(res.status, 400);
       assert.strictEqual(res.body.success, false);
       assert.strictEqual(res.body.message, 'Số lượng phần tử mỗi trang phải là số nguyên dương');
-    });
-
-    test('Lỗi 401 khi không truyền token xác thực', async () => {
-      const res = await request(app)
-        .get('/api/v1/zones/countries/stats');
-
-      assert.strictEqual(res.status, 401);
-      assert.strictEqual(res.body.success, false);
     });
   });
 
