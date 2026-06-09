@@ -122,6 +122,8 @@ export const loginWithEmailPassword = async ({ email, password }) => {
     token: token,
     user: {
       user_id: user.user_id,
+      email: user.email,
+      role: user.role
     }
   };
 };

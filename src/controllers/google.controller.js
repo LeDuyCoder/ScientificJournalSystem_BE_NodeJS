@@ -27,7 +27,7 @@ export const googleLogin = async (req, res) => {
     const idToken = await getTokenId(code);
 
     const data = await loginOrCreateWithGoogle(idToken);
-    const refreshToken = signRefreshToken(data.user.user_id);
+    const refreshToken = signRefreshToken(data.user);
 
     logger.info(
       `[Google Auth]: Đăng nhập/Đăng ký Google thành công cho tài khoản: ${data.user.email}`,

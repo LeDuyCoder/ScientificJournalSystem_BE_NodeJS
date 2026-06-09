@@ -1,5 +1,5 @@
 import express from 'express';
-import { login, refreshToken } from '../controllers/login.controller.js';
+import { checkAuth, login, refreshToken } from '../controllers/login.controller.js';
 
 const router = express.Router();
 
@@ -218,5 +218,65 @@ router.post('/login', login);
  *                   example: REFRESH_TOKEN_FAILED
  */
 router.get('/refresh', refreshToken);
+ 
+/**
+ * @swagger
+ * /api/v1/auth/check-auth:
+ *   get:
+ *     summary: Kiểm tra trạng thái xác thực
+ *     description: API này dùng để kiểm tra xem Access Token trong cookie có tồn tại và hợp lệ hay không.
+ *     tags:
+ *       - Auth
+ *     parameters:
+ *       - in: cookie
+ *         name: access_token
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: Access token của người dùng
+ *     responses:
+ *       200:
+ *         description: Đã xác thực thành công.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 authenticated:
+ *                   type: boolean
+ *                   example: true
+ *                 user:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                     email:
+ *                       type: string
+ *                     role:
+ *                       type: string
+ *       401:
+ *         description: Access Token không tồn tại, không hợp lệ hoặc đã hết hạn.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 authenticated:
+ *                   type: boolean
+ *                   example: false
+ *                 code:
+ *                   type: string
+ *                   example: "ACCESS_TOKEN_MISSING"
+ *                 message:
+ *                   type: string
+ *                   example: "Access token không tồn tại"
+ */
+router.get('/check-auth', checkAuth);
 
 export default router;
