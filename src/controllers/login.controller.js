@@ -71,7 +71,9 @@ export const login = async (req, res) => {
       success: true,
       code: "LOGIN_SUCCESS",
       message: "Đăng nhập thành công",
-      data: data
+      data: {
+        token: data.token,
+      }
     });
 
   } catch (error) {
@@ -156,3 +158,43 @@ export const refreshToken = async (req, res) => {
     });
   }
 }
+
+/**
+ * Kiểm tra trạng thái xác thực của người dùng thông qua Access Token trong Cookie.
+ * Hàm này kiểm tra sự tồn tại của `access_token` trong cookie và trả về thông tin trạng thái xác thực.
+ *
+ * @param {import('express').Request} req - Đối tượng request của Express, chứa dữ liệu gửi lên bao gồm cookies.
+ * @param {import('express').Response} res - Đối tượng response của Express dùng để trả về dữ liệu.
+ * @returns {import('express').Response} Trả về response dạng JSON chứa trạng thái xác thực:
+ * - `200`: Nếu access token tồn tại (authenticated: true).
+ * - `401`: Nếu access token không tồn tại hoặc xảy ra lỗi (authenticated: false).
+ */
+export const checkAuth = (req, res) => {
+  try {
+    const accessToken = req.cookies?.access_token;
+
+
+    if (!accessToken) {
+      return res.status(401).json({
+        success: false,
+        authenticated: false,
+        code: "ACCESS_TOKEN_MISSING",
+        message: "Access token không tồn tại",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      authenticated: true,
+      access_token: accessToken,
+    });
+
+  } catch (error) {
+    return res.status(401).json({
+      success: false,
+      authenticated: false,
+      code: "ACCESS_TOKEN_INVALID",
+      message: "Access token không hợp lệ hoặc đã hết hạn",
+    });
+  }
+};
