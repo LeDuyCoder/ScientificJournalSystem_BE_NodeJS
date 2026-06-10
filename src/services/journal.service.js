@@ -24,6 +24,7 @@ export const getJournals = async ({
   quartiles,
   rankingYear,
   isOaDiamond,
+  countryIds,
 } = {}) => {
   const pageNum = Math.max(1, parseInt(page, 10) || 1);
   const limitNum = Math.max(1, parseInt(limit, 10) || 10);
@@ -75,6 +76,14 @@ export const getJournals = async ({
     whereClauses.push(`j.is_oa_diamond = true`);
   }
 
+  const countryIdValues = pushCsvFilter(countryIds);
+  if (countryIdValues.length > 0) {
+    values.push(countryIdValues);
+    whereClauses.push(`j.country::text = ANY($${values.length}::text[])`);
+  }
+
+  const yearNum = rankingYear ? parseInt(rankingYear, 10) : null;
+
   const quartileValues = pushCsvFilter(quartiles).map(q => q.toUpperCase());
   if (quartileValues.length > 0) {
     values.push(quartileValues);
@@ -85,10 +94,9 @@ export const getJournals = async ({
       WHERE jr.journal_id = j.journal_id
         AND rm.metric_type = 'QUARTILE'
         AND UPPER(jr.value_txt) = ANY($${values.length}::text[])
+        ${yearNum ? `AND jr.year = ${yearNum}` : ''}
     )`);
   }
-
-  const yearNum = rankingYear ? parseInt(rankingYear, 10) : null;
 
   const fromSql = `
     FROM "Journal" j
@@ -104,6 +112,17 @@ export const getJournals = async ({
       ORDER BY jr.year DESC NULLS LAST
       LIMIT 1
     ) latest_sjr ON true
+    LEFT JOIN LATERAL (
+      SELECT jr.value_txt AS quartile, jr.year AS quartile_year
+      FROM "Journal_Ranking" jr
+      INNER JOIN "Ranking_Metric" rm ON rm.metric_id = jr.metric_id
+      WHERE jr.journal_id = j.journal_id
+        AND rm.metric_type = 'QUARTILE'
+        AND jr.value_txt IS NOT NULL
+        ${yearNum ? `AND jr.year = ${yearNum}` : ''}
+      ORDER BY jr.year DESC NULLS LAST
+      LIMIT 1
+    ) latest_quartile ON true
   `;
 
   // Filter by rankingYear: only journals that have an SJR entry for that year
@@ -129,9 +148,13 @@ export const getJournals = async ({
       j.is_open_access,
       j.is_oa_diamond,
       p.display_name AS publisher_name,
+      j.country::text AS country_id,
       country_zone.name AS country_name,
       latest_sjr.metric_value,
-      latest_sjr.metric_year
+      latest_sjr.metric_year,
+      latest_quartile.quartile,
+      latest_quartile.quartile AS best_quartile,
+      latest_quartile.quartile_year
     ${fromSql}
     ${whereSql}
     ${orderBySql}
