@@ -1,9 +1,10 @@
-import express from 'express';
+import express from "express";
+import { requireAuth } from "../middlewares/auth.middleware.js";
 import {
   getCountryStats,
   getRegionStats,
-  getCountryRegionsStats
-} from '../controllers/zone.controller.js';
+  getCountryRegionsStats,
+} from "../controllers/zone.controller.js";
 
 const router = express.Router();
 
@@ -86,7 +87,7 @@ const router = express.Router();
  *       500:
  *         description: Lỗi hệ thống
  */
-router.get('/countries/stats', getCountryStats);
+router.get("/countries/stats", getCountryStats);
 
 /**
  * @swagger
@@ -143,7 +144,7 @@ router.get('/countries/stats', getCountryStats);
  *       500:
  *         description: Lỗi hệ thống
  */
-router.get('/regions/stats', getRegionStats);
+router.get("/regions/stats", getRegionStats);
 
 /**
  * @swagger
@@ -221,6 +222,6 @@ router.get('/regions/stats', getRegionStats);
  *       500:
  *         description: Lỗi hệ thống
  */
-router.get('/countries/:code/regions/stats', getCountryRegionsStats);
+router.get("/countries/:code/regions/stats", getCountryRegionsStats);
 
 export default router;
