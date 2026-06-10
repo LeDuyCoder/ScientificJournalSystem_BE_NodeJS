@@ -205,7 +205,8 @@ export const getAllAuthorsController = async (req, res) => {
 
 export const getAuthorByIdController = async (req, res) => {
   try {
-    const author = await authorServiceRef.getAuthorById(req.authorId);
+    const idParam = req.params.id;
+    const author = await authorServiceRef.getAuthorById(idParam);
     if (!author) {
       return res.status(404).json({
         success: false,

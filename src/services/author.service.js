@@ -309,7 +309,6 @@ export const getAllAuthors = async ({ page = 1, limit = 10, search = "" }) => {
         LOWER(display_name) LIKE LOWER($1) OR
         LOWER(COALESCE(last_known_institution, '')) LIKE LOWER($1)
       ))
-    ORDER BY display_name ASC
     LIMIT $2 OFFSET $3
   `;
 

@@ -10,7 +10,7 @@ import {
   restoreAuthorController,
   updateAuthorController,
 } from "../controllers/author.controller.js";
-import { requireAuth } from "../middlewares/auth.middleware.js";
+import { requireAuth, verifyToken } from "../middlewares/auth.middleware.js";
 import {
   validateAuthorId,
   validateCreateAuthor,
@@ -143,7 +143,7 @@ const router = express.Router();
  *       500:
  *         description: Lỗi hệ thống server
  */
-router.get("/:id/areas-breakdown", requireAuth, getAuthorAreasBreakdown);
+router.get("/:id/areas-breakdown", getAuthorAreasBreakdown);
 
 /**
  * @swagger
@@ -256,7 +256,7 @@ router.get("/:id/areas-breakdown", requireAuth, getAuthorAreasBreakdown);
  *       500:
  *         description: Lỗi hệ thống server
  */
-router.get("/:id/articles", requireAuth, getAuthorArticles);
+router.get("/:id/articles", getAuthorArticles);
 
 /**
  * @swagger
@@ -342,7 +342,7 @@ router.get("/:id/articles", requireAuth, getAuthorArticles);
  *       500:
  *         description: Lỗi hệ thống server
  */
-router.get("/leaderboard", requireAuth, getAuthorLeaderboard);
+router.get("/leaderboard", getAuthorLeaderboard);
 
 
 
@@ -353,8 +353,6 @@ router.get("/leaderboard", requireAuth, getAuthorLeaderboard);
  *     summary: Lấy danh sách tác giả
  *     tags:
  *       - Author
- *     security:
- *       - bearerAuth: []
  *     parameters:
  *       - in: query
  *         name: page
@@ -414,7 +412,7 @@ router.get("/leaderboard", requireAuth, getAuthorLeaderboard);
  *       500:
  *         description: Lỗi server
  */
-router.get("/", requireAuth, validatePagination, getAllAuthorsController);
+router.get("/", validatePagination, getAllAuthorsController);
 
 /**
  * @swagger
@@ -541,7 +539,7 @@ router.patch(
  *       500:
  *         description: Lỗi server
  */
-router.get("/:id", requireAuth, validateAuthorId, getAuthorByIdController);
+router.get("/:id", validateAuthorId, getAuthorByIdController);
 
 /**
  * @swagger
