@@ -143,7 +143,7 @@ const router = express.Router();
  *       500:
  *         description: Lỗi hệ thống server
  */
-router.get("/:id/areas-breakdown", requireAuth, getAuthorAreasBreakdown);
+router.get("/:id/areas-breakdown", validateAuthorId, getAuthorAreasBreakdown);
 
 /**
  * @swagger
@@ -256,7 +256,7 @@ router.get("/:id/areas-breakdown", requireAuth, getAuthorAreasBreakdown);
  *       500:
  *         description: Lỗi hệ thống server
  */
-router.get("/:id/articles", requireAuth, getAuthorArticles);
+router.get("/:id/articles", validateAuthorId, getAuthorArticles);
 
 /**
  * @swagger
@@ -342,7 +342,7 @@ router.get("/:id/articles", requireAuth, getAuthorArticles);
  *       500:
  *         description: Lỗi hệ thống server
  */
-router.get("/leaderboard", requireAuth, getAuthorLeaderboard);
+router.get("/leaderboard", getAuthorLeaderboard);
 
 
 
@@ -541,7 +541,7 @@ router.patch(
  *       500:
  *         description: Lỗi server
  */
-router.get("/:id", requireAuth, validateAuthorId, getAuthorByIdController);
+router.get("/:id", validateAuthorId, getAuthorByIdController);
 
 /**
  * @swagger

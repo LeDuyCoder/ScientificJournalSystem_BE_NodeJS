@@ -77,6 +77,7 @@ out/
 .nuxt/
 .cache/
 stress-test.js
+load-test.js
 # ==========================================
 # 6. File cấu hình của các IDE / Code Editor
 # ==========================================

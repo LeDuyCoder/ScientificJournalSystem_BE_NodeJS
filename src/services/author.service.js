@@ -88,6 +88,8 @@ export const getAuthorArticlesService = async (authorId, limit, page) => {
                 a.abstract,
                 a.publication_year,
                 a.doi,
+                COALESCE(a.cited_by_count, 0) AS cited_by_count,
+                COALESCE(a.cited_by_count, 0) AS citation_count,
                 a.primary_topic,
                 a.created_at
             FROM "Article" a
