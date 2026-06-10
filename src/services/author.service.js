@@ -284,9 +284,19 @@ export const updateAuthorArticleRelationships = async (
 /**
  * Lấy danh sách authors với pagination và search
  */
-export const getAllAuthors = async ({ page = 1, limit = 10, search = "" }) => {
+export const getAllAuthors = async ({ page = 1, limit = 10, search = "", sort = "impact" }) => {
   const offset = (page - 1) * limit;
   const searchPattern = `%${search.trim()}%`;
+
+  const sortKey = String(sort || "impact").toLowerCase();
+  const orderByMap = {
+    impact: `COALESCE(h_index, 0) DESC, COALESCE(cited_by_count, 0) DESC, COALESCE(works_count, 0) DESC, display_name ASC`,
+    h_index: `COALESCE(h_index, 0) DESC, COALESCE(cited_by_count, 0) DESC, COALESCE(works_count, 0) DESC, display_name ASC`,
+    citations: `COALESCE(cited_by_count, 0) DESC, COALESCE(h_index, 0) DESC, COALESCE(works_count, 0) DESC, display_name ASC`,
+    articles: `COALESCE(works_count, 0) DESC, COALESCE(h_index, 0) DESC, COALESCE(cited_by_count, 0) DESC, display_name ASC`,
+    name: `display_name ASC`,
+  };
+  const orderByClause = orderByMap[sortKey] || orderByMap.impact;
 
   const countQuery = `
     SELECT COUNT(*) AS total FROM "Author"
@@ -309,7 +319,7 @@ export const getAllAuthors = async ({ page = 1, limit = 10, search = "" }) => {
         LOWER(display_name) LIKE LOWER($1) OR
         LOWER(COALESCE(last_known_institution, '')) LIKE LOWER($1)
       ))
-    ORDER BY display_name ASC
+    ORDER BY ${orderByClause}
     LIMIT $2 OFFSET $3
   `;
 
