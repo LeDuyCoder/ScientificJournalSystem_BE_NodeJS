@@ -414,7 +414,7 @@ router.get("/leaderboard", requireAuth, getAuthorLeaderboard);
  *       500:
  *         description: Lỗi server
  */
-router.get("/", requireAuth, validatePagination, getAllAuthorsController);
+router.get("/", validatePagination, getAllAuthorsController);
 
 /**
  * @swagger
