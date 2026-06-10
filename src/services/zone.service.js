@@ -26,6 +26,8 @@ export const getCountryStats = async ({ page = 1, limit = 10 }) => {
       z.code,
       z.name,
       z.iso_code,
+      z.source,
+      z.created_at,
       COUNT(a.article_id)::integer AS article_count
     FROM "Zone" z
     LEFT JOIN "Journal" j ON j.country = z.zone_id
@@ -33,7 +35,7 @@ export const getCountryStats = async ({ page = 1, limit = 10 }) => {
     LEFT JOIN "Issue" i ON i.volume_id = v.volume_id
     LEFT JOIN "Article" a ON a.issue_id = i.issue_id
     WHERE z.type = 'COUNTRY'
-    GROUP BY z.zone_id, z.code, z.name, z.iso_code
+    GROUP BY z.zone_id, z.code, z.name, z.iso_code, z.source, z.created_at
     ORDER BY article_count DESC, z.name ASC
     LIMIT $1 OFFSET $2;
   `;
@@ -79,6 +81,8 @@ export const getRegionStats = async ({ countryCode } = {}) => {
         zr.code,
         zr.name,
         zr.iso_code,
+        zr.source,
+        zr.created_at,
         COUNT(a.article_id)::integer AS article_count
       FROM "Zone" zr
       INNER JOIN "Journal" j ON j.region = zr.zone_id
@@ -86,7 +90,7 @@ export const getRegionStats = async ({ countryCode } = {}) => {
       INNER JOIN "Issue" i ON i.volume_id = v.volume_id
       LEFT JOIN "Article" a ON a.issue_id = i.issue_id
       WHERE zr.type = 'REGION' AND j.country = $1
-      GROUP BY zr.zone_id, zr.code, zr.name, zr.iso_code
+      GROUP BY zr.zone_id, zr.code, zr.name, zr.iso_code, zr.source, zr.created_at
       ORDER BY article_count DESC, zr.name ASC
     `;
     const statsResult = await pool.query(regionStatsQuery, [countryZoneId]);
@@ -100,6 +104,8 @@ export const getRegionStats = async ({ countryCode } = {}) => {
       zr.code,
       zr.name,
       zr.iso_code,
+      zr.source,
+      zr.created_at,
       COUNT(a.article_id)::integer AS article_count
     FROM "Zone" zr
     LEFT JOIN "Journal" j ON j.region = zr.zone_id
@@ -107,7 +113,7 @@ export const getRegionStats = async ({ countryCode } = {}) => {
     LEFT JOIN "Issue" i ON i.volume_id = v.volume_id
     LEFT JOIN "Article" a ON a.issue_id = i.issue_id
     WHERE zr.type = 'REGION'
-    GROUP BY zr.zone_id, zr.code, zr.name, zr.iso_code
+    GROUP BY zr.zone_id, zr.code, zr.name, zr.iso_code, zr.source, zr.created_at
     ORDER BY article_count DESC, zr.name ASC
   `;
   const statsResult = await pool.query(globalRegionStatsQuery);
@@ -125,7 +131,7 @@ export const getRegionStats = async ({ countryCode } = {}) => {
 export const getCountryRegionsStats = async (countryCode) => {
   // 1. Kiểm tra sự tồn tại và lấy thông tin chi tiết của quốc gia
   const countryCheckQuery = `
-    SELECT zone_id, code, name, iso_code
+    SELECT zone_id, code, name, iso_code, source, created_at
     FROM "Zone" 
     WHERE type = 'COUNTRY' AND (UPPER(code) = UPPER($1) OR UPPER(iso_code) = UPPER($1))
   `;
@@ -146,6 +152,8 @@ export const getCountryRegionsStats = async (countryCode) => {
       zr.code,
       zr.name,
       zr.iso_code,
+      zr.source,
+      zr.created_at,
       COUNT(a.article_id)::integer AS article_count
     FROM "Zone" zr
     INNER JOIN "Journal" j ON j.region = zr.zone_id
@@ -153,7 +161,7 @@ export const getCountryRegionsStats = async (countryCode) => {
     INNER JOIN "Issue" i ON i.volume_id = v.volume_id
     LEFT JOIN "Article" a ON a.issue_id = i.issue_id
     WHERE zr.type = 'REGION' AND j.country = $1
-    GROUP BY zr.zone_id, zr.code, zr.name, zr.iso_code
+    GROUP BY zr.zone_id, zr.code, zr.name, zr.iso_code, zr.source, zr.created_at
     ORDER BY article_count DESC, zr.name ASC
   `;
   const statsResult = await pool.query(regionStatsQuery, [country.zone_id]);

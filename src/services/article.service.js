@@ -63,6 +63,12 @@ export const countArticlesByKeywords = async (keywords) => {
     return parseInt(result.rows[0].total);
 };
 
+const toOptionalNumber = (value) => {
+    if (value === undefined || value === null || value === '') return undefined;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+};
+
 /**
  * Đếm tổng số bài báo công khai theo cùng bộ lọc với trang Article List.
  * @param {Object} params
@@ -72,6 +78,7 @@ export const countAllArticles = async ({
     publicationYear,
     journalId,
     topicId,
+    volumeId,
     issueId,
     isOpenAccess,
 } = {}) => {
@@ -92,23 +99,33 @@ export const countAllArticles = async ({
         where.push(`(a."title" ILIKE $${values.length} OR a."doi" ILIKE $${values.length} OR a."abstract" ILIKE $${values.length})`);
     }
 
-    if (publicationYear) {
-        values.push(Number(publicationYear));
+    const publicationYearNum = toOptionalNumber(publicationYear);
+    if (publicationYearNum !== undefined) {
+        values.push(publicationYearNum);
         where.push(`a."publication_year" = $${values.length}`);
     }
 
-    if (journalId) {
-        values.push(Number(journalId));
+    const journalIdNum = toOptionalNumber(journalId);
+    if (journalIdNum !== undefined) {
+        values.push(journalIdNum);
         where.push(`j."journal_id" = $${values.length}`);
     }
 
-    if (topicId) {
-        values.push(Number(topicId));
+    const topicIdNum = toOptionalNumber(topicId);
+    if (topicIdNum !== undefined) {
+        values.push(topicIdNum);
         where.push(`a."primary_topic" = $${values.length}`);
     }
 
-    if (issueId) {
-        values.push(Number(issueId));
+    const volumeIdNum = toOptionalNumber(volumeId);
+    if (volumeIdNum !== undefined) {
+        values.push(volumeIdNum);
+        where.push(`v."volume_id" = $${values.length}`);
+    }
+
+    const issueIdNum = toOptionalNumber(issueId);
+    if (issueIdNum !== undefined) {
+        values.push(issueIdNum);
         where.push(`a."issue_id" = $${values.length}`);
     }
 
@@ -135,6 +152,34 @@ export const getTotalArticles = async () => {
         return parseInt(result.rows[0].total, 10);
     } catch (error) {
         logger.error('Lỗi khi đếm tổng số bài báo:', error);
+        throw error;
+    }
+};
+
+export const getArticleListStats = async () => {
+    try {
+        const query = `
+            SELECT
+                COUNT(DISTINCT a."article_id")::integer AS "totalArticles",
+                COUNT(DISTINCT a."article_id") FILTER (WHERE COALESCE(j."is_open_access", false) = true)::integer AS "openAccessCount",
+                COUNT(DISTINCT aa."author_id")::integer AS "authorsCount",
+                COUNT(DISTINCT a."primary_topic") FILTER (WHERE a."primary_topic" IS NOT NULL)::integer AS "topicsCount"
+            FROM "Article" a
+            LEFT JOIN "Issue" i ON i."issue_id" = a."issue_id" AND COALESCE(i."is_deleted", false) = false
+            LEFT JOIN "Volume" v ON v."volume_id" = i."volume_id" AND COALESCE(v."is_deleted", false) = false
+            LEFT JOIN "Journal" j ON j."journal_id" = v."journal_id" AND COALESCE(j."is_deleted", false) = false
+            LEFT JOIN "Author_Article" aa ON aa."article_id" = a."article_id"
+            WHERE a."is_deleted" = false;
+        `;
+        const result = await pool.query(query);
+        return result.rows[0] || {
+            totalArticles: 0,
+            openAccessCount: 0,
+            authorsCount: 0,
+            topicsCount: 0,
+        };
+    } catch (error) {
+        logger.error('Lỗi khi lấy thống kê bài báo:', error);
         throw error;
     }
 };
@@ -169,6 +214,7 @@ export const getAllArticles = async (firstParam = {}, offsetParam = 0, sortByPar
             publicationYear,
             journalId,
             topicId,
+            volumeId,
             issueId,
             isOpenAccess,
         } = params;
@@ -193,23 +239,33 @@ export const getAllArticles = async (firstParam = {}, offsetParam = 0, sortByPar
             where.push(`(a."title" ILIKE $${values.length} OR a."doi" ILIKE $${values.length} OR a."abstract" ILIKE $${values.length})`);
         }
 
-        if (publicationYear) {
-            values.push(Number(publicationYear));
+        const publicationYearNum = toOptionalNumber(publicationYear);
+        if (publicationYearNum !== undefined) {
+            values.push(publicationYearNum);
             where.push(`a."publication_year" = $${values.length}`);
         }
 
-        if (journalId) {
-            values.push(Number(journalId));
+        const journalIdNum = toOptionalNumber(journalId);
+        if (journalIdNum !== undefined) {
+            values.push(journalIdNum);
             where.push(`j."journal_id" = $${values.length}`);
         }
 
-        if (topicId) {
-            values.push(Number(topicId));
+        const topicIdNum = toOptionalNumber(topicId);
+        if (topicIdNum !== undefined) {
+            values.push(topicIdNum);
             where.push(`a."primary_topic" = $${values.length}`);
         }
 
-        if (issueId) {
-            values.push(Number(issueId));
+        const volumeIdNum = toOptionalNumber(volumeId);
+        if (volumeIdNum !== undefined) {
+            values.push(volumeIdNum);
+            where.push(`v."volume_id" = $${values.length}`);
+        }
+
+        const issueIdNum = toOptionalNumber(issueId);
+        if (issueIdNum !== undefined) {
+            values.push(issueIdNum);
             where.push(`a."issue_id" = $${values.length}`);
         }
 
@@ -218,9 +274,9 @@ export const getAllArticles = async (firstParam = {}, offsetParam = 0, sortByPar
             where.push(`COALESCE(j."is_open_access", false) = $${values.length}`);
         }
 
-        values.push(Number(limit));
+        values.push(toOptionalNumber(limit) ?? 10);
         const limitIndex = values.length;
-        values.push(Number(offset));
+        values.push(toOptionalNumber(offset) ?? 0);
         const offsetIndex = values.length;
 
         const query = `
@@ -286,6 +342,11 @@ export const getArticleById = async (articleId) => {
                 j."journal_id"::text AS "journal_id",
                 j."display_name" AS "journal_name",
                 j."issn" AS "journal_issn",
+                p."publisher_id"::text AS "publisher_id",
+                p."display_name" AS "publisher_name",
+                a."cited_by_count",
+                a."references",
+                a."reference_count",
                 COALESCE(j."is_open_access", false) AS "is_open_access",
                 CASE
                     WHEN a."doi" IS NULL OR TRIM(a."doi") = '' THEN NULL
@@ -296,6 +357,7 @@ export const getArticleById = async (articleId) => {
             LEFT JOIN "Issue" i   ON i."issue_id" = a."issue_id"
             LEFT JOIN "Volume" v  ON v."volume_id" = i."volume_id"
             LEFT JOIN "Journal" j ON j."journal_id" = v."journal_id"
+            LEFT JOIN "Publisher" p ON p."publisher_id" = j."publisher_id"
             LEFT JOIN "Topic" pt  ON pt."topic_id" = a."primary_topic"
             WHERE a."article_id" = $1;
         `;

@@ -1,5 +1,5 @@
 import express from 'express';
-import { checkAuth, login, refreshToken } from '../controllers/login.controller.js';
+import { checkAuth, login, logout, refreshToken } from '../controllers/login.controller.js';
 
 const router = express.Router();
 
@@ -278,5 +278,6 @@ router.get('/refresh', refreshToken);
  *                   example: "Access token không tồn tại"
  */
 router.get('/check-auth', checkAuth);
+router.post('/logout', logout);
 
 export default router;

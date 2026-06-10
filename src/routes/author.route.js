@@ -143,7 +143,7 @@ const router = express.Router();
  *       500:
  *         description: Lỗi hệ thống server
  */
-router.get("/:id/areas-breakdown", getAuthorAreasBreakdown);
+router.get("/:id/areas-breakdown", validateAuthorId, getAuthorAreasBreakdown);
 
 /**
  * @swagger
@@ -256,7 +256,7 @@ router.get("/:id/areas-breakdown", getAuthorAreasBreakdown);
  *       500:
  *         description: Lỗi hệ thống server
  */
-router.get("/:id/articles", getAuthorArticles);
+router.get("/:id/articles", validateAuthorId, getAuthorArticles);
 
 /**
  * @swagger
