@@ -27,7 +27,7 @@ export const googleLogin = async (req, res) => {
     const idToken = await getTokenId(code);
 
     const data = await loginOrCreateWithGoogle(idToken);
-    const refreshToken = signRefreshToken(data.user.user_id);
+    const refreshToken = signRefreshToken(data.user);
 
     logger.info(
       `[Google Auth]: Đăng nhập/Đăng ký Google thành công cho tài khoản: ${data.user.email}`,
@@ -37,13 +37,13 @@ export const googleLogin = async (req, res) => {
       .cookie("access_token", data.token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
-        sameSite: "strict",
+        sameSite: "none",
         maxAge: process.env.COOKIE_ACCESS_MAX_AGE,
       })
       .cookie("refresh_token", refreshToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
-        sameSite: "strict",
+        sameSite: "none",
         maxAge: process.env.COOKIE_REFRESH_MAX_AGE,
       })
       .json({
