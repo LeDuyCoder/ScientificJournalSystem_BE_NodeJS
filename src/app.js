@@ -10,9 +10,9 @@ app.use(cors({
   origin: process.env.FRONTEND_URL, // Ghi đích danh tên miền/port của Frontend, KHÔNG được dùng dấu '*'
   credentials: true                // Cho phép nhận và xử lý Cookie gửi lên
 }));
-
-app.use(express.json());
 app.use(cookieParser());
+app.use(express.json());
+
 
 // Định tuyến gốc: Tất cả API sẽ bắt đầu bằng /api/v1
 app.use('/api/v1', rootRouter);

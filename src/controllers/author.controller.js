@@ -181,10 +181,12 @@ export const getAllAuthorsController = async (req, res) => {
   try {
     const { page, limit } = req.pagination;
     const search = req.query.search || "";
+    const sort = req.query.sort || "impact";
     const result = await authorServiceRef.getAllAuthors({
       page,
       limit,
       search,
+      sort,
     });
     return res.status(200).json({
       success: true,
@@ -205,7 +207,8 @@ export const getAllAuthorsController = async (req, res) => {
 
 export const getAuthorByIdController = async (req, res) => {
   try {
-    const author = await authorServiceRef.getAuthorById(req.authorId);
+    const idParam = req.params.id;
+    const author = await authorServiceRef.getAuthorById(idParam);
     if (!author) {
       return res.status(404).json({
         success: false,

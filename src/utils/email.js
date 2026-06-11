@@ -185,7 +185,7 @@ export const emailHelper = {
         'http://localhost:8000';
 
       const activationUrl =
-        `${baseUrl}/api/v1/auth/verify?token=${token}`;
+        `${baseUrl}?token=${token}`;
 
       const html = activationTemplate({
         firstName,

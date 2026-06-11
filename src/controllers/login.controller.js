@@ -198,3 +198,25 @@ export const checkAuth = (req, res) => {
     });
   }
 };
+
+/**
+ * Đăng xuất người dùng bằng cách xóa toàn bộ cookie xác thực.
+ * FE cần gọi endpoint này vì access/refresh token đang được lưu trong
+ * HTTP-only cookie, JavaScript phía client không tự xóa trực tiếp được.
+ */
+export const logout = (req, res) => {
+  const cookieOptions = {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'none',
+  };
+
+  res.clearCookie('access_token', cookieOptions);
+  res.clearCookie('refresh_token', cookieOptions);
+
+  return res.status(200).json({
+    success: true,
+    code: 'LOGOUT_SUCCESS',
+    message: 'Đăng xuất thành công',
+  });
+};
