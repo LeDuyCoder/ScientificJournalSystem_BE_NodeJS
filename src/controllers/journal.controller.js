@@ -22,6 +22,7 @@ export const getJournals = async (req, res) => {
       quartiles,
       ranking_year,
       is_oa_diamond,
+      country_ids,
     } = req.query;
 
     const pageNum = parseInt(page, 10);
@@ -54,6 +55,7 @@ export const getJournals = async (req, res) => {
       quartiles,
       rankingYear: ranking_year,
       isOaDiamond: is_oa_diamond,
+      countryIds: country_ids,
     });
 
     return res.status(200).json({

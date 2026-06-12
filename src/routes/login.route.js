@@ -278,6 +278,7 @@ router.get('/refresh', refreshToken);
  *                   example: "Access token không tồn tại"
  */
 router.get('/check-auth', checkAuth);
+router.post('/logout', logout);
 
 /**
  * Route POST /api/v1/auth/logout

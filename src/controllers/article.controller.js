@@ -104,6 +104,7 @@ export const getArticles = async (req, res) => {
       publicationYear: req.query.publication_year || req.query.year,
       journalId: req.query.journal_id || req.query.journal,
       topicId: req.query.topic_id || req.query.topic,
+      volumeId: req.query.volume_id,
       issueId: req.query.issue_id,
       isOpenAccess: req.query.is_open_access || req.query.access,
       countryId: req.query.country_id || req.query.country,
@@ -116,9 +117,10 @@ export const getArticles = async (req, res) => {
       serviceParams.isOpenAccess = true;
     }
 
-    const [articles, total] = await Promise.all([
+    const [articles, total, stats] = await Promise.all([
       articleService.getAllArticles(serviceParams),
       articleService.countAllArticles(serviceParams),
+      articleService.getArticleListStats(),
     ]);
 
     return res.status(200).json({
@@ -134,6 +136,7 @@ export const getArticles = async (req, res) => {
           total,
           total_pages: Math.ceil(total / limit),
         },
+        stats,
       },
     });
   } catch (error) {
