@@ -200,23 +200,41 @@ export const checkAuth = (req, res) => {
 };
 
 /**
- * Đăng xuất người dùng bằng cách xóa toàn bộ cookie xác thực.
- * FE cần gọi endpoint này vì access/refresh token đang được lưu trong
- * HTTP-only cookie, JavaScript phía client không tự xóa trực tiếp được.
+ * API Đăng xuất người dùng.
+ * Hàm này thực hiện xóa các cookie chứa JWT access token và refresh token ở trình duyệt.
+ *
+ * @param {import('express').Request} req - Đối tượng Request của Express.
+ * @param {import('express').Response} res - Đối tượng Response của Express.
+ * @returns {import('express').Response} JSON response xác nhận đăng xuất thành công.
  */
 export const logout = (req, res) => {
-  const cookieOptions = {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'none',
-  };
+  try {
+    // Xóa cookie chứa Access Token
+    res.clearCookie('access_token', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'none',
+    });
 
-  res.clearCookie('access_token', cookieOptions);
-  res.clearCookie('refresh_token', cookieOptions);
+    // Xóa cookie chứa Refresh Token
+    res.clearCookie('refresh_token', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'none',
+    });
 
-  return res.status(200).json({
-    success: true,
-    code: 'LOGOUT_SUCCESS',
-    message: 'Đăng xuất thành công',
-  });
+    return res.status(200).json({
+      success: true,
+      code: "LOGOUT_SUCCESS",
+      message: "Đăng xuất thành công",
+    });
+  } catch (error) {
+    logger.error("Lỗi hệ thống trong controller đăng xuất:", error);
+    return res.status(500).json({
+      success: false,
+      code: "LOGOUT_FAILED",
+      message: "Có lỗi xảy ra ở server",
+    });
+  }
 };
+
