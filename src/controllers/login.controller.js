@@ -198,3 +198,43 @@ export const checkAuth = (req, res) => {
     });
   }
 };
+
+/**
+ * API Đăng xuất người dùng.
+ * Hàm này thực hiện xóa các cookie chứa JWT access token và refresh token ở trình duyệt.
+ *
+ * @param {import('express').Request} req - Đối tượng Request của Express.
+ * @param {import('express').Response} res - Đối tượng Response của Express.
+ * @returns {import('express').Response} JSON response xác nhận đăng xuất thành công.
+ */
+export const logout = (req, res) => {
+  try {
+    // Xóa cookie chứa Access Token
+    res.clearCookie('access_token', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'none',
+    });
+
+    // Xóa cookie chứa Refresh Token
+    res.clearCookie('refresh_token', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'none',
+    });
+
+    return res.status(200).json({
+      success: true,
+      code: "LOGOUT_SUCCESS",
+      message: "Đăng xuất thành công",
+    });
+  } catch (error) {
+    logger.error("Lỗi hệ thống trong controller đăng xuất:", error);
+    return res.status(500).json({
+      success: false,
+      code: "LOGOUT_FAILED",
+      message: "Có lỗi xảy ra ở server",
+    });
+  }
+};
+

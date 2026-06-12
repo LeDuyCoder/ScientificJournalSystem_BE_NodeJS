@@ -74,6 +74,7 @@ export const countAllArticles = async ({
     topicId,
     issueId,
     isOpenAccess,
+    countryId,
 } = {}) => {
     const values = [];
     const where = ['a."is_deleted" = false'];
@@ -115,6 +116,11 @@ export const countAllArticles = async ({
     if (isOpenAccess !== undefined) {
         values.push(isOpenAccess === true || isOpenAccess === 'true');
         where.push(`COALESCE(j."is_open_access", false) = $${values.length}`);
+    }
+
+    if (countryId) {
+        values.push(Number(countryId));
+        where.push(`j."country" = $${values.length}`);
     }
 
     query += ` WHERE ${where.join(' AND ')}`;
@@ -171,6 +177,7 @@ export const getAllArticles = async (firstParam = {}, offsetParam = 0, sortByPar
             topicId,
             issueId,
             isOpenAccess,
+            countryId,
         } = params;
 
         const allowedColumns = {
@@ -216,6 +223,11 @@ export const getAllArticles = async (firstParam = {}, offsetParam = 0, sortByPar
         if (isOpenAccess !== undefined) {
             values.push(isOpenAccess === true || isOpenAccess === 'true');
             where.push(`COALESCE(j."is_open_access", false) = $${values.length}`);
+        }
+
+        if (countryId) {
+            values.push(Number(countryId));
+            where.push(`j."country" = $${values.length}`);
         }
 
         values.push(Number(limit));
