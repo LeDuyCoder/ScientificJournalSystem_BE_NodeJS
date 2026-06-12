@@ -226,8 +226,16 @@ export const createAuthorArticleRelationships = async (
       return;
     }
 
-    // Loại bỏ trùng lặp và chuyển thành Number gọn gàng hơn với Set
-    const uniqueAuthorIds = [...new Set(authorIds.map((id) => Number(id)))];
+    // Loại bỏ trùng lặp, chuyển thành Number, và lọc bỏ NaN / ID không hợp lệ
+    const uniqueAuthorIds = [...new Set(
+      authorIds
+        .map((id) => Number(id))
+        .filter((id) => !isNaN(id) && id > 0)
+    )];
+
+    if (uniqueAuthorIds.length === 0) {
+      return;
+    }
 
     const query = `
             INSERT INTO "Author_Article" (article_id, author_id)
