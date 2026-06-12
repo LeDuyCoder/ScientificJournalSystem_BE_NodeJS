@@ -34,6 +34,8 @@ export const deleteMe = async (req, res) => {
   }
 };
 
+
+
 /**
  * Xử lý cập nhật thông tin cá nhân người dùng
  */
@@ -74,16 +76,17 @@ export const updateMe = async (req, res) => {
 };
 
 export const getMe = async (req, res) => {
-  try{
+  try {
     const userId = req.user.user_id;
     const user = await userService.getUserById(userId);
 
     return res.status(200).json({
-      success: false,
+      success: true,
       code: "SUCCESS_GET_USER",
-      data: user
+      message: "Lấy thông tin người dùng thành công!",
+      data: user,
     });
-  }catch(error){
+  } catch (error) {
     return res.status(error.statusCode || 500).json({
       success: false,
       code: "SERVER_ERROR",
