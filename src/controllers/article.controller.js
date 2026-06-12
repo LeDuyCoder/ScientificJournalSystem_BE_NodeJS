@@ -107,6 +107,7 @@ export const getArticles = async (req, res) => {
       volumeId: req.query.volume_id,
       issueId: req.query.issue_id,
       isOpenAccess: req.query.is_open_access || req.query.access,
+      countryId: req.query.country_id || req.query.country,
     };
 
     if (serviceParams.isOpenAccess === "all" || serviceParams.isOpenAccess === "") {
