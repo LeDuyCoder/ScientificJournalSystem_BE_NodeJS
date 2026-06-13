@@ -306,7 +306,20 @@ export const getAllArticles = async (firstParam = {}, offsetParam = 0, sortByPar
                 j."journal_id"::text,
                 j."display_name" AS "journal_name",
                 j."issn" AS "journal_issn",
-                COALESCE(j."is_open_access", false) AS "is_open_access"
+                COALESCE(j."is_open_access", false) AS "is_open_access",
+                COALESCE(
+                    (
+                        SELECT json_agg(json_build_object(
+                            'author_id', au."author_id"::text,
+                            'display_name', au."display_name"
+                        ))
+                        FROM "Author_Article" aa
+                        JOIN "Author" au ON au."author_id" = aa."author_id"
+                        WHERE aa."article_id" = a."article_id"
+                          AND COALESCE(au."is_deleted", false) = false
+                    ),
+                    '[]'::json
+                ) AS "authors"
             FROM "Article" a
             LEFT JOIN "Issue" i   ON i."issue_id"   = a."issue_id" AND COALESCE(i."is_deleted", false) = false
             LEFT JOIN "Volume" v  ON v."volume_id"  = i."volume_id" AND COALESCE(v."is_deleted", false) = false
