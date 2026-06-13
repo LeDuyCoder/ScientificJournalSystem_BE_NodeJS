@@ -294,6 +294,11 @@ export const getAllArticles = async (firstParam = {}, offsetParam = 0, sortByPar
                 j."journal_id"::text,
                 j."display_name" AS "journal_name",
                 j."issn" AS "journal_issn",
+                a."semantic_scholar_id",
+                a."semantic_citation_count",
+                a."semantic_reference_count",
+                a."semantic_influential_citation_count",
+                a."semantic_tldr",
                 COALESCE(j."is_open_access", false) AS "is_open_access"
             FROM "Article" a
             LEFT JOIN "Issue" i   ON i."issue_id"   = a."issue_id" AND COALESCE(i."is_deleted", false) = false
@@ -347,6 +352,11 @@ export const getArticleById = async (articleId) => {
                 a."cited_by_count",
                 a."references",
                 a."reference_count",
+                a."semantic_scholar_id",
+                a."semantic_citation_count",
+                a."semantic_reference_count",
+                a."semantic_influential_citation_count",
+                a."semantic_tldr",
                 COALESCE(j."is_open_access", false) AS "is_open_access",
                 CASE
                     WHEN a."doi" IS NULL OR TRIM(a."doi") = '' THEN NULL
