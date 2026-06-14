@@ -17,6 +17,7 @@ import authRouter from "./auth.route.js";
 import subjectAreaRouter from "./subjectArea.route.js";
 import subjectCategoryRouter from "./subjectCategory.route.js";
 import searchRotuer from "./search.route.js";
+import graphRouter from "./graph.routes.js";
 
 const router = express.Router();
 
@@ -51,5 +52,7 @@ router.use("/subject-categories", subjectCategoryRouter);
 router.use("/issues", issueRouter);
 
 router.use("/search", searchRotuer);
+
+router.use("/graph", graphRouter);
 
 export default router;
