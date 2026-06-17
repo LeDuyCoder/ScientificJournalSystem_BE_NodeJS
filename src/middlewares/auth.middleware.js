@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import logger from '../utils/logger.js';
+import { createLog } from '../services/log.service.js';
 
 
 /**
@@ -88,3 +89,37 @@ export const verifyToken = (req, res, next) => {
   }
 };
 
+/**
+ * Middleware xác thực quyền truy cập dành cho Quản trị viên (Administrator).
+ * Đọc token từ cookie, giải mã và kiểm tra trường `role`. 
+ * Nếu người dùng không có quyền ADMINISTRATOR, sẽ trả về lỗi 403.
+ * 
+ * @param {import('express').Request} req - Đối tượng Request của Express
+ * @param {import('express').Response} res - Đối tượng Response của Express
+ * @param {import('express').NextFunction} next - Express next middleware function
+ * @returns {void|Object} Gọi hàm next() nếu có quyền Admin, ngược lại trả về response lỗi 403
+ */
+export const verifiyAdmin = (req, res, next) => {
+  try{
+    const accessToken = req.cookies.access_token;
+    const decoded = jwt.verify(accessToken, process.env.JWT_SECRET);
+    if(decoded.role !== 'ADMINISTRATOR'){
+      createLog({
+        userId: decoded.user_id,
+        userRole: decoded.role,
+        action: 'SYSTEM',
+        level: 'WARNING',
+        message: `Tài khoản ${decoded.email} cố gắng truy cập tài nguyên Admin (Bị từ chối)`,
+        metadata: { ip: req.ip, path: req.originalUrl }
+      });
+      return res.status(403).json({
+        success: false,
+        message: 'Bạn không có quyền truy cập tài nguyên này',
+        code: 'NO_PERMISSION'
+      });
+    }
+  }catch(error){
+    logger.error(error);
+  }
+  next();
+}

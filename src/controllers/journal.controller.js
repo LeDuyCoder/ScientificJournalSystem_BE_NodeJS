@@ -1,5 +1,6 @@
 import logger from "../utils/logger.js";
 import * as journalService from "../services/journal.service.js";
+import { createLog } from '../services/log.service.js';
 
 /**
  * Controller lấy danh sách journal có tìm kiếm và phân trang.
@@ -145,6 +146,16 @@ export const createJournal = async (req, res) => {
     // Lúc này dữ liệu chắc chắn đã qua bộ lọc hợp lệ từ middleware
     const result = await journalService.createJournal(dataJournal);
 
+    createLog({
+      userId: req.user?.user_id,
+      userRole: req.user?.role,
+      action: 'CREATE',
+      entityTable: 'Journal',
+      entityId: result.journal_id,
+      message: `Tạo mới Journal: ${result.display_name || 'Không tên'}`,
+      metadata: { ip: req.ip }
+    });
+
     return res.status(201).json({
       success: true,
       code: "CREATE_JOURNAL_SUCCESS",
@@ -185,6 +196,17 @@ export const updateJournal = async (req, res) => {
         message: "Journal không tồn tại",
       });
     }
+
+    createLog({
+      userId: req.user?.user_id,
+      userRole: req.user?.role,
+      action: 'UPDATE',
+      entityTable: 'Journal',
+      entityId: id,
+      message: `Cập nhật Journal có ID: ${id}`,
+      metadata: { ip: req.ip }
+    });
+
     return res.status(200).json({
       success: true,
       code: "UPDATE_JOURNAL_SUCCESS",
@@ -207,6 +229,16 @@ export const updateJournal = async (req, res) => {
 export const deleteJournal = async (req, res) => {
   try {
     await journalService.deleteJournal(req.params.id);
+
+    createLog({
+      userId: req.user?.user_id,
+      userRole: req.user?.role,
+      action: 'DELETE',
+      entityTable: 'Journal',
+      entityId: req.params.id,
+      message: `Xóa mềm Journal có ID: ${req.params.id}`,
+      metadata: { ip: req.ip }
+    });
 
     return res.status(200).json({
       success: true,

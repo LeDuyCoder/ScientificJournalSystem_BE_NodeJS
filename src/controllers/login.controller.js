@@ -1,6 +1,7 @@
 import { loginWithEmailPassword, signRefreshToken, signToken } from "../services/login.service.js";
 import logger from "../utils/logger.js";
 import jwt from 'jsonwebtoken';
+import { createLog } from '../services/log.service.js';
 
 /**
  * Kiểm tra định dạng của một chuỗi email có hợp lệ hay không
@@ -65,6 +66,14 @@ export const login = async (req, res) => {
         sameSite: 'none'
       });
     }
+
+    createLog({
+      userId: data.user.user_id,
+      userRole: data.user.role,
+      action: 'LOGIN',
+      message: `Người dùng ${data.user.email} đăng nhập hệ thống thành công`,
+      metadata: { ip: req.ip, userAgent: req.headers['user-agent'] }
+    });
 
     // 3. Trả kết quả JSON về cho Frontend
     return res.status(200).json({
@@ -237,4 +246,3 @@ export const logout = (req, res) => {
     });
   }
 };
-

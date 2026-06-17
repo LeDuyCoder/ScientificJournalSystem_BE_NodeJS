@@ -1,5 +1,6 @@
 import * as userService from "../services/user.service.js";
 import logger from "../utils/logger.js";
+import { createLog } from '../services/log.service.js';
 
 /**
  * Xử lý yêu cầu tự xóa tài khoản của người dùng
@@ -14,6 +15,16 @@ export const deleteMe = async (req, res) => {
     logger.info(
       `[User]: Xóa tài khoản thành công cho email: ${deletedUser.email} (ID: ${userId})`,
     );
+
+    createLog({
+      userId: userId,
+      userRole: req.user.role,
+      action: 'DELETE',
+      entityTable: 'user',
+      entityId: userId,
+      message: `Người dùng ${deletedUser.email} tự xóa tài khoản của mình.`,
+      metadata: { ip: req.ip }
+    });
 
     return res.status(200).json({
       success: true,
@@ -56,6 +67,16 @@ export const updateMe = async (req, res) => {
     logger.info(
       `[User]: Cập nhật thông tin tài khoản thành công cho email: ${updatedUser.email} (ID: ${userId})`,
     );
+
+    createLog({
+      userId: userId,
+      userRole: req.user.role,
+      action: 'UPDATE',
+      entityTable: 'user',
+      entityId: userId,
+      message: `Người dùng ${updatedUser.email} đã tự cập nhật thông tin cá nhân.`,
+      metadata: { ip: req.ip }
+    });
 
     return res.status(200).json({
       success: true,
