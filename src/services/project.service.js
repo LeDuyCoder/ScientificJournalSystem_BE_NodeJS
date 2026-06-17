@@ -58,6 +58,15 @@ export const getProjectById = async (projectId, userId) => {
     [projectId]
   );
 
+  // 4. Lấy danh sách Keyword đang theo dõi
+  const keywordsResult = await pool.query(
+    `SELECT k.keyword_id, k.display_name
+     FROM "Project_Keyword" pk
+     JOIN "Keyword" k ON pk.keyword_id = k.keyword_id
+     WHERE pk.project_id = $1`,
+    [projectId]
+  );
+
   return {
     project_id: project.project_id,
     title: project.title,
@@ -69,7 +78,8 @@ export const getProjectById = async (projectId, userId) => {
       description: project.subject_area_description
     } : null,
     subject_categories: categoriesResult.rows,
-    journals: journalsResult.rows
+    journals: journalsResult.rows,
+    watched_keywords: keywordsResult.rows.map(k => k.display_name)
   };
 };
 

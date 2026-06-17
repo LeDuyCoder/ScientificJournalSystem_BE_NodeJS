@@ -369,7 +369,7 @@ export const getArticleById = async (articleId) => {
                 j."issn" AS "journal_issn",
                 p."publisher_id"::text AS "publisher_id",
                 p."display_name" AS "publisher_name",
-                a."cited_by_count",
+                a."citation_count" AS "cited_by_count",
                 a."references",
                 a."reference_count",
                 COALESCE(j."is_open_access", false) AS "is_open_access",
