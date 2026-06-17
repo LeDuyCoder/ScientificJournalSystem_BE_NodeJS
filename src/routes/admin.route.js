@@ -1,6 +1,6 @@
 import express from 'express';
 import { verifiyAdmin, verifyToken } from '../middlewares/auth.middleware.js';
-import { summary, publicationTrends, getRecentActivities, getVolumeIssueStatus, exportVolumeIssueStatusCSV } from '../controllers/admin.controller.js';
+import { summary, publicationTrends, getRecentActivities, getVolumeIssueStatus, exportVolumeIssueStatusCSV, getUsers, getUserDetail } from '../controllers/admin.controller.js';
 
 const router = express.Router();
 
@@ -290,5 +290,127 @@ router.get('/dashboard/recent-activities', verifyToken, verifiyAdmin, getRecentA
  *         description: Lỗi hệ thống
  */
 router.get('/dashboard/volume-issue-status/export', verifyToken, verifiyAdmin, exportVolumeIssueStatusCSV);
+
+/**
+ * @swagger
+ * /api/v1/admin/users:
+ *   get:
+ *     summary: Lấy danh sách User cho Admin
+ *     description: Trả về danh sách người dùng với các bộ lọc, tìm kiếm, phân trang và sắp xếp.
+ *     tags:
+ *       - Admin
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Tìm kiếm theo tên hoặc email
+ *       - in: query
+ *         name: role
+ *         schema:
+ *           type: string
+ *         description: Lọc theo vai trò (ví dụ RESEARCHER, LECTURER, ADMINISTRATOR)
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *         description: Lọc theo trạng thái (ví dụ ACTIVE, INACTIVE, BANNED)
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Trang hiện tại
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: Số bản ghi mỗi trang
+ *       - in: query
+ *         name: sortBy
+ *         schema:
+ *           type: string
+ *           default: email
+ *         description: Trường dùng để sắp xếp
+ *       - in: query
+ *         name: sortOrder
+ *         schema:
+ *           type: string
+ *           enum: [asc, desc]
+ *           default: desc
+ *         description: Thứ tự sắp xếp
+ *     responses:
+ *       200:
+ *         description: Lấy danh sách thành công
+ *       401:
+ *         description: Chưa đăng nhập hoặc Token không hợp lệ
+ *       403:
+ *         description: Không có quyền truy cập
+ *       500:
+ *         description: Lỗi hệ thống
+ */
+router.get('/users', verifyToken, verifiyAdmin, getUsers);
+
+/**
+ * @swagger
+ * /api/v1/admin/users/{id}:
+ *   get:
+ *     summary: Lấy chi tiết một User theo ID
+ *     description: Trả về thông tin chi tiết của một người dùng để Admin xem hoặc chỉnh sửa.
+ *     tags:
+ *       - Admin
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: ID của người dùng cần lấy thông tin
+ *     responses:
+ *       200:
+ *         description: Lấy thông tin chi tiết thành công
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 code:
+ *                   type: string
+ *                   example: "GET_USER_DETAIL_SUCCESS"
+ *                 message:
+ *                   type: string
+ *                   example: "Lấy chi tiết người dùng thành công"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                      user_id: { type: "string", format: "uuid" }
+ *                      email: { type: "string", format: "email" }
+ *                      type: { type: "string", enum: ["LOCAL", "GOOGLE", "GITHUB"] }
+ *                      status: { type: "string", enum: ["INACTIVE", "ACTIVE", "BANNED"] }
+ *                      role: { type: "string", enum: ["STUDENT", "LECTURER", "RESEARCHER", "ADMINISTRATOR"] }
+ *                      last_name: { type: "string" }
+ *                      first_name: { type: "string" }
+ *                      url_image: { type: "string", format: "uri" }
+ *                      date_of_birth: { type: "string", format: "date" }
+ *                      gender: { type: "boolean" }
+ *       401:
+ *         description: Chưa đăng nhập hoặc Token không hợp lệ
+ *       403:
+ *         description: Không có quyền truy cập
+ *       404:
+ *         description: Không tìm thấy người dùng
+ *       500:
+ *         description: Lỗi hệ thống
+ */
+router.get('/users/:id', verifyToken, verifiyAdmin, getUserDetail);
 
 export default router;

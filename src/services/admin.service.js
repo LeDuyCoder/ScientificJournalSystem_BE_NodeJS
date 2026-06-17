@@ -184,3 +184,115 @@ export const exportVolumeIssueStatus = async () => {
         throw error;
     }
 };
+
+/**
+ * Lấy danh sách người dùng (User) dành cho Admin, hỗ trợ tìm kiếm, lọc, sắp xếp và phân trang.
+ *
+ * @async
+ * @param {object} options - Tùy chọn truy vấn.
+ * @param {string} [options.search] - Từ khóa tìm kiếm (email, first_name, last_name).
+ * @param {string} [options.role] - Lọc theo role.
+ * @param {string} [options.status] - Lọc theo status.
+ * @param {number} [options.page=1] - Trang hiện tại.
+ * @param {number} [options.limit=10] - Số lượng bản ghi trên mỗi trang.
+ * @param {string} [options.sortBy='created_at'] - Trường cần sắp xếp.
+ * @param {'ASC'|'DESC'} [options.sortOrder='DESC'] - Thứ tự sắp xếp.
+ * @returns {Promise<{items: Array<object>, pagination: object}>}
+ * @throws {Error} Ném lỗi nếu truy vấn CSDL thất bại.
+ */
+export const getUsersList = async (options = {}) => {
+    const {
+        search,
+        role,
+        status,
+        page = 1,
+        limit = 10,
+        sortBy = 'email',
+        sortOrder = 'DESC'
+    } = options;
+
+    const offset = (page - 1) * limit;
+    const queryParams = [];
+    const whereClauses = [];
+    let paramIndex = 1;
+
+    if (search) {
+        whereClauses.push(`(first_name ILIKE $${paramIndex} OR last_name ILIKE $${paramIndex} OR email ILIKE $${paramIndex})`);
+        queryParams.push(`%${search}%`);
+        paramIndex++;
+    }
+
+    if (role) {
+        whereClauses.push(`role = $${paramIndex++}`);
+        queryParams.push(role);
+    }
+
+    if (status) {
+        whereClauses.push(`status = $${paramIndex++}`);
+        queryParams.push(status);
+    }
+
+    const whereString = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
+
+    // Đảm bảo chỉ được sắp xếp trên các cột cho phép để tránh SQL Injection
+    const allowedSortBy = ['email', 'first_name', 'last_name', 'role', 'status'];
+    const safeSortBy = allowedSortBy.includes(sortBy) ? sortBy : 'email';
+    const safeSortOrder = sortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+
+    const countQuery = `SELECT COUNT(*) FROM "user" ${whereString};`;
+    const dataQuery = `
+        SELECT user_id, email, type, status, role, last_name, first_name, url_image, date_of_birth, gender
+        FROM "user"
+        ${whereString}
+        ORDER BY "${safeSortBy}" ${safeSortOrder}
+        LIMIT $${paramIndex++} OFFSET $${paramIndex++};
+    `;
+
+    try {
+        const countParams = queryParams.slice();
+        const dataParams = [...queryParams, limit, offset];
+
+        const [countResult, dataResult] = await Promise.all([
+            pool.query(countQuery, countParams),
+            pool.query(dataQuery, dataParams)
+        ]);
+
+        const total = parseInt(countResult.rows[0].count, 10);
+
+        return { 
+            items: dataResult.rows, 
+            pagination: { total, page, limit, totalPages: Math.ceil(total / limit) } 
+        };
+    } catch (error) {
+        logger.error('Lỗi khi lấy danh sách User (Admin Service):', error);
+        throw error;
+    }
+};
+
+/**
+ * Lấy thông tin chi tiết của một người dùng theo ID.
+ *
+ * @async
+ * @param {string} userId - UUID của người dùng.
+ * @returns {Promise<object|null>} Trả về đối tượng người dùng hoặc null nếu không tìm thấy.
+ * @throws {Error} Ném lỗi nếu truy vấn CSDL thất bại.
+ */
+export const getUserDetailById = async (userId) => {
+    try {
+        const query = `
+            SELECT user_id, email, type, status, role, last_name, first_name, url_image, date_of_birth, gender
+            FROM "user"
+            WHERE user_id = $1;
+        `;
+        const result = await pool.query(query, [userId]);
+
+        if (result.rows.length === 0) {
+            return null;
+        }
+
+        return result.rows[0];
+    } catch (error) {
+        logger.error(`Lỗi khi lấy chi tiết User ID ${userId} (Admin Service):`, error);
+        throw error;
+    }
+};

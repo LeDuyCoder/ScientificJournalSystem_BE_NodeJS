@@ -182,3 +182,100 @@ export const exportVolumeIssueStatusCSV = async (req, res) => {
         });
     }
 };
+
+/**
+ * Controller xử lý yêu cầu lấy danh sách người dùng cho Admin Dashboard.
+ * 
+ * @async
+ * @param {import('express').Request} req 
+ * @param {import('express').Response} res 
+ */
+export const getUsers = async (req, res) => {
+    try {
+        const options = {
+            search: req.query.search,
+            role: req.query.role,
+            status: req.query.status,
+            page: parseInt(req.query.page, 10) || 1,
+            limit: parseInt(req.query.limit, 10) || 10,
+            sortBy: req.query.sortBy,
+            sortOrder: req.query.sortOrder
+        };
+
+        const result = await adminService.getUsersList(options);
+
+        return res.status(200).json({
+            success: true,
+            code: "GET_USERS_SUCCESS",
+            message: "Lấy danh sách người dùng thành công",
+            data: result.items,
+            pagination: result.pagination
+        });
+    } catch (error) {
+        logger.error("Lỗi khi lấy danh sách người dùng (Admin Controller):", error);
+        return res.status(500).json({
+            success: false,
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Lỗi hệ thống khi lấy danh sách người dùng"
+        });
+    }
+};
+
+/**
+ * Controller lấy thông tin chi tiết của một người dùng.
+ * 
+ * @async
+ * @param {import('express').Request} req 
+ * @param {import('express').Response} res 
+ */
+export const getUserDetail = async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        // Kiểm tra định dạng UUID trước khi truy vấn DB
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+        if (!uuidRegex.test(id)) {
+            return res.status(400).json({
+                success: false,
+                code: "INVALID_USER_ID",
+                message: "ID người dùng không hợp lệ (phải là định dạng UUID)"
+            });
+        }
+
+        const user = await adminService.getUserDetailById(id);
+
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                code: "USER_NOT_FOUND",
+                message: "Không tìm thấy người dùng"
+            });
+        }
+
+        // Ghi log hành động xem chi tiết
+        logService.createLog({
+            userId: req.user?.user_id,
+            userRole: req.user?.role,
+            action: 'VIEW',
+            source: 'ADMIN_PANEL',
+            entityTable: 'user',
+            entityId: id,
+            message: `Admin đã xem chi tiết người dùng: ${user.email}`,
+            metadata: { ip: req.ip }
+        });
+
+        return res.status(200).json({
+            success: true,
+            code: "GET_USER_DETAIL_SUCCESS",
+            message: "Lấy chi tiết người dùng thành công",
+            data: user
+        });
+    } catch (error) {
+        logger.error("Lỗi khi lấy chi tiết người dùng (Admin Controller):", error);
+        return res.status(500).json({
+            success: false,
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Lỗi hệ thống khi lấy chi tiết người dùng"
+        });
+    }
+};
