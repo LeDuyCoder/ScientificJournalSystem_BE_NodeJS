@@ -2,16 +2,7 @@ import { loginWithEmailPassword, signRefreshToken, signToken } from "../services
 import logger from "../utils/logger.js";
 import jwt from 'jsonwebtoken';
 import { createLog } from '../services/log.service.js';
-
-/**
- * Kiểm tra định dạng của một chuỗi email có hợp lệ hay không
- * @param {string} email - Chuỗi email cần kiểm tra
- * @returns {boolean} Trả về true nếu định dạng hợp lệ, ngược lại là false
- */
-const isValidEmail = (email) => {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return emailRegex.test(email);
-};
+import { isValidEmail } from '../utils/validation.js';
 
 /**
  * API Đăng nhập cho tài khoản Local bằng Email và Mật khẩu

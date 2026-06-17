@@ -1,5 +1,7 @@
 import pool from '../config/database.js';
 import logger from '../utils/logger.js';
+import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 
 /**
  * Lấy số liệu thống kê tổng quan cho Admin Dashboard.
@@ -55,6 +57,67 @@ export const summary = async () => {
         };
     } catch (error) {
         logger.error('Lỗi khi lấy số liệu thống kê tổng quan (Admin):', error);
+        throw error;
+    }
+};
+
+/**
+ * Tạo mới một người dùng từ phía Admin.
+ *
+ * @async
+ * @param {object} userData - Dữ liệu người dùng cần tạo.
+ * @returns {Promise<object>} Thông tin người dùng vừa được tạo.
+ * @throws {Error} Ném lỗi 409 nếu email đã tồn tại, hoặc lỗi DB khác.
+ */
+export const createUser = async (userData) => {
+    const {
+        email,
+        password,
+        first_name,
+        last_name,
+        role,
+        status,
+        date_of_birth,
+        gender
+    } = userData;
+
+    const normalizedEmail = email.trim().toLowerCase();
+
+    // 1. Kiểm tra email đã tồn tại chưa
+    const checkQuery = `SELECT 1 FROM "user" WHERE LOWER("email") = $1 LIMIT 1`;
+    const checkResult = await pool.query(checkQuery, [normalizedEmail]);
+
+    if (checkResult.rows.length > 0) {
+        const error = new Error('Email đã tồn tại trong hệ thống');
+        error.statusCode = 409;
+        throw error;
+    }
+
+    // 2. Băm mật khẩu
+    const hashedPassword = await bcrypt.hash(password, 10);
+    
+    const userId = crypto.randomUUID();
+
+    // 3. Insert user mới
+    // type mặc định là 'LOCAL' khi tạo bằng tài khoản/mật khẩu
+    const insertQuery = `
+        INSERT INTO "user" (
+            "user_id", "email", "password", "type", "status", "role", 
+            "first_name", "last_name", "date_of_birth", "gender"
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        RETURNING "user_id", "email", "type", "status", "role", "first_name", "last_name", "date_of_birth", "gender"
+    `;
+
+    const values = [
+        userId, normalizedEmail, hashedPassword, 'LOCAL', status || 'ACTIVE', role || 'RESEARCHER',
+        first_name || null, last_name || null, date_of_birth || null, gender !== undefined ? gender : null
+    ];
+
+    try {
+        const result = await pool.query(insertQuery, values);
+        return result.rows[0];
+    } catch (error) {
+        logger.error('Lỗi khi insert User vào DB (Admin Service):', error);
         throw error;
     }
 };

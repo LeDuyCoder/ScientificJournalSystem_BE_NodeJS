@@ -1,6 +1,6 @@
 import express from 'express';
-import { verifiyAdmin, verifyToken } from '../middlewares/auth.middleware.js';
-import { summary, publicationTrends, getRecentActivities, getVolumeIssueStatus, exportVolumeIssueStatusCSV, getUsers, getUserDetail } from '../controllers/admin.controller.js';
+import { verifyAdmin, verifyToken } from '../middlewares/auth.middleware.js';
+import { summary, publicationTrends, getRecentActivities, getVolumeIssueStatus, exportVolumeIssueStatusCSV, getUsers, getUserDetail, createUser } from '../controllers/admin.controller.js';
 
 const router = express.Router();
 
@@ -53,7 +53,7 @@ const router = express.Router();
  *       500:
  *         description: Lỗi hệ thống server
  */
-router.get('/dashboard/summary', verifyToken, verifiyAdmin, summary);
+router.get('/dashboard/summary', verifyToken, verifyAdmin, summary);
 
 /**
  * @swagger
@@ -122,7 +122,7 @@ router.get('/dashboard/summary', verifyToken, verifiyAdmin, summary);
  *       500:
  *         description: Lỗi hệ thống
  */
-router.get('/dashboard/publication-trends', verifyToken, verifiyAdmin, publicationTrends);
+router.get('/dashboard/publication-trends', verifyToken, verifyAdmin, publicationTrends);
 
 /**
  * @swagger
@@ -190,7 +190,7 @@ router.get('/dashboard/publication-trends', verifyToken, verifiyAdmin, publicati
  *       500:
  *         description: Lỗi hệ thống
  */
-router.get('/dashboard/volume-issue-status', verifyToken, verifiyAdmin, getVolumeIssueStatus);
+router.get('/dashboard/volume-issue-status', verifyToken, verifyAdmin, getVolumeIssueStatus);
 
 /**
  * @swagger
@@ -262,7 +262,7 @@ router.get('/dashboard/volume-issue-status', verifyToken, verifiyAdmin, getVolum
  *       500:
  *         description: Lỗi hệ thống
  */
-router.get('/dashboard/recent-activities', verifyToken, verifiyAdmin, getRecentActivities);
+router.get('/dashboard/recent-activities', verifyToken, verifyAdmin, getRecentActivities);
 
 /**
  * @swagger
@@ -289,7 +289,7 @@ router.get('/dashboard/recent-activities', verifyToken, verifiyAdmin, getRecentA
  *       500:
  *         description: Lỗi hệ thống
  */
-router.get('/dashboard/volume-issue-status/export', verifyToken, verifiyAdmin, exportVolumeIssueStatusCSV);
+router.get('/dashboard/volume-issue-status/export', verifyToken, verifyAdmin, exportVolumeIssueStatusCSV);
 
 /**
  * @swagger
@@ -352,7 +352,7 @@ router.get('/dashboard/volume-issue-status/export', verifyToken, verifiyAdmin, e
  *       500:
  *         description: Lỗi hệ thống
  */
-router.get('/users', verifyToken, verifiyAdmin, getUsers);
+router.get('/users', verifyToken, verifyAdmin, getUsers);
 
 /**
  * @swagger
@@ -411,6 +411,70 @@ router.get('/users', verifyToken, verifiyAdmin, getUsers);
  *       500:
  *         description: Lỗi hệ thống
  */
-router.get('/users/:id', verifyToken, verifiyAdmin, getUserDetail);
+router.get('/users/:id', verifyToken, verifyAdmin, getUserDetail);
+
+/**
+ * @swagger
+ * /api/v1/admin/users:
+ *   post:
+ *     summary: Tạo tài khoản người dùng mới (Admin)
+ *     description: API dành cho Admin để tạo tài khoản mới với đầy đủ quyền hạn (Role, Status). Mật khẩu sẽ tự động được mã hóa.
+ *     tags:
+ *       - Admin
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - password
+ *             properties:
+ *               first_name:
+ *                 type: string
+ *                 example: "Elen"
+ *               last_name:
+ *                 type: string
+ *                 example: "Smith"
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 example: "elen@example.com"
+ *               role:
+ *                 type: string
+ *                 enum: ["STUDENT", "LECTURER", "RESEARCHER", "ADMINISTRATOR"]
+ *                 example: "RESEARCHER"
+ *               status:
+ *                 type: string
+ *                 enum: ["INACTIVE", "ACTIVE", "BANNED"]
+ *                 example: "ACTIVE"
+ *               password:
+ *                 type: string
+ *                 example: "StrongPassword123"
+ *               date_of_birth:
+ *                 type: string
+ *                 format: date
+ *                 example: "1990-01-01"
+ *               gender:
+ *                 type: boolean
+ *                 example: true
+ *     responses:
+ *       201:
+ *         description: Tạo người dùng thành công
+ *       400:
+ *         description: Thông tin không hợp lệ (thiếu email, mật khẩu ngắn)
+ *       401:
+ *         description: Chưa đăng nhập
+ *       403:
+ *         description: Không có quyền Admin
+ *       409:
+ *         description: Email đã tồn tại
+ *       500:
+ *         description: Lỗi hệ thống
+ */
+router.post('/users', verifyToken, verifyAdmin, createUser);
 
 export default router;

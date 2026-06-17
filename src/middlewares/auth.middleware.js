@@ -99,27 +99,32 @@ export const verifyToken = (req, res, next) => {
  * @param {import('express').NextFunction} next - Express next middleware function
  * @returns {void|Object} Gọi hàm next() nếu có quyền Admin, ngược lại trả về response lỗi 403
  */
-export const verifiyAdmin = (req, res, next) => {
-  try{
-    const accessToken = req.cookies.access_token;
-    const decoded = jwt.verify(accessToken, process.env.JWT_SECRET);
-    if(decoded.role !== 'ADMINISTRATOR'){
-      createLog({
-        userId: decoded.user_id,
-        userRole: decoded.role,
-        action: 'SYSTEM',
-        level: 'WARNING',
-        message: `Tài khoản ${decoded.email} cố gắng truy cập tài nguyên Admin (Bị từ chối)`,
-        metadata: { ip: req.ip, path: req.originalUrl }
-      });
-      return res.status(403).json({
-        success: false,
-        message: 'Bạn không có quyền truy cập tài nguyên này',
-        code: 'NO_PERMISSION'
-      });
-    }
-  }catch(error){
-    logger.error(error);
+export const verifyAdmin = (req, res, next) => {
+  // Tối ưu: Middleware `verifyToken` đã chạy trước và giải mã token vào `req.user`.
+  // Chúng ta chỉ cần kiểm tra `req.user.role` mà không cần giải mã lại token.
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      message: 'Xác thực không thành công, không tìm thấy thông tin người dùng.',
+      code: 'UNAUTHENTICATED'
+    });
   }
+
+  if (req.user.role !== 'ADMINISTRATOR') {
+    createLog({
+      userId: req.user.user_id,
+      userRole: req.user.role,
+      action: 'SYSTEM',
+      level: 'WARNING',
+      message: `Tài khoản ${req.user.email} cố gắng truy cập tài nguyên Admin (Bị từ chối)`,
+      metadata: { ip: req.ip, path: req.originalUrl }
+    });
+    return res.status(403).json({
+      success: false,
+      message: 'Bạn không có quyền truy cập tài nguyên này',
+      code: 'NO_PERMISSION'
+    });
+  }
+
   next();
 }

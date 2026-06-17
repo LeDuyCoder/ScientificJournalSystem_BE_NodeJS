@@ -1,6 +1,7 @@
 import * as adminService from '../services/admin.service.js';
 import logger from '../utils/logger.js';
 import * as logService from '../services/log.service.js';
+import { isValidEmail, isValidUUID } from '../utils/validation.js';
 
 /**
  * Controller xử lý yêu cầu lấy số liệu thống kê tổng quan (Dashboard Summary) dành cho Admin.
@@ -58,6 +59,74 @@ export const publicationTrends = async (req, res) => {
             success: false,
             code: "INTERNAL_SERVER_ERROR",
             message: "Lỗi hệ thống khi lấy dữ liệu biểu đồ"
+        });
+    }
+};
+
+/**
+ * Controller xử lý yêu cầu tạo mới người dùng từ Admin.
+ * 
+ * @async
+ * @param {import('express').Request} req 
+ * @param {import('express').Response} res 
+ */
+export const createUser = async (req, res) => {
+    try {
+        const { email, password, first_name, last_name, role, status, date_of_birth, gender } = req.body;
+
+        // Validate cơ bản
+        if (!email || !email.trim()) {
+            return res.status(400).json({ success: false, code: "EMAIL_REQUIRED", message: "Email không được để trống" });
+        }
+        if (!isValidEmail(email)) {
+            return res.status(400).json({ success: false, code: "EMAIL_INVALID", message: "Email không đúng định dạng" });
+        }
+        if (!password || password.length < 6) {
+            return res.status(400).json({ success: false, code: "PASSWORD_INVALID", message: "Mật khẩu phải có ít nhất 6 ký tự" });
+        }
+
+        // Gọi Service tạo User
+        const newUser = await adminService.createUser({
+            email,
+            password,
+            first_name,
+            last_name,
+            role,
+            status,
+            date_of_birth,
+            gender
+        });
+
+        // Ghi Log hệ thống
+        logService.createLog({
+            userId: req.user?.user_id,
+            userRole: req.user?.role,
+            action: 'CREATE',
+            source: 'ADMIN_PANEL',
+            entityTable: 'user',
+            entityId: newUser.user_id,
+            message: `Admin đã tạo tài khoản mới: ${newUser.email} (Role: ${newUser.role})`,
+            metadata: { ip: req.ip }
+        });
+
+        return res.status(201).json({
+            success: true,
+            code: "CREATE_USER_SUCCESS",
+            message: "Tạo người dùng thành công",
+            data: newUser
+        });
+
+    } catch (error) {
+        logger.error("Lỗi khi tạo người dùng (Admin Controller):", error);
+        
+        if (error.statusCode === 409) {
+            return res.status(409).json({ success: false, code: "EMAIL_EXISTS", message: error.message });
+        }
+
+        return res.status(500).json({
+            success: false,
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Lỗi hệ thống khi tạo người dùng"
         });
     }
 };
@@ -232,9 +301,8 @@ export const getUserDetail = async (req, res) => {
     try {
         const { id } = req.params;
         
-        // Kiểm tra định dạng UUID trước khi truy vấn DB
-        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-        if (!uuidRegex.test(id)) {
+        // Tối ưu: Sử dụng helper function để kiểm tra định dạng UUID
+        if (!isValidUUID(id)) {
             return res.status(400).json({
                 success: false,
                 code: "INVALID_USER_ID",
