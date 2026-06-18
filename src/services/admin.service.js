@@ -359,3 +359,55 @@ export const getUserDetailById = async (userId) => {
         throw error;
     }
 };
+
+/**
+ * Admin cập nhật thông tin người dùng bất kỳ
+ * Sử dụng transaction để đảm bảo an toàn dữ liệu
+ */
+export const updateUserByAdmin = async (userId, data) => {
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+
+        // Kiểm tra xem user có tồn tại không và khóa row để update
+        const checkRes = await client.query('SELECT * FROM "user" WHERE user_id = $1 FOR UPDATE', [userId]);
+        if (checkRes.rowCount === 0) {
+            await client.query('ROLLBACK');
+            return null;
+        }
+
+        const fields = [];
+        const values = [];
+        let idx = 1;
+
+        // Nếu có cập nhật mật khẩu thì băm (hash) trước khi lưu
+        if (data.password) {
+            const salt = await bcrypt.genSalt(10);
+            data.password = await bcrypt.hash(data.password, salt);
+        }
+
+        for (const [key, value] of Object.entries(data)) {
+            fields.push(`"${key}" = $${idx}`);
+            values.push(value);
+            idx++;
+        }
+
+        const updateQuery = `
+            UPDATE "user" 
+            SET ${fields.join(', ')} 
+            WHERE user_id = $${idx} 
+            RETURNING user_id, email, type, status, role, first_name, last_name, url_image, date_of_birth, gender
+        `;
+        values.push(userId);
+
+        const result = await client.query(updateQuery, values);
+        await client.query('COMMIT');
+        
+        return result.rows[0];
+    } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+    } finally {
+        client.release();
+    }
+};

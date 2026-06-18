@@ -23,3 +23,33 @@ export const isValidUUID = (uuid) => {
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     return uuidRegex.test(uuid);
 };
+
+/**
+ * Kiểm tra định dạng ngày tháng hợp lệ
+ */
+export const isValidDate = (dateString) => {
+    if (!dateString || typeof dateString !== 'string') return false;
+    const date = new Date(dateString);
+    return !isNaN(date.getTime());
+};
+
+/**
+ * Kiểm tra Role hợp lệ
+ */
+export const isValidRole = (role) => {
+    return ['STUDENT', 'LECTURER', 'RESEARCHER', 'ADMINISTRATOR'].includes(role);
+};
+
+/**
+ * Kiểm tra Status hợp lệ
+ */
+export const isValidStatus = (status) => {
+    return ['INACTIVE', 'ACTIVE', 'BANNED'].includes(status);
+};
+
+/**
+ * Kiểm tra Auth Provider hợp lệ
+ */
+export const isValidType = (type) => {
+    return ['LOCAL', 'GOOGLE', 'GITHUB'].includes(type);
+};
