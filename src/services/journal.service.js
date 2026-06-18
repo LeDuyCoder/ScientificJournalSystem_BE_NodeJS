@@ -25,6 +25,10 @@ export const getJournals = async ({
   rankingYear,
   isOaDiamond,
   countryIds,
+  subject_area_id,
+  publisher_id,
+  sort_by,
+  sort_order,
 } = {}) => {
   const pageNum = Math.max(1, parseInt(page, 10) || 1);
   const limitNum = Math.max(1, parseInt(limit, 10) || 10);
@@ -43,7 +47,7 @@ export const getJournals = async ({
     whereClauses.push(`j.display_name ILIKE $${values.length}`);
   }
 
-  const areaIds = pushCsvFilter(subjectAreaIds);
+  const areaIds = pushCsvFilter(subjectAreaIds || subject_area_id);
   if (areaIds.length > 0) {
     values.push(areaIds);
     whereClauses.push(`EXISTS (
@@ -74,6 +78,11 @@ export const getJournals = async ({
   // Filter by OA Diamond when requested
   if (isOaDiamond === true || String(isOaDiamond) === 'true') {
     whereClauses.push(`j.is_oa_diamond = true`);
+  }
+
+  if (publisher_id) {
+    values.push(BigInt(publisher_id));
+    whereClauses.push(`j.publisher_id = $${values.length}`);
   }
 
   const countryIdValues = pushCsvFilter(countryIds);
@@ -132,11 +141,23 @@ export const getJournals = async ({
 
   const whereSql = `WHERE ${whereClauses.join(' AND ')}`;
 
-  const orderBySql = sort === 'name'
-    ? 'ORDER BY j.display_name ASC'
-    : sort === 'metric'
-      ? 'ORDER BY latest_sjr.metric_value DESC NULLS LAST, j.display_name ASC'
-      : 'ORDER BY j.display_name ASC';
+  let orderBySql = 'ORDER BY j.display_name ASC';
+  if (sort_by) {
+    const order = (sort_order || 'ASC').toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
+    if (sort_by === 'display_name') {
+      orderBySql = `ORDER BY j.display_name ${order}`;
+    } else if (sort_by === 'created_at') {
+      orderBySql = `ORDER BY j.created_at ${order}`;
+    } else if (sort_by === 'volume_count') {
+      orderBySql = `ORDER BY volume_count ${order}`;
+    }
+  } else {
+    orderBySql = sort === 'name'
+      ? 'ORDER BY j.display_name ASC'
+      : sort === 'metric'
+        ? 'ORDER BY latest_sjr.metric_value DESC NULLS LAST, j.display_name ASC'
+        : 'ORDER BY j.display_name ASC';
+  }
 
   const query = `
     SELECT
@@ -154,7 +175,8 @@ export const getJournals = async ({
       latest_sjr.metric_year,
       latest_quartile.quartile,
       latest_quartile.quartile AS best_quartile,
-      latest_quartile.quartile_year
+      latest_quartile.quartile_year,
+      (SELECT COUNT(*) FROM "Volume" v WHERE v.journal_id = j.journal_id AND v.is_deleted = false)::integer AS volume_count
     ${fromSql}
     ${whereSql}
     ${orderBySql}
