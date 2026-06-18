@@ -254,7 +254,7 @@ export const validateUpdateJournal = async (req, res, next) => {
 
 export const validateJournalId = async (req, res, next) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id || req.params.journalId;
     const idNumber = Number(id);
     if (!Number.isInteger(idNumber) || idNumber <= 0) {
       return res.status(400).json({

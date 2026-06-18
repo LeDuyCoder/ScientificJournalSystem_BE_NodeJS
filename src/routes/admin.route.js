@@ -1,7 +1,8 @@
 import express from 'express';
 import { verifyAdmin, verifyToken } from '../middlewares/auth.middleware.js';
-import { summary, publicationTrends, getRecentActivities, getVolumeIssueStatus, exportVolumeIssueStatusCSV } from '../controllers/admin.controller.js';
+import { summary, publicationTrends, getRecentActivities, getVolumeIssueStatus, exportVolumeIssueStatusCSV, getJournalRepositorySummary } from '../controllers/admin.controller.js';
 import { adminUpdateUser, getUsers, getUserDetail, createUser } from '../controllers/user.controller.js';
+import { validateJournalId } from '../middlewares/journalValidation.middleware.js';
 
 const router = express.Router();
 
@@ -508,5 +509,52 @@ router.get('/users/:id', verifyToken, verifyAdmin, getUserDetail);
  *         description: Lỗi hệ thống
  */
 router.post('/users', verifyToken, verifyAdmin, createUser);
+
+/**
+ * @swagger
+ * /api/v1/admin/repositories/journals/{journalId}/summary:
+ *   get:
+ *     summary: Lấy dữ liệu tổng quan cho một tạp chí trong Repository Management
+ *     description: Trả về các số liệu thống kê chính của một tạp chí, bao gồm tổng số Volume, Issue, Bài viết và ngày phát hành tiếp theo. Yêu cầu quyền ADMINISTRATOR.
+ *     tags:
+ *       - Admin
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: journalId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID của tạp chí cần lấy thông tin tổng quan.
+ *     responses:
+ *       200:
+ *         description: Lấy dữ liệu tổng quan thành công.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Lấy dữ liệu tổng quan của kho lưu trữ thành công"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     total_volumes:
+ *                       type: integer
+ *                     active_issues:
+ *                       type: integer
+ *                     total_publications:
+ *                       type: integer
+ *                     next_release:
+ *                       type: string
+ *                       format: date-time
+ *                       nullable: true
+ */
+router.get('/repositories/journals/:journalId/summary', verifyToken, verifyAdmin, validateJournalId, getJournalRepositorySummary);
 
 export default router;

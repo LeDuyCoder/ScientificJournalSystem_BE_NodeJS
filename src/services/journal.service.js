@@ -467,3 +467,60 @@ export const restoreJournal = async (id) => {
     throw error;
   }
 }
+
+/**
+ * Lấy dữ liệu tổng quan cho một tạp chí (Repository Summary).
+ * @async
+ * @param {string|number} journalId - ID của tạp chí.
+ * @returns {Promise<Object>} Dữ liệu tổng quan bao gồm total_volumes, active_issues, total_publications, next_release.
+ */
+export const getJournalRepositorySummary = async (journalId) => {
+  try {
+    const id = BigInt(journalId);
+
+    const totalVolumesQuery = `
+      SELECT COUNT(*)::integer AS total_volumes
+      FROM "Volume"
+      WHERE journal_id = $1 AND is_deleted = false;
+    `;
+
+    const activeIssuesQuery = `
+      SELECT COUNT(i.issue_id)::integer AS active_issues
+      FROM "Issue" i
+      JOIN "Volume" v ON i.volume_id = v.volume_id
+      WHERE v.journal_id = $1 AND i.is_deleted = false;
+    `;
+
+    const totalPublicationsQuery = `
+      SELECT COUNT(a.article_id)::integer AS total_publications
+      FROM "Article" a
+      JOIN "Issue" i ON a.issue_id = i.issue_id
+      JOIN "Volume" v ON i.volume_id = v.volume_id
+      WHERE v.journal_id = $1 AND a.is_deleted = false;
+    `;
+
+    const nextReleaseQuery = `
+      SELECT MIN(i.publication_year)::integer AS next_release
+      FROM "Issue" i
+      JOIN "Volume" v ON i.volume_id = v.volume_id
+      WHERE v.journal_id = $1 AND i.is_deleted = false AND i.publication_year > EXTRACT(YEAR FROM NOW());
+    `;
+
+    const [volumesRes, issuesRes, articlesRes, releaseRes] = await Promise.all([
+      pool.query(totalVolumesQuery, [id]),
+      pool.query(activeIssuesQuery, [id]),
+      pool.query(totalPublicationsQuery, [id]),
+      pool.query(nextReleaseQuery, [id]),
+    ]);
+
+    return {
+      ...volumesRes.rows[0],
+      ...issuesRes.rows[0],
+      ...articlesRes.rows[0],
+      next_release: releaseRes.rows[0]?.next_release || null,
+    };
+  } catch (error) {
+    logger.error(`Lỗi khi lấy repository summary cho journal ID ${journalId}:`, error);
+    throw error;
+  }
+};
