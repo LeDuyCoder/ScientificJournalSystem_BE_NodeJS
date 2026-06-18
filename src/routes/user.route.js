@@ -1,6 +1,7 @@
 import express from 'express';
-import { deleteMe, getMe, updateMe } from '../controllers/user.controller.js';
-import { verifyToken } from '../middlewares/auth.middleware.js';
+import { deleteMe, getMe, getUserDetail, getUsers, updateMe } from '../controllers/user.controller.js';
+import { verifyAdmin, verifyToken } from '../middlewares/auth.middleware.js';
+import { createUser } from '../services/admin.service.js';
 
 const router = express.Router();
 
@@ -201,5 +202,164 @@ router.put('/me', verifyToken, updateMe);
  *                   example: Lỗi máy chủ cục bộ
  */
 router.get('/me', verifyToken, getMe);
+
+/**
+ * @swagger
+ * /api/v1/users:
+ *   get:
+ *     summary: "[ADMIN] Lấy danh sách tài khoản User"
+ *     description: "Trả về danh sách người dùng với các bộ lọc, phân trang. **LƯU Ý: Chỉ tài khoản có quyền ADMINISTRATOR mới được phép gọi API này.**"
+ *     tags:
+ *       - Users
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Tìm kiếm theo tên hoặc email
+ *       - in: query
+ *         name: role
+ *         schema:
+ *           type: string
+ *         description: Lọc theo vai trò (ví dụ RESEARCHER, LECTURER, ADMINISTRATOR)
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *         description: Lọc theo trạng thái (ví dụ ACTIVE, INACTIVE, BANNED)
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Trang hiện tại
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: Số bản ghi mỗi trang
+ *       - in: query
+ *         name: sortBy
+ *         schema:
+ *           type: string
+ *           default: email
+ *         description: Trường dùng để sắp xếp
+ *       - in: query
+ *         name: sortOrder
+ *         schema:
+ *           type: string
+ *           enum: [asc, desc]
+ *           default: desc
+ *         description: Thứ tự sắp xếp
+ *     responses:
+ *       200:
+ *         description: Lấy danh sách thành công
+ *       401:
+ *         description: Chưa đăng nhập hoặc Token không hợp lệ
+ *       403:
+ *         description: Bạn không có quyền Administrator để truy cập tài nguyên này
+ *       500:
+ *         description: Lỗi hệ thống
+ */
+router.get('/', verifyToken, verifyAdmin, getUsers);
+
+/**
+ * @swagger
+ * /api/v1/users/{id}:
+ *   get:
+ *     summary: "[ADMIN] Lấy chi tiết một User theo ID"
+ *     description: "Trả về thông tin chi tiết của một người dùng bất kỳ. **LƯU Ý: Chỉ tài khoản có quyền ADMINISTRATOR mới được phép gọi API này.**"
+ *     tags:
+ *       - Users
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: ID của người dùng cần lấy thông tin
+ *     responses:
+ *       200:
+ *         description: Lấy thông tin chi tiết thành công
+ *       401:
+ *         description: Chưa đăng nhập
+ *       403:
+ *         description: Bạn không có quyền Administrator để truy cập tài nguyên này
+ *       404:
+ *         description: Không tìm thấy người dùng
+ *       500:
+ *         description: Lỗi hệ thống
+ */
+router.get('/:id', verifyToken, verifyAdmin, getUserDetail);
+
+/**
+ * @swagger
+ * /api/v1/users:
+ *   post:
+ *     summary: "[ADMIN] Tạo tài khoản người dùng mới"
+ *     description: "Tạo tài khoản mới với đầy đủ quyền hạn (Role, Status). Mật khẩu sẽ tự động được mã hóa. **LƯU Ý: Chỉ tài khoản có quyền ADMINISTRATOR mới được phép gọi API này.**"
+ *     tags:
+ *       - Users
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - password
+ *             properties:
+ *               first_name:
+ *                 type: string
+ *                 example: "Elen"
+ *               last_name:
+ *                 type: string
+ *                 example: "Smith"
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 example: "elen@example.com"
+ *               role:
+ *                 type: string
+ *                 enum: ["STUDENT", "LECTURER", "RESEARCHER", "ADMINISTRATOR"]
+ *                 example: "RESEARCHER"
+ *               status:
+ *                 type: string
+ *                 enum: ["INACTIVE", "ACTIVE", "BANNED"]
+ *                 example: "ACTIVE"
+ *               password:
+ *                 type: string
+ *                 example: "StrongPassword123"
+ *               date_of_birth:
+ *                 type: string
+ *                 format: date
+ *                 example: "1990-01-01"
+ *               gender:
+ *                 type: boolean
+ *                 example: true
+ *     responses:
+ *       201:
+ *         description: Tạo người dùng thành công
+ *       400:
+ *         description: Thông tin không hợp lệ
+ *       401:
+ *         description: Chưa đăng nhập
+ *       403:
+ *         description: Bạn không có quyền Administrator để truy cập tài nguyên này
+ *       409:
+ *         description: Email đã tồn tại
+ *       500:
+ *         description: Lỗi hệ thống
+ */
+router.post('/', verifyToken, verifyAdmin, createUser);
 
 export default router;
