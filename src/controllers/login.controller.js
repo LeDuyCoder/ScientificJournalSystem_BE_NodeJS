@@ -1,16 +1,8 @@
 import { loginWithEmailPassword, signRefreshToken, signToken } from "../services/login.service.js";
 import logger from "../utils/logger.js";
 import jwt from 'jsonwebtoken';
-
-/**
- * Kiểm tra định dạng của một chuỗi email có hợp lệ hay không
- * @param {string} email - Chuỗi email cần kiểm tra
- * @returns {boolean} Trả về true nếu định dạng hợp lệ, ngược lại là false
- */
-const isValidEmail = (email) => {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return emailRegex.test(email);
-};
+import { createLog } from '../services/log.service.js';
+import { isValidEmail } from '../utils/validation.js';
 
 /**
  * API Đăng nhập cho tài khoản Local bằng Email và Mật khẩu
@@ -65,6 +57,14 @@ export const login = async (req, res) => {
         sameSite: 'none'
       });
     }
+
+    createLog({
+      userId: data.user.user_id,
+      userRole: data.user.role,
+      action: 'LOGIN',
+      message: `Người dùng ${data.user.email} đăng nhập hệ thống thành công`,
+      metadata: { ip: req.ip, userAgent: req.headers['user-agent'] }
+    });
 
     // 3. Trả kết quả JSON về cho Frontend
     return res.status(200).json({
@@ -237,4 +237,3 @@ export const logout = (req, res) => {
     });
   }
 };
-
