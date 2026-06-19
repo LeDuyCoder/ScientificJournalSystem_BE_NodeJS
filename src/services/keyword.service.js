@@ -73,6 +73,7 @@ export const getWatchedKeywordArticles = async (
 ) => {
   const page = Math.max(parseInt(queryParams.page) || 1, 1);
   const limit = Math.min(parseInt(queryParams.limit) || 10, 50);
+  const filter = queryParams.filter || 'all'; // 'all' or 'keyword'
   const offset = (page - 1) * limit;
 
   const projectCheck = await pool.query(
@@ -87,34 +88,8 @@ export const getWatchedKeywordArticles = async (
     error.statusCode = 400;
     throw error;
   }
-  const countQuery = `
-    WITH MatchedArticles AS (
-      SELECT ka.article_id
-      FROM "Project_Keyword" pk
-      JOIN "Keyword_Article" ka ON ka.keyword_id = pk.keyword_id
-      WHERE pk.project_id = $1
-      
-      UNION
-      
-      SELECT a.article_id
-      FROM "Project" p
-      JOIN "Subject_Category" sc ON sc.subject_area_id = p.subject_area
-      JOIN "Journal_Subject_Category" jsc ON jsc.subject_category_id = sc.subject_category_id
-      JOIN "Volume" v ON v.journal_id = jsc.journal_id
-      JOIN "Issue" i ON i.volume_id = v.volume_id
-      JOIN "Article" a ON a.issue_id = i.issue_id
-      WHERE p.project_id = $1 AND p.user_id = $2 AND p.subject_area IS NOT NULL
-    )
-    SELECT COUNT(*) AS total FROM MatchedArticles
-  `;
-
-  const dataQuery = `
-    WITH MatchedArticles AS (
-      SELECT ka.article_id, ka.keyword_id, NULL::bigint AS subject_area_id
-      FROM "Project_Keyword" pk
-      JOIN "Keyword_Article" ka ON ka.keyword_id = pk.keyword_id
-      WHERE pk.project_id = $1
-      
+  
+  const unionPart = filter === 'keyword' ? '' : `
       UNION
       
       SELECT a.article_id, NULL::bigint AS keyword_id, p.subject_area AS subject_area_id
@@ -125,6 +100,28 @@ export const getWatchedKeywordArticles = async (
       JOIN "Issue" i ON i.volume_id = v.volume_id
       JOIN "Article" a ON a.issue_id = i.issue_id
       WHERE p.project_id = $1 AND p.user_id = $2 AND p.subject_area IS NOT NULL
+  `;
+  
+  const countQuery = `
+    WITH MatchedArticles AS (
+      SELECT ka.article_id, ka.keyword_id, NULL::bigint AS subject_area_id
+      FROM "Project_Keyword" pk
+      JOIN "Project" p_check ON p_check.project_id = pk.project_id
+      JOIN "Keyword_Article" ka ON ka.keyword_id = pk.keyword_id
+      WHERE pk.project_id = $1 AND p_check.user_id = $2
+      ${unionPart}
+    )
+    SELECT COUNT(*) AS total FROM (SELECT DISTINCT article_id FROM MatchedArticles) AS unique_articles
+  `;
+
+  const dataQuery = `
+    WITH MatchedArticles AS (
+      SELECT ka.article_id, ka.keyword_id, NULL::bigint AS subject_area_id
+      FROM "Project_Keyword" pk
+      JOIN "Project" p_check ON p_check.project_id = pk.project_id
+      JOIN "Keyword_Article" ka ON ka.keyword_id = pk.keyword_id
+      WHERE pk.project_id = $1 AND p_check.user_id = $2
+      ${unionPart}
     )
     SELECT 
       a.article_id,

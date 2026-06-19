@@ -67,6 +67,59 @@ export const getProjectById = async (projectId, userId) => {
     [projectId]
   );
 
+  // 5. Tính toán Cảnh báo mới (24H)
+  const alertsQuery = `
+    WITH MatchedArticles AS (
+      SELECT ka.article_id
+      FROM "Project_Keyword" pk
+      JOIN "Keyword_Article" ka ON ka.keyword_id = pk.keyword_id
+      WHERE pk.project_id = $1
+      UNION
+      SELECT a.article_id
+      FROM "Project" p
+      JOIN "Subject_Category" sc ON sc.subject_area_id = p.subject_area
+      JOIN "Journal_Subject_Category" jsc ON jsc.subject_category_id = sc.subject_category_id
+      JOIN "Volume" v ON v.journal_id = jsc.journal_id
+      JOIN "Issue" i ON i.volume_id = v.volume_id
+      JOIN "Article" a ON a.issue_id = i.issue_id
+      WHERE p.project_id = $1 AND p.user_id = $2 AND p.subject_area IS NOT NULL
+    ),
+    MatchedData AS (
+      SELECT a.article_id, a.created_at, a.publication_year
+      FROM MatchedArticles ma
+      JOIN "Article" a ON a.article_id = ma.article_id
+    ),
+    LatestYear AS (
+      SELECT MAX(publication_year) as max_year
+      FROM MatchedData
+    )
+    SELECT 
+      COUNT(md.article_id) FILTER (WHERE md.created_at >= NOW() - INTERVAL '24 HOURS') AS today_count,
+      COUNT(md.article_id) FILTER (WHERE md.publication_year = ly.max_year) AS current_year_count,
+      COUNT(md.article_id) FILTER (WHERE md.publication_year = ly.max_year - 1) AS previous_year_count
+    FROM MatchedData md
+    CROSS JOIN LatestYear ly
+    GROUP BY ly.max_year
+  `;
+  const alertsResult = await pool.query(alertsQuery, [projectId, userId]);
+  
+  let todayCount = 0;
+  let currentYearCount = 0;
+  let previousYearCount = 0;
+  let growthRate = 0.0;
+  
+  if (alertsResult.rows.length > 0) {
+    todayCount = parseInt(alertsResult.rows[0].today_count) || 0;
+    currentYearCount = parseInt(alertsResult.rows[0].current_year_count) || 0;
+    previousYearCount = parseInt(alertsResult.rows[0].previous_year_count) || 0;
+    
+    if (previousYearCount === 0) {
+      growthRate = currentYearCount > 0 ? 100.0 : 0.0;
+    } else {
+      growthRate = ((currentYearCount - previousYearCount) / previousYearCount) * 100.0;
+    }
+  }
+
   return {
     project_id: project.project_id,
     title: project.title,
@@ -79,7 +132,13 @@ export const getProjectById = async (projectId, userId) => {
     } : null,
     subject_categories: categoriesResult.rows,
     journals: journalsResult.rows,
-    watched_keywords: keywordsResult.rows.map(k => k.display_name)
+    watched_keywords: keywordsResult.rows.map(k => k.display_name),
+    alerts_24h: {
+      todayCount,
+      currentYearCount,
+      previousYearCount,
+      growthRate: parseFloat(growthRate.toFixed(1))
+    }
   };
 };
 
