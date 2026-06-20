@@ -118,11 +118,19 @@ export const getArticles = async (req, res) => {
       serviceParams.isOpenAccess = true;
     }
 
-    const [articles, total, stats] = await Promise.all([
+    const [articles, total] = await Promise.all([
       articleService.getAllArticles(serviceParams),
       articleService.countAllArticles(serviceParams),
-      articleService.getArticleListStats(),
     ]);
+
+    // 2. Sau khi đã có danh sách và giải phóng kết nối trên, mới chạy hàm thống kê nặng một cách tuần tự
+    let stats = { totalArticles: 0, openAccessCount: 0, authorsCount: 0, topicsCount: 0 };
+    try {
+      stats = await articleService.getArticleListStats();
+    } catch (statsError) {
+      logger.error("Lỗi riêng lẻ khi lấy stats (không làm sập API chính):", statsError);
+      // Giữ cho API không bị sập hoàn toàn nếu chỉ lỗi mỗi phần thống kê
+    }
 
     return res.status(200).json({
       success: true,

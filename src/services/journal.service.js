@@ -500,47 +500,47 @@ export const getJournalRepositorySummary = async (journalId) => {
   try {
     const id = BigInt(journalId);
 
-    const totalVolumesQuery = `
-      SELECT COUNT(*)::integer AS total_volumes
-      FROM "Volume"
-      WHERE journal_id = $1 AND is_deleted = false;
+    const query = `
+      SELECT 
+        (
+          SELECT COUNT(*)::integer 
+          FROM "Volume" 
+          WHERE journal_id = $1 AND is_deleted = false
+        ) AS total_volumes,
+        
+        (
+          SELECT COUNT(i.issue_id)::integer 
+          FROM "Issue" i
+          JOIN "Volume" v ON i.volume_id = v.volume_id
+          WHERE v.journal_id = $1 AND i.is_deleted = false
+        ) AS active_issues,
+        
+        (
+          SELECT COUNT(a.article_id)::integer 
+          FROM "Article" a
+          JOIN "Issue" i ON a.issue_id = i.issue_id
+          JOIN "Volume" v ON i.volume_id = v.volume_id
+          WHERE v.journal_id = $1 AND a.is_deleted = false
+        ) AS total_publications,
+        
+        (
+          SELECT MIN(i.publication_year)::integer 
+          FROM "Issue" i
+          JOIN "Volume" v ON i.volume_id = v.volume_id
+          WHERE v.journal_id = $1 AND i.is_deleted = false AND i.publication_year > EXTRACT(YEAR FROM NOW())
+        ) AS next_release;
     `;
 
-    const activeIssuesQuery = `
-      SELECT COUNT(i.issue_id)::integer AS active_issues
-      FROM "Issue" i
-      JOIN "Volume" v ON i.volume_id = v.volume_id
-      WHERE v.journal_id = $1 AND i.is_deleted = false;
-    `;
+    // Chỉ gọi pool.query ĐÚNG 1 LẦN -> Chỉ tốn 1 kết nối
+    const result = await pool.query(query, [id]);
 
-    const totalPublicationsQuery = `
-      SELECT COUNT(a.article_id)::integer AS total_publications
-      FROM "Article" a
-      JOIN "Issue" i ON a.issue_id = i.issue_id
-      JOIN "Volume" v ON i.volume_id = v.volume_id
-      WHERE v.journal_id = $1 AND a.is_deleted = false;
-    `;
-
-    const nextReleaseQuery = `
-      SELECT MIN(i.publication_year)::integer AS next_release
-      FROM "Issue" i
-      JOIN "Volume" v ON i.volume_id = v.volume_id
-      WHERE v.journal_id = $1 AND i.is_deleted = false AND i.publication_year > EXTRACT(YEAR FROM NOW());
-    `;
-
-    const [volumesRes, issuesRes, articlesRes, releaseRes] = await Promise.all([
-      pool.query(totalVolumesQuery, [id]),
-      pool.query(activeIssuesQuery, [id]),
-      pool.query(totalPublicationsQuery, [id]),
-      pool.query(nextReleaseQuery, [id]),
-    ]);
-
-    return {
-      ...volumesRes.rows[0],
-      ...issuesRes.rows[0],
-      ...articlesRes.rows[0],
-      next_release: releaseRes.rows[0]?.next_release || null,
+    return result.rows[0] || {
+      total_volumes: 0,
+      active_issues: 0,
+      total_publications: 0,
+      next_release: null
     };
+
   } catch (error) {
     logger.error(`Lỗi khi lấy repository summary cho journal ID ${journalId}:`, error);
     throw error;
