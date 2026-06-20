@@ -335,7 +335,7 @@ export const getUserDetail = async (req, res) => {
             });
         }
 
-        logService.createLog({
+        createLog({
             userId: req.user?.user_id,
             userRole: req.user?.role,
             action: 'VIEW',
@@ -388,7 +388,7 @@ export const createUser = async (req, res) => {
             email, password, first_name, last_name, role, status, date_of_birth, gender
         });
 
-        logService.createLog({
+        createLog({
             userId: req.user?.user_id,
             userRole: req.user?.role,
             action: 'CREATE',

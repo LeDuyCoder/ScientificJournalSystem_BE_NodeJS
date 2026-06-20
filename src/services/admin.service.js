@@ -24,14 +24,14 @@ export const summary = async () => {
         const journalsQuery = `
             SELECT 
                 COUNT(*) AS total,
-                COUNT(*) FILTER (WHERE works_synced_at >= CURRENT_DATE) AS today_count
+                COUNT(*) FILTER (WHERE created_at >= CURRENT_DATE) AS today_count
             FROM "Journal" 
             WHERE is_deleted = false;
         `;
         const articlesQuery = `
             SELECT 
                 COUNT(*) AS total,
-                COUNT(*) FILTER (WHERE semantic_synced_at >= CURRENT_DATE) AS today_count
+                COUNT(*) FILTER (WHERE created_at >= CURRENT_DATE) AS today_count
             FROM "Article" 
             WHERE is_deleted = false;
         `;
