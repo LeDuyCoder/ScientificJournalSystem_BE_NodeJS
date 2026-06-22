@@ -92,6 +92,8 @@ export const getWatchedKeywordArticles = async (req, res) => {
       pagination: {
         page: result.page,
         limit: result.limit,
+        total: result.total,
+        total_pages: result.total_pages,
       },
     });
   } catch (error) {

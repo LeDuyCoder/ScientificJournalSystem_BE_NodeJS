@@ -73,6 +73,7 @@ export const getWatchedKeywordArticles = async (
 ) => {
   const page = Math.max(parseInt(queryParams.page) || 1, 1);
   const limit = Math.min(parseInt(queryParams.limit) || 10, 50);
+  const filter = queryParams.filter || 'all'; // 'all' or 'keyword'
   const offset = (page - 1) * limit;
 
   const projectCheck = await pool.query(
@@ -87,32 +88,71 @@ export const getWatchedKeywordArticles = async (
     error.statusCode = 400;
     throw error;
   }
+  
+  const unionPart = filter === 'keyword' ? '' : `
+      UNION
+      
+      SELECT a.article_id, NULL::bigint AS keyword_id, p.subject_area AS subject_area_id
+      FROM "Project" p
+      JOIN "Subject_Category" sc ON sc.subject_area_id = p.subject_area
+      JOIN "Journal_Subject_Category" jsc ON jsc.subject_category_id = sc.subject_category_id
+      JOIN "Volume" v ON v.journal_id = jsc.journal_id
+      JOIN "Issue" i ON i.volume_id = v.volume_id
+      JOIN "Article" a ON a.issue_id = i.issue_id
+      WHERE p.project_id = $1 AND p.user_id = $2 AND p.subject_area IS NOT NULL
+  `;
+  
   const countQuery = `
-    SELECT COUNT(DISTINCT a.article_id) AS total
-    FROM "Project_Keyword" pk
-    JOIN "Project" p          ON p.project_id  = pk.project_id
-    JOIN "Keyword" k          ON k.keyword_id  = pk.keyword_id
-    JOIN "Keyword_Article" ka ON ka.keyword_id = k.keyword_id
-    JOIN "Article" a          ON a.article_id  = ka.article_id
-    WHERE pk.project_id = $1
-      AND p.user_id     = $2
+    WITH MatchedArticles AS (
+      SELECT ka.article_id, ka.keyword_id, NULL::bigint AS subject_area_id
+      FROM "Project_Keyword" pk
+      JOIN "Project" p_check ON p_check.project_id = pk.project_id
+      JOIN "Keyword_Article" ka ON ka.keyword_id = pk.keyword_id
+      WHERE pk.project_id = $1 AND p_check.user_id = $2
+      ${unionPart}
+    )
+    SELECT COUNT(*) AS total FROM (SELECT DISTINCT article_id FROM MatchedArticles) AS unique_articles
   `;
 
   const dataQuery = `
+    WITH MatchedArticles AS (
+      SELECT ka.article_id, ka.keyword_id, NULL::bigint AS subject_area_id
+      FROM "Project_Keyword" pk
+      JOIN "Project" p_check ON p_check.project_id = pk.project_id
+      JOIN "Keyword_Article" ka ON ka.keyword_id = pk.keyword_id
+      WHERE pk.project_id = $1 AND p_check.user_id = $2
+      ${unionPart}
+    )
     SELECT 
       a.article_id,
       a.title,
+      a.abstract,
       a.publication_year,
       a.doi,
-      ARRAY_AGG(DISTINCT k.display_name) AS matched_keywords
-    FROM "Project_Keyword" pk
-    JOIN "Project" p          ON p.project_id  = pk.project_id
-    JOIN "Keyword" k          ON k.keyword_id  = pk.keyword_id
-    JOIN "Keyword_Article" ka ON ka.keyword_id = k.keyword_id
-    JOIN "Article" a          ON a.article_id  = ka.article_id
-    WHERE pk.project_id = $1
-      AND p.user_id     = $2
-    GROUP BY a.article_id, a.title, a.publication_year, a.doi, a.created_at
+      ARRAY_REMOVE(ARRAY_AGG(DISTINCT k.display_name), NULL) AS matched_keywords,
+      ARRAY_REMOVE(ARRAY_AGG(DISTINCT sa.display_name), NULL) AS matched_areas,
+      COALESCE(
+          (
+              SELECT json_agg(json_build_object(
+                  'author_id', au."author_id"::text,
+                  'display_name', au."display_name"
+              ))
+              FROM "Author_Article" aa
+              JOIN "Author" au ON au."author_id" = aa."author_id"
+              WHERE aa."article_id" = a."article_id"
+                AND COALESCE(au."is_deleted", false) = false
+          ),
+          '[]'::json
+      ) AS authors,
+      j.display_name AS journal_name
+    FROM MatchedArticles ma
+    JOIN "Article" a ON a.article_id = ma.article_id
+    LEFT JOIN "Keyword" k ON k.keyword_id = ma.keyword_id
+    LEFT JOIN "Subject_Area" sa ON sa.subject_area_id = ma.subject_area_id
+    LEFT JOIN "Issue" i ON i.issue_id = a.issue_id
+    LEFT JOIN "Volume" v ON v.volume_id = i.volume_id
+    LEFT JOIN "Journal" j ON j.journal_id = v.journal_id
+    GROUP BY a.article_id, a.title, a.abstract, a.publication_year, a.doi, a.created_at, j.display_name
     ORDER BY a.publication_year DESC, a.created_at DESC
     LIMIT $3 OFFSET $4
   `;
@@ -132,9 +172,13 @@ export const getWatchedKeywordArticles = async (
     data: dataResult.rows.map((a) => ({
       article_id: a.article_id,
       title: a.title || null,
+      abstract: a.abstract || null,
       publication_year: a.publication_year || null,
       doi: a.doi || null,
       matched_keywords: a.matched_keywords || [],
+      matched_areas: a.matched_areas || [],
+      authors: a.authors || [],
+      journal_name: a.journal_name || null
     })),
   };
 };
@@ -267,7 +311,7 @@ export const replaceWatchedKeywords = async (projectId, keywordIds) => {
 
     // 4. Lọc ra những keywords hợp lệ
     const idsToInsert = uniqueIds.filter(id => validIds.has(id));
-    
+
     // 5. Insert danh sách keywords hợp lệ mới
     if (idsToInsert.length > 0) {
       for (const kwId of idsToInsert) {
@@ -298,7 +342,7 @@ export const replaceWatchedKeywords = async (projectId, keywordIds) => {
  */
 export const addWatchedKeywords = async (projectId, keywordIds) => {
   if (!keywordIds || keywordIds.length === 0) return { success: true, insertedCount: 0 };
-  
+
   // 1. Kiểm tra xem có keyword nào đã tồn tại trong project này chưa
   const existingCheck = await pool.query(
     `SELECT keyword_id FROM "Project_Keyword" WHERE project_id = $1 AND keyword_id = ANY($2::int[])`,
@@ -360,7 +404,7 @@ export const removeWatchedKeyword = async (projectId, keywordId) => {
     `DELETE FROM "Project_Keyword" WHERE project_id = $1 AND keyword_id = $2 RETURNING *`,
     [projectId, keywordId]
   );
-  
+
   return result.rowCount > 0;
 };
 
