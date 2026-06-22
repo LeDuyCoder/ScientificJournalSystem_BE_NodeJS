@@ -217,7 +217,7 @@ export const getJournalsById = async (id) => {
         j.issn,
         j.type,
         j.coverage,
-        j.scope_detail,
+        j.coverage AS description,
         j.is_open_access,
         j.is_oa_diamond,
         p.publisher_id::text AS publisher_id,
@@ -288,7 +288,7 @@ export const getJournalsById = async (id) => {
 
     return {
       ...journal,
-      description: journal.scope_detail,
+      description: journal.description,
       subject_categories: categoriesRes.rows,
       quartile: quartileMetric?.value_txt || null,
       metric_value: metricValue(sjrMetric),
@@ -340,7 +340,7 @@ export const createJournal = async (data) => {
     // Nhận các field từ object data truyền vào
     let {
       source_id, publisher_id, country, region, display_name,
-      type, is_open_access, is_oa_diamond, coverage, issn, scope_detail
+      type, is_open_access, is_oa_diamond, coverage, issn, scope_detail, description
     } = data;
 
     // Chuẩn hóa dữ liệu sang null nếu trống
@@ -352,17 +352,16 @@ export const createJournal = async (data) => {
     type = type || null;
     is_open_access = is_open_access ?? null;
     is_oa_diamond = is_oa_diamond ?? null;
-    coverage = coverage || null;
+    coverage = coverage || scope_detail || description || null;
     issn = issn || null;
-    scope_detail = scope_detail || null;
     const is_deleted = false; 
 
     const query = `
         INSERT INTO "Journal" (
             source_id, publisher_id, country, region, display_name,
-            type, is_open_access, is_oa_diamond, coverage, issn, scope_detail, is_deleted
+            type, is_open_access, is_oa_diamond, coverage, issn, is_deleted
         ) 
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
         RETURNING *;
     `;
 
@@ -371,7 +370,7 @@ export const createJournal = async (data) => {
         publisher_id ? BigInt(publisher_id) : null,
         country ? BigInt(country) : null,
         region ? BigInt(region) : null,
-        display_name, type, is_open_access, is_oa_diamond, coverage, issn, scope_detail, is_deleted
+        display_name, type, is_open_access, is_oa_diamond, coverage, issn, is_deleted
     ];
 
     const result = await pool.query(query, values);
@@ -389,7 +388,7 @@ export const createJournal = async (data) => {
   * - Kiểm tra tính hợp lệ của ID (phải là số nguyên dương).
   * - Cập nhật các trường được phép trong database nếu chúng tồn tại trong dữ liệu mới.
   * - Trả về thông tin journal đã cập nhật nếu thành công, hoặc null nếu không tìm thấy journal với ID đó, hoặc lỗi nếu có lỗi hệ thống.
-  * Các trường được phép cập nhật bao gồm: source_id, publisher_id, country, region, display_name, type, is_open_access, is_oa_diamond, coverage, issn, scope_detail. Các trường publisher_id, country, region sẽ được chuyển sang kiểu BigInt trước khi cập nhật.
+  * Các trường được phép cập nhật bao gồm: source_id, publisher_id, country, region, display_name, type, is_open_access, is_oa_diamond, coverage, issn. Nếu client gửi scope_detail/description thì service sẽ ánh xạ sang coverage vì schema hiện tại không có cột scope_detail. Các trường publisher_id, country, region sẽ được chuyển sang kiểu BigInt trước khi cập nhật.
   * @async
   * @param {number|string} id - ID của journal cần cập nhật (có thể là số hoặc chuỗi số).
   * @param {Object} data - Dữ liệu mới để cập nhật cho journal, có thể chứa một hoặc nhiều trường trong số các trường được phép cập nhật.
@@ -397,9 +396,14 @@ export const createJournal = async (data) => {
 */ 
 export const updateJournal = async (id, data) => {
   try {
+    const normalizedData = { ...data };
+    if (normalizedData.coverage === undefined) {
+      normalizedData.coverage = normalizedData.scope_detail ?? normalizedData.description;
+    }
+
     const allowedFields = [
       'source_id', 'publisher_id', 'country', 'region', 'display_name',
-      'type', 'is_open_access', 'is_oa_diamond', 'coverage', 'issn', 'scope_detail'
+      'type', 'is_open_access', 'is_oa_diamond', 'coverage', 'issn'
     ];
 
     const updateParts = [];
@@ -407,8 +411,8 @@ export const updateJournal = async (id, data) => {
     let placeholderIndex = 1;
 
     for (const field of allowedFields) {
-      if (data[field] !== undefined && data[field] !== null) {
-        let value = data[field];
+      if (normalizedData[field] !== undefined && normalizedData[field] !== null) {
+        let value = normalizedData[field];
 
         if (['publisher_id', 'country', 'region'].includes(field)) {
           value = BigInt(value);

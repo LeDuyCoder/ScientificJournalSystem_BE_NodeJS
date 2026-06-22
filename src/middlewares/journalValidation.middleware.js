@@ -17,7 +17,7 @@ export const validateCreateJournal = async (req, res, next) => {
     const { 
       source_id, publisher_id, country, region, 
       display_name, type, is_open_access, is_oa_diamond, 
-      coverage, issn, scope_detail 
+      coverage, issn
     } = req.body;
 
     // 1. Kiểm tra display_name
@@ -160,7 +160,7 @@ export const validateUpdateJournal = async (req, res, next) => {
       const {
         publisher_id, country, region,
         display_name, type, is_open_access, is_oa_diamond,
-        coverage, issn, scope_detail
+        coverage, issn
       } = req.body;
 
       if(publisher_id !== undefined) {
