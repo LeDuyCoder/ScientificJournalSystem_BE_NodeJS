@@ -8,10 +8,48 @@ import logger from '../utils/logger.js';
  */
 export const getUserProjects = async (userId) => {
   const result = await pool.query(
-    `SELECT project_id, title, subject_area, created_at 
-     FROM "Project" 
-     WHERE user_id = $1 
-     ORDER BY created_at DESC`,
+    `SELECT 
+       p.project_id, 
+       p.title, 
+       p.title as project_name, 
+       sa.display_name as subject_area, 
+       p.created_at,
+       (SELECT COUNT(*) FROM "Project_Keyword" pk WHERE pk.project_id = p.project_id)::integer as keyword_count,
+       COALESCE(stats.journal_count, 0)::integer as journal_count,
+       COALESCE(stats.article_count, 0)::integer as article_count
+     FROM "Project" p 
+     LEFT JOIN LATERAL (
+       SELECT 
+         COUNT(DISTINCT matched.journal_id) as journal_count,
+         COUNT(DISTINCT matched.article_id) as article_count
+       FROM (
+         SELECT ka.article_id, v.journal_id 
+         FROM "Project_Keyword" pk 
+         JOIN "Keyword_Article" ka ON ka.keyword_id = pk.keyword_id 
+         JOIN "Article" a ON a.article_id = ka.article_id
+         JOIN "Issue" i ON i.issue_id = a.issue_id
+         JOIN "Volume" v ON v.volume_id = i.volume_id
+         WHERE pk.project_id = p.project_id
+         UNION
+         SELECT a.article_id, v.journal_id 
+         FROM "Project_Journal" pj 
+         JOIN "Volume" v ON v.journal_id = pj.journal_id 
+         JOIN "Issue" i ON i.volume_id = v.volume_id 
+         JOIN "Article" a ON a.issue_id = i.issue_id 
+         WHERE pj.project_id = p.project_id
+         UNION
+         SELECT a.article_id, v.journal_id 
+         FROM "Subject_Category" sc 
+         JOIN "Journal_Subject_Category" jsc ON jsc.subject_category_id = sc.subject_category_id 
+         JOIN "Volume" v ON v.journal_id = jsc.journal_id 
+         JOIN "Issue" i ON i.volume_id = v.volume_id 
+         JOIN "Article" a ON a.issue_id = i.issue_id 
+         WHERE sc.subject_area_id = p.subject_area AND p.subject_area IS NOT NULL
+       ) AS matched
+     ) stats ON true
+     LEFT JOIN "Subject_Area" sa ON sa.subject_area_id = p.subject_area
+     WHERE p.user_id = $1 
+     ORDER BY p.created_at DESC`,
     [userId]
   );
   return result.rows;
