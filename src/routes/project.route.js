@@ -47,6 +47,9 @@ const router = express.Router();
  *                       title:
  *                         type: string
  *                         example: "Dự án nghiên cứu AI"
+ *                       project_name:
+ *                         type: string
+ *                         example: "Dự án nghiên cứu AI"
  *                       subject_area:
  *                         type: integer
  *                         example: 1
@@ -54,6 +57,15 @@ const router = express.Router();
  *                         type: string
  *                         format: date-time
  *                         example: "2026-05-27T10:00:00Z"
+ *                       journal_count:
+ *                         type: integer
+ *                         example: 5
+ *                       keyword_count:
+ *                         type: integer
+ *                         example: 10
+ *                       article_count:
+ *                         type: integer
+ *                         example: 120
  *       401:
  *         description: Chưa xác thực hoặc token không hợp lệ
  *       500:
