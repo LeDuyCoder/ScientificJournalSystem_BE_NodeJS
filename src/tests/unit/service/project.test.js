@@ -55,7 +55,7 @@ test.describe('Project Management API - CRUD Operations (BIGINT)', () => {
 
       assert.strictEqual(res.status, 401);
       assert.strictEqual(res.body.success, false);
-      assert.strictEqual(res.body.message, 'Không tìm thấy token xác thực hoặc token không hợp lệ');
+      assert.strictEqual(res.body.message, 'Bạn chưa đăng nhập hoặc phiên làm việc đã hết hạn');
     });
   });
 
@@ -405,7 +405,148 @@ test.describe('Project Management API - CRUD Operations (BIGINT)', () => {
 
       assert.strictEqual(res.status, 401);
       assert.strictEqual(res.body.success, false);
-      assert.strictEqual(res.body.message, 'Không tìm thấy token xác thực hoặc token không hợp lệ');
+      assert.strictEqual(res.body.message, 'Bạn chưa đăng nhập hoặc phiên làm việc đã hết hạn');
+    });
+  });
+
+  // ==========================================
+  // 6. GET /api/v1/projects/:id/overview - Tổng quan & Biểu đồ dự án
+  // ==========================================
+  test.describe('GET /api/v1/projects/:id/overview', () => {
+    test('Lấy tổng quan dự án thành công (Có dữ liệu)', async () => {
+      const projectId = '12';
+      let queryCallCount = 0;
+
+      mock.method(pool, 'query', async (sql, params) => {
+        queryCallCount++;
+        if (queryCallCount === 1) {
+          // Project check
+          return { rows: [{ 1: 1 }] };
+        } else if (queryCallCount === 2) {
+          // Summary result
+          return {
+            rows: [{
+              total_articles: 81,
+              total_keywords: 1,
+              total_journals: 12,
+              last_updated_at: '2026-07-03T00:00:00.000Z'
+            }]
+          };
+        } else if (queryCallCount === 3) {
+          // Trend result
+          return {
+            rows: [
+              { label: '2022', count: 10 },
+              { label: '2023', count: 18 }
+            ]
+          };
+        } else if (queryCallCount === 4) {
+          // Subject area result
+          return {
+            rows: [
+              { label: 'Computer Science', count: 45 },
+              { label: 'Engineering', count: 25 }
+            ]
+          };
+        } else if (queryCallCount === 5) {
+          // Publication type result
+          return {
+            rows: [
+              { label: 'journal', count: 50 },
+              { label: 'conference and proceedings', count: 21 }
+            ]
+          };
+        }
+      });
+
+      const res = await request(app)
+        .get(`/api/v1/projects/${projectId}/overview`)
+        .set('Authorization', `Bearer ${testToken}`);
+
+      assert.strictEqual(res.status, 200);
+      assert.strictEqual(res.body.success, true);
+      assert.strictEqual(res.body.message, 'Project overview fetched successfully');
+      assert.strictEqual(res.body.data.summary.totalArticles, 81);
+      assert.strictEqual(res.body.data.charts.publicationTrend.labels[0], '2022');
+      assert.strictEqual(res.body.data.charts.publicationTrend.datasets[0].data[0], 10);
+      assert.strictEqual(res.body.data.charts.subjectAreaDistribution.labels[0], 'Computer Science');
+      assert.strictEqual(res.body.data.charts.publicationTypeDistribution.labels[0], 'journal');
+    });
+
+    test('Lấy tổng quan dự án thành công (Không có dữ liệu)', async () => {
+      const projectId = '12';
+      let queryCallCount = 0;
+
+      mock.method(pool, 'query', async (sql, params) => {
+        queryCallCount++;
+        if (queryCallCount === 1) {
+          // Project check
+          return { rows: [{ 1: 1 }] };
+        } else if (queryCallCount === 2) {
+          // Summary result
+          return {
+            rows: [{
+              total_articles: 0,
+              total_keywords: 0,
+              total_journals: 0,
+              last_updated_at: null
+            }]
+          };
+        } else if (queryCallCount === 3) {
+          // Trend result
+          return { rows: [] };
+        } else if (queryCallCount === 4) {
+          // Subject area result
+          return { rows: [] };
+        } else if (queryCallCount === 5) {
+          // Publication type result
+          return { rows: [] };
+        }
+      });
+
+      const res = await request(app)
+        .get(`/api/v1/projects/${projectId}/overview`)
+        .set('Authorization', `Bearer ${testToken}`);
+
+      assert.strictEqual(res.status, 200);
+      assert.strictEqual(res.body.success, true);
+      assert.strictEqual(res.body.message, 'No overview data found');
+      assert.strictEqual(res.body.data.summary.totalArticles, 0);
+      assert.strictEqual(res.body.data.charts.publicationTrend.labels.length, 0);
+      assert.strictEqual(res.body.data.charts.publicationTrend.datasets[0].data.length, 0);
+    });
+
+    test('Lỗi 403 - Dự án không thuộc quyền sở hữu của user', async () => {
+      mock.method(pool, 'query', async (sql, params) => {
+        return { rows: [] }; // Không tìm thấy project
+      });
+
+      const res = await request(app)
+        .get('/api/v1/projects/999/overview')
+        .set('Authorization', `Bearer ${testToken}`);
+
+      assert.strictEqual(res.status, 403);
+      assert.strictEqual(res.body.success, false);
+      assert.strictEqual(res.body.message, 'Bạn không có quyền truy cập project này');
+    });
+
+    test('Lỗi 400 - ID dự án không hợp lệ', async () => {
+      const res = await request(app)
+        .get('/api/v1/projects/not-an-integer/overview')
+        .set('Authorization', `Bearer ${testToken}`);
+
+      assert.strictEqual(res.status, 400);
+      assert.strictEqual(res.body.success, false);
+      assert.strictEqual(res.body.message, 'ID dự án không hợp lệ');
+    });
+
+    test('Lỗi 401 - Chưa xác thực', async () => {
+      const res = await request(app)
+        .get('/api/v1/projects/12/overview');
+
+      assert.strictEqual(res.status, 401);
+      assert.strictEqual(res.body.success, false);
+      assert.strictEqual(res.body.message, 'Bạn chưa đăng nhập hoặc phiên làm việc đã hết hạn');
     });
   });
 });
