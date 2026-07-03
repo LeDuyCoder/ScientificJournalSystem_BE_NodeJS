@@ -19,9 +19,11 @@ import subjectCategoryRouter from "./subjectCategory.route.js";
 import searchRotuer from "./search.route.js";
 import adminRouter from "./admin.route.js";
 import publisherRouter from "./publisher.route.js"
+import statisticsRouter from "./statistics.route.js"
 
 
 const router = express.Router();
+
 
 router.use("/users", userRouter);
 router.use("/projects", projectRouter);
@@ -49,5 +51,7 @@ router.use("/issues", issueRouter);
 router.use("/search", searchRotuer);
 router.use("/admin", adminRouter);
 router.use("/publishers", publisherRouter);
+router.use("/statistics", statisticsRouter);
 
 export default router;
+
