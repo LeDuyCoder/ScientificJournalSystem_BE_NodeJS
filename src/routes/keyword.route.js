@@ -1,5 +1,5 @@
 import express from "express";
-import { requireAuth } from "../middlewares/auth.middleware.js";
+import { verifyToken } from "../middlewares/auth.middleware.js";
 import {
   validateDeleteWatchedKeyword,
   validateUpdateWatchedKeywords,
@@ -76,7 +76,7 @@ const router = express.Router();
  *       500:
  *         description: Lỗi hệ thống server
  */
-router.get("/:id/keywords/trending", requireAuth, getTrendingKeywords);
+router.get("/:id/keywords/trending", verifyToken, getTrendingKeywords);
 
 /**
  * @swagger
@@ -116,7 +116,7 @@ router.get("/:id/keywords/trending", requireAuth, getTrendingKeywords);
  *       500:
  *         description: Lỗi hệ thống server
  */
-router.get("/:id/keywords/watch/articles", requireAuth, getWatchedKeywordArticles);
+router.get("/:id/keywords/watch/articles", verifyToken, getWatchedKeywordArticles);
 
 /**
  * @swagger
@@ -160,7 +160,7 @@ router.get("/:id/keywords/watch/articles", requireAuth, getWatchedKeywordArticle
  *       500:
  *         description: Lỗi server
  */
-router.post("/:id/keywords/watch", requireAuth, validateCreateWatchedKeyword, watchKeywords);
+router.post("/:id/keywords/watch", verifyToken, validateCreateWatchedKeyword, watchKeywords);
 
 /**
  * @swagger
@@ -204,7 +204,7 @@ router.post("/:id/keywords/watch", requireAuth, validateCreateWatchedKeyword, wa
  *       500:
  *         description: Lỗi server
  */
-router.put("/:id/keywords/watch", requireAuth, validateUpdateWatchedKeywords, updateWatchedKeywords);
+router.put("/:id/keywords/watch", verifyToken, validateUpdateWatchedKeywords, updateWatchedKeywords);
 
 /**
  * @swagger
@@ -239,7 +239,7 @@ router.put("/:id/keywords/watch", requireAuth, validateUpdateWatchedKeywords, up
  *       500:
  *         description: Lỗi server
  */
-router.delete("/:id/keywords/:keywordId", requireAuth, validateDeleteWatchedKeyword, deleteWatchedKeyword);
+router.delete("/:id/keywords/:keywordId", verifyToken, validateDeleteWatchedKeyword, deleteWatchedKeyword);
 
 
 // ==========================================
@@ -314,7 +314,7 @@ router.get("/", getAllKeywordsController);
  *       500:
  *         description: Lỗi server
  */
-router.post("/", requireAuth, validateKeywordBody, createKeywordController);
+router.post("/", verifyToken, validateKeywordBody, createKeywordController);
 
 /**
  * @swagger
@@ -344,7 +344,7 @@ router.post("/", requireAuth, validateKeywordBody, createKeywordController);
  *       500:
  *         description: Lỗi server
  */
-router.patch("/:id/restore", requireAuth, validateKeywordId, restoreKeywordController);
+router.patch("/:id/restore", verifyToken, validateKeywordId, restoreKeywordController);
 
 /**
  * @swagger
@@ -420,7 +420,7 @@ router.get("/:id", validateKeywordId, getKeywordByIdController);
  *       500:
  *         description: Lỗi server
  */
-router.put("/:id", requireAuth, validateKeywordId, validateKeywordBody, updateKeywordController);
+router.put("/:id", verifyToken, validateKeywordId, validateKeywordBody, updateKeywordController);
 
 /**
  * @swagger
@@ -450,6 +450,6 @@ router.put("/:id", requireAuth, validateKeywordId, validateKeywordBody, updateKe
  *       500:
  *         description: Lỗi server
  */
-router.delete("/:id", requireAuth, validateKeywordId, deleteKeywordController);
+router.delete("/:id", verifyToken, validateKeywordId, deleteKeywordController);
 
 export default router;

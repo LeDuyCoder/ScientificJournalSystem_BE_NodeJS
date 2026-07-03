@@ -1,5 +1,5 @@
 import express from 'express';
-import { requireAuth } from '../middlewares/auth.middleware.js';
+import { verifyToken } from '../middlewares/auth.middleware.js';
 import { createJournal, deleteJournal, getJournals, getJournalsById, restoreJournal, updateJournal } from '../controllers/journal.controller.js';
 import { validateCreateJournal, validateJournalId, validateUpdateJournal } from '../middlewares/journalValidation.middleware.js';
 
@@ -218,7 +218,7 @@ router.get('/:id', getJournalsById);
  *       500:
  *         description: Lỗi hệ thống khi tạo journal
  */
-router.post('/', requireAuth, validateCreateJournal, createJournal);
+router.post('/', verifyToken, validateCreateJournal, createJournal);
 
 //viết document swagger cho endpoint cập nhật journal
 /**
@@ -318,7 +318,7 @@ router.post('/', requireAuth, validateCreateJournal, createJournal);
  *                   type: string
  *                   example: "Lỗi hệ thống khi cập nhật Journal"
  */
-router.put('/:id', requireAuth, validateUpdateJournal, updateJournal);
+router.put('/:id', verifyToken, validateUpdateJournal, updateJournal);
 
 //viết giúp tôi tài liệu swagger cho endpoint xóa journal
 /**
@@ -392,7 +392,7 @@ router.put('/:id', requireAuth, validateUpdateJournal, updateJournal);
  *                   type: string
  *                   example: "Lỗi hệ thống khi xóa Journal"
  */
-router.delete('/:id', requireAuth, validateJournalId, deleteJournal);
+router.delete('/:id', verifyToken, validateJournalId, deleteJournal);
 
 /**
  * @swagger
@@ -465,6 +465,6 @@ router.delete('/:id', requireAuth, validateJournalId, deleteJournal);
  *                   type: string
  *                   example: "Lỗi hệ thống khi khôi phục Journal"
  */
-router.patch('/:id', requireAuth, validateJournalId, restoreJournal);
+router.patch('/:id', verifyToken, validateJournalId, restoreJournal);
 
 export default router;

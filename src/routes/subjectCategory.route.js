@@ -1,5 +1,5 @@
 import express from "express";
-import { requireAuth } from "../middlewares/auth.middleware.js";
+import { verifyToken } from "../middlewares/auth.middleware.js";
 import {
   createSubjectCategory,
   getSubjectCategories,
@@ -60,7 +60,7 @@ const router = express.Router();
  *       500:
  *         description: Lỗi hệ thống
  */
-router.post("/", requireAuth, validateCreateSubjectCategory, createSubjectCategory);
+router.post("/", verifyToken, validateCreateSubjectCategory, createSubjectCategory);
 
 /**
  * @swagger
@@ -196,7 +196,7 @@ router.get("/:id", validateSubjectCategoryId, getSubjectCategoryById);
  */
 router.put(
   "/:id",
-  requireAuth,
+  verifyToken,
   validateSubjectCategoryId,
   validateUpdateSubjectCategory,
   updateSubjectCategory
@@ -231,7 +231,7 @@ router.put(
  *       500:
  *         description: Lỗi hệ thống
  */
-router.delete("/:id", requireAuth, validateSubjectCategoryId, deleteSubjectCategory);
+router.delete("/:id", verifyToken, validateSubjectCategoryId, deleteSubjectCategory);
 
 /**
  * @swagger
@@ -262,7 +262,7 @@ router.delete("/:id", requireAuth, validateSubjectCategoryId, deleteSubjectCateg
  *       500:
  *         description: Lỗi hệ thống
  */
-router.patch("/:id/restore", requireAuth, validateSubjectCategoryId, restoreSubjectCategory);
+router.patch("/:id/restore", verifyToken, validateSubjectCategoryId, restoreSubjectCategory);
 
 /**
  * @swagger

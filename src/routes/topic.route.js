@@ -8,7 +8,7 @@ import {
     deleteTopic,
     restoreTopic
 } from '../controllers/topic.controller.js';
-import { requireAuth } from '../middlewares/auth.middleware.js';
+import { verifyToken } from '../middlewares/auth.middleware.js';
 import { validateTopicId } from '../middlewares/topicValidation.middleware.js';
 
 const router = express.Router();
@@ -173,7 +173,7 @@ router.get('/:id/articles', validateTopicId, getArticlesByTopic);
  *       500:
  *         description: Lỗi Server
  */
-router.post('/', requireAuth, createTopic);
+router.post('/', verifyToken, createTopic);
 
 /**
  * @swagger
@@ -223,7 +223,7 @@ router.post('/', requireAuth, createTopic);
  *       500:
  *         description: Lỗi hệ thống
  */
-router.put('/:id', requireAuth, validateTopicId, updateTopic);
+router.put('/:id', verifyToken, validateTopicId, updateTopic);
 
 /**
  * @swagger
@@ -254,7 +254,7 @@ router.put('/:id', requireAuth, validateTopicId, updateTopic);
  *       500:
  *         description: Lỗi hệ thống
  */
-router.delete('/:id', requireAuth, validateTopicId, deleteTopic);
+router.delete('/:id', verifyToken, validateTopicId, deleteTopic);
 
 /**
  * @swagger
@@ -285,6 +285,6 @@ router.delete('/:id', requireAuth, validateTopicId, deleteTopic);
  *       500:
  *         description: Lỗi hệ thống
  */
-router.patch('/:id/restore', requireAuth, validateTopicId, restoreTopic);
+router.patch('/:id/restore', verifyToken, validateTopicId, restoreTopic);
 
 export default router;
