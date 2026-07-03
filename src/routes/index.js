@@ -20,6 +20,7 @@ import searchRotuer from "./search.route.js";
 import adminRouter from "./admin.route.js";
 import publisherRouter from "./publisher.route.js"
 import statisticsRouter from "./statistics.route.js"
+import dashboardRouter from "./dashboard.route.js"
 
 
 const router = express.Router();
@@ -52,6 +53,7 @@ router.use("/search", searchRotuer);
 router.use("/admin", adminRouter);
 router.use("/publishers", publisherRouter);
 router.use("/statistics", statisticsRouter);
+router.use("/dashboard", dashboardRouter);
 
 export default router;
 
