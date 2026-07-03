@@ -1,5 +1,5 @@
 import express from "express";
-import { requireAuth } from "../middlewares/auth.middleware.js";
+import { verifyToken } from "../middlewares/auth.middleware.js";
 import {
   createVolume,
   getVolumes,
@@ -88,7 +88,7 @@ const router = express.Router();
  *       500:
  *         description: Lỗi hệ thống
  */
-router.post("/", requireAuth, validateCreateVolume, createVolume);
+router.post("/", verifyToken, validateCreateVolume, createVolume);
 
 /**
  * @swagger
@@ -198,7 +198,7 @@ router.post("/", requireAuth, validateCreateVolume, createVolume);
  *       500:
  *         description: Lỗi hệ thống
  */
-router.get("/", requireAuth, getVolumes);
+router.get("/", verifyToken, getVolumes);
 
 /**
  * @swagger
@@ -229,7 +229,7 @@ router.get("/", requireAuth, getVolumes);
  *       500:
  *         description: Lỗi hệ thống
  */
-router.get("/:id", requireAuth, validateVolumeId, getVolumeById);
+router.get("/:id", verifyToken, validateVolumeId, getVolumeById);
 
 /**
  * @swagger
@@ -273,7 +273,7 @@ router.get("/:id", requireAuth, validateVolumeId, getVolumeById);
  *       500:
  *         description: Lỗi hệ thống
  */
-router.put("/:id", requireAuth, validateVolumeId, validateUpdateVolume, updateVolume);
+router.put("/:id", verifyToken, validateVolumeId, validateUpdateVolume, updateVolume);
 
 /**
  * @swagger
@@ -304,7 +304,7 @@ router.put("/:id", requireAuth, validateVolumeId, validateUpdateVolume, updateVo
  *       500:
  *         description: Lỗi hệ thống
  */
-router.delete("/:id", requireAuth, validateVolumeId, deleteVolume);
+router.delete("/:id", verifyToken, validateVolumeId, deleteVolume);
 
 /**
  * @swagger
@@ -335,6 +335,6 @@ router.delete("/:id", requireAuth, validateVolumeId, deleteVolume);
  *       500:
  *         description: Lỗi hệ thống
  */
-router.patch("/:id/restore", requireAuth, validateVolumeId, restoreVolume);
+router.patch("/:id/restore", verifyToken, validateVolumeId, restoreVolume);
 
 export default router;

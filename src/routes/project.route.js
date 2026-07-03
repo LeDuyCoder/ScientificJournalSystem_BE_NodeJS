@@ -1,5 +1,5 @@
 import express from 'express';
-import { requireAuth } from '../middlewares/auth.middleware.js';
+import { verifyToken } from '../middlewares/auth.middleware.js';
 import {
   getProjects,
   getProjectById,
@@ -75,7 +75,7 @@ const router = express.Router();
  * Route GET /api/v1/projects
  * Lấy danh sách tất cả các dự án của người dùng hiện tại (Yêu cầu xác thực)
  */
-router.get('/', requireAuth, getProjects);
+router.get('/', verifyToken, getProjects);
 
 /**
  * @swagger
@@ -166,7 +166,7 @@ router.get('/', requireAuth, getProjects);
  * Route GET /api/v1/projects/:id
  * Lấy chi tiết thông tin một dự án cụ thể theo ID (Yêu cầu xác thực)
  */
-router.get('/:id', requireAuth, validateProjectId, getProjectById);
+router.get('/:id', verifyToken, validateProjectId, getProjectById);
 
 /**
  * @swagger
@@ -238,7 +238,7 @@ router.get('/:id', requireAuth, validateProjectId, getProjectById);
  *       500:
  *         description: Lỗi hệ thống hoặc lỗi máy chủ kết nối Database
  */
-router.get('/:id/related-articles', requireAuth, validateProjectId, validateRelatedArticlesLimit, getRelatedArticles);
+router.get('/:id/related-articles', verifyToken, validateProjectId, validateRelatedArticlesLimit, getRelatedArticles);
 
 /**
  * @swagger
@@ -315,7 +315,7 @@ router.get('/:id/related-articles', requireAuth, validateProjectId, validateRela
  * Route POST /api/v1/projects
  * Tạo mới một dự án khoa học (Yêu cầu xác thực)
  */
-router.post('/', requireAuth, validateCreateProject, createProject);
+router.post('/', verifyToken, validateCreateProject, createProject);
 
 /**
  * @swagger
@@ -372,7 +372,7 @@ router.post('/', requireAuth, validateCreateProject, createProject);
  * Route PUT /api/v1/projects/:id
  * Cập nhật thông tin dự án khoa học hiện tại (Yêu cầu xác thực)
  */
-router.put('/:id', requireAuth, validateProjectId, validateUpdateProject, updateProject);
+router.put('/:id', verifyToken, validateProjectId, validateUpdateProject, updateProject);
 
 /**
  * @swagger
@@ -417,7 +417,7 @@ router.put('/:id', requireAuth, validateProjectId, validateUpdateProject, update
  * Route DELETE /api/v1/projects/:id
  * Xóa một dự án khoa học và các liên kết trung gian (Yêu cầu xác thực)
  */
-router.delete('/:id', requireAuth, validateProjectId, deleteProject);
+router.delete('/:id', verifyToken, validateProjectId, deleteProject);
 
 /**
  * @swagger
@@ -499,7 +499,7 @@ router.delete('/:id', requireAuth, validateProjectId, deleteProject);
  *       500:
  *         description: Lỗi máy chủ
  */
-router.get('/:id/analytics', requireAuth, validateProjectId, getProjectAnalytics);
+router.get('/:id/analytics', verifyToken, validateProjectId, getProjectAnalytics);
 
 export default router;
 

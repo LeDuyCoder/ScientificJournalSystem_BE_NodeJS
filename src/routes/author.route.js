@@ -10,7 +10,7 @@ import {
   restoreAuthorController,
   updateAuthorController,
 } from "../controllers/author.controller.js";
-import { requireAuth, verifyToken } from "../middlewares/auth.middleware.js";
+import { verifyToken } from "../middlewares/auth.middleware.js";
 import {
   validateAuthorId,
   validateCreateAuthor,
@@ -472,7 +472,7 @@ router.get("/", validatePagination, getAllAuthorsController);
  *       500:
  *         description: Lỗi server
  */
-router.post("/", requireAuth, validateCreateAuthor, createAuthorController);
+router.post("/", verifyToken, validateCreateAuthor, createAuthorController);
 
 /**
  * @swagger
@@ -505,7 +505,7 @@ router.post("/", requireAuth, validateCreateAuthor, createAuthorController);
  */
 router.patch(
   "/:id/restore",
-  requireAuth,
+  verifyToken,
   validateAuthorId,
   restoreAuthorController,
 );
@@ -599,7 +599,7 @@ router.get("/:id", validateAuthorId, getAuthorByIdController);
  */
 router.put(
   "/:id",
-  requireAuth,
+  verifyToken,
   validateAuthorId,
   validateUpdateAuthor,
   updateAuthorController,
@@ -634,6 +634,6 @@ router.put(
  *       500:
  *         description: Lỗi server
  */
-router.delete("/:id", requireAuth, validateAuthorId, deleteAuthorController);
+router.delete("/:id", verifyToken, validateAuthorId, deleteAuthorController);
 
 export default router;

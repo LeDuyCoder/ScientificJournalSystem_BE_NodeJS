@@ -1,5 +1,5 @@
 import express from 'express';
-import { requireAuth, verifyToken } from '../middlewares/auth.middleware.js';
+import { verifyToken } from '../middlewares/auth.middleware.js';
 import { 
     createArticle, 
     getArticle, 
@@ -83,7 +83,7 @@ const router = express.Router();
 /**
  * Route GET /api/v1/articles
  * Khớp nối & giải quyết xung đột:
- * - Kiểm tra nếu có param `keywords` -> Chạy qua lớp bảo mật `requireAuth` rồi gọi controller xử lý keyword.
+ * - Kiểm tra nếu có param `keywords` -> Chạy qua lớp bảo mật `verifyToken` rồi gọi controller xử lý keyword.
  * - Nếu không đi kèm `keywords` -> Cho phép truy cập công khai (Public) thông qua hàm gộp tổng `getArticles`.
  */
 router.get('/', async (req, res, next) => {

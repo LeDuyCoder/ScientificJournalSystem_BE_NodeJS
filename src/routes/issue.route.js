@@ -1,5 +1,5 @@
 import express from 'express';
-import { requireAuth, verifyToken } from '../middlewares/auth.middleware.js';
+import { verifyToken } from '../middlewares/auth.middleware.js';
 import { getIssues, getIssueById, createIssue, updateIssue, deleteIssue, restoreIssue } from '../controllers/issue.controller.js';
 import { validateIssueId, validateCreateIssue, validateUpdateIssue } from '../middlewares/issueValidation.middleware.js';
 
