@@ -335,6 +335,66 @@ export const getRelatedArticles = async (req, res) => {
 };
 
 /**
+ * API Lấy dữ liệu tổng quan và biểu đồ của một dự án.
+ * User ID được lấy từ access token, không nhận từ client.
+ *
+ * @async
+ * @param {Object} req - Express request object
+ * @param {Object} req.params - Các tham số trên URL
+ * @param {string} req.params.id - ID của dự án cần lấy overview
+ * @param {Object} req.user - Thông tin người dùng đã xác thực
+ * @param {string} req.user.user_id - ID người dùng
+ * @param {Object} res - Express response object
+ * @returns {Promise<Object>} JSON response chứa dữ liệu overview
+ */
+export const getProjectOverview = async (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const userId = req.user.user_id;
+
+    if (!/^\d+$/.test(projectId) || Number(projectId) <= 0) {
+      return res.status(400).json({
+        success: false,
+        code: "INVALID_PROJECT_ID",
+        message: 'ID dự án không hợp lệ'
+      });
+    }
+
+    const overviewData = await projectServiceRef.getProjectOverview(projectId, userId);
+
+    if (!overviewData) {
+      return res.status(403).json({
+        success: false,
+        code: "FORBIDDEN",
+        message: "Bạn không có quyền truy cập project này",
+      });
+    }
+
+    const hasData = overviewData.summary.totalArticles > 0
+      || overviewData.summary.totalKeywords > 0
+      || overviewData.summary.totalJournals > 0;
+
+    return res.status(200).json({
+      success: true,
+      message: hasData
+        ? "Project overview fetched successfully"
+        : "No overview data found",
+      data: overviewData,
+    });
+  } catch (error) {
+    logger.error(
+      "[Project Controller] Lỗi khi lấy dữ liệu tổng quan dự án:",
+      error,
+    );
+    return res.status(500).json({
+      success: false,
+      code: "INTERNAL_SERVER_ERROR",
+      message: "Có lỗi xảy ra khi lấy dữ liệu tổng quan dự án",
+    });
+  }
+};
+
+/**
  * API Lấy dữ liệu phân tích/thống kê của một dự án (Trending Charts)
  *
  * @async

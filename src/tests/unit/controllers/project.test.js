@@ -1,7 +1,7 @@
 import { test, describe, mock, afterEach } from 'node:test';
 import assert from 'node:assert';
 
-import { getRelatedArticles, getProjectAnalytics, projectServiceRef } from '../../../controllers/project.controller.js';
+import { getRelatedArticles, getProjectAnalytics, getProjectOverview, projectServiceRef } from '../../../controllers/project.controller.js';
 import logger from '../../../utils/logger.js';
 
 describe('Project Controller - getRelatedArticles() Unit Test Suite', () => {
@@ -168,5 +168,98 @@ describe('Project Controller - getProjectAnalytics() Unit Test Suite', () => {
         assert.strictEqual(res.body.success, true);
         assert.deepStrictEqual(res.body.data, mockAnalytics);
         assert.deepStrictEqual(mockGetAnalytics.mock.calls[0].arguments, ['12', 'user-1']);
+    });
+});
+
+describe('Project Controller - getProjectOverview() Unit Test Suite', () => {
+    afterEach(() => {
+        mock.restoreAll();
+    });
+
+    const createMockResponse = () => {
+        const res = {};
+        res.status = (statusCode) => {
+            res.statusCode = statusCode;
+            return res;
+        };
+        res.json = (jsonData) => {
+            res.body = jsonData;
+            return res;
+        };
+        return res;
+    };
+
+    test('Thất bại: Trả về 400 nếu projectId không hợp lệ', async () => {
+        const req = { params: { id: 'abc' }, user: { user_id: 'user-1' } };
+        const res = createMockResponse();
+
+        await getProjectOverview(req, res);
+
+        assert.strictEqual(res.statusCode, 400);
+        assert.strictEqual(res.body.success, false);
+        assert.strictEqual(res.body.message, 'ID dự án không hợp lệ');
+    });
+
+    test('Thất bại: Trả về 403 nếu project không thuộc user', async () => {
+        mock.method(projectServiceRef, 'getProjectOverview', async () => null);
+        mock.method(logger, 'error', () => {});
+
+        const req = { params: { id: '12' }, user: { user_id: 'user-1' } };
+        const res = createMockResponse();
+
+        await getProjectOverview(req, res);
+
+        assert.strictEqual(res.statusCode, 403);
+        assert.strictEqual(res.body.success, false);
+        assert.strictEqual(res.body.message, 'Bạn không có quyền truy cập project này');
+    });
+
+    test('Thành công: Trả về 200 và dữ liệu overview', async () => {
+        const mockOverview = {
+            summary: { totalArticles: 5, totalKeywords: 2, totalJournals: 1, lastUpdatedAt: '2026-07-03' },
+            charts: {
+                publicationTrend: { type: 'line', labels: ['2026'], datasets: [{ label: 'Publications', data: [5] }] },
+                subjectAreaDistribution: { type: 'donut', labels: ['Science'], datasets: [{ label: 'Subject Areas', data: [5] }] },
+                publicationTypeDistribution: { type: 'donut', labels: ['journal'], datasets: [{ label: 'Publication Types', data: [5] }] }
+            }
+        };
+
+        const mockGetOverview = mock.method(projectServiceRef, 'getProjectOverview', async () => mockOverview);
+        mock.method(logger, 'error', () => {});
+
+        const req = { params: { id: '12' }, user: { user_id: 'user-1' } };
+        const res = createMockResponse();
+
+        await getProjectOverview(req, res);
+
+        assert.strictEqual(res.statusCode, 200);
+        assert.strictEqual(res.body.success, true);
+        assert.strictEqual(res.body.message, 'Project overview fetched successfully');
+        assert.deepStrictEqual(res.body.data, mockOverview);
+        assert.deepStrictEqual(mockGetOverview.mock.calls[0].arguments, ['12', 'user-1']);
+    });
+
+    test('Thành công: Trả về 200 và thông báo No overview data found nếu không có dữ liệu', async () => {
+        const mockEmptyOverview = {
+            summary: { totalArticles: 0, totalKeywords: 0, totalJournals: 0, lastUpdatedAt: null },
+            charts: {
+                publicationTrend: { type: 'line', labels: [], datasets: [{ label: 'Publications', data: [] }] },
+                subjectAreaDistribution: { type: 'donut', labels: [], datasets: [{ label: 'Subject Areas', data: [] }] },
+                publicationTypeDistribution: { type: 'donut', labels: [], datasets: [{ label: 'Publication Types', data: [] }] }
+            }
+        };
+
+        const mockGetOverview = mock.method(projectServiceRef, 'getProjectOverview', async () => mockEmptyOverview);
+        mock.method(logger, 'error', () => {});
+
+        const req = { params: { id: '12' }, user: { user_id: 'user-1' } };
+        const res = createMockResponse();
+
+        await getProjectOverview(req, res);
+
+        assert.strictEqual(res.statusCode, 200);
+        assert.strictEqual(res.body.success, true);
+        assert.strictEqual(res.body.message, 'No overview data found');
+        assert.deepStrictEqual(res.body.data, mockEmptyOverview);
     });
 });

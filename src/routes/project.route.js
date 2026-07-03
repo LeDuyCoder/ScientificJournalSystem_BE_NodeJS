@@ -7,7 +7,8 @@ import {
   updateProject,
   getRelatedArticles,
   deleteProject,
-  getProjectAnalytics
+  getProjectAnalytics,
+  getProjectOverview
 } from '../controllers/project.controller.js';
 import { validateCreateProject, validateProjectId, validateRelatedArticlesLimit, validateUpdateProject } from '../middlewares/projectValidation.middleware.js';
 
@@ -161,10 +162,6 @@ router.get('/', verifyToken, getProjects);
  *         description: Dự án không tồn tại hoặc bạn không có quyền xem
  *       500:
  *         description: Lỗi hệ thống
- */
-/**
- * Route GET /api/v1/projects/:id
- * Lấy chi tiết thông tin một dự án cụ thể theo ID (Yêu cầu xác thực)
  */
 router.get('/:id', verifyToken, validateProjectId, getProjectById);
 
@@ -421,10 +418,10 @@ router.delete('/:id', verifyToken, validateProjectId, deleteProject);
 
 /**
  * @swagger
- * /api/v1/projects/{id}/analytics:
+ * /api/v1/projects/{id}/overview:
  *   get:
- *     summary: Lấy dữ liệu phân tích thống kê dự án (biểu đồ Trending)
- *     description: Trả về dữ liệu bài viết theo năm xuất bản và so sánh chỉ số của các tạp chí trong dự án.
+ *     summary: Lấy dữ liệu tổng quan và biểu đồ của một project
+ *     description: Trả về dữ liệu tổng quan mức cao cho tab Tổng quan & Biểu đồ, gồm summary cards, publication trend, subject area distribution và publication type distribution. Không nhận userId từ client, user_id được lấy từ access token.
  *     tags:
  *       - Project
  *     security:
@@ -435,10 +432,10 @@ router.delete('/:id', verifyToken, validateProjectId, deleteProject);
  *         required: true
  *         schema:
  *           type: integer
- *         description: ID của dự án cần lấy dữ liệu phân tích (BIGINT)
+ *         description: ID của project cần lấy overview
  *     responses:
  *       200:
- *         description: Lấy dữ liệu phân tích dự án thành công
+ *         description: Lấy project overview thành công hoặc không có dữ liệu overview
  *         content:
  *           application/json:
  *             schema:
@@ -449,56 +446,174 @@ router.delete('/:id', verifyToken, validateProjectId, deleteProject);
  *                   example: true
  *                 message:
  *                   type: string
- *                   example: "Lấy dữ liệu phân tích dự án thành công"
+ *                   example: "Project overview fetched successfully"
  *                 data:
  *                   type: object
  *                   properties:
- *                     article_volume_trend:
- *                       type: array
- *                       items:
- *                         type: object
- *                         properties:
- *                           year:
- *                             type: integer
- *                             example: 2025
- *                           article_count:
- *                             type: integer
- *                             example: 120
- *                     journal_metrics_comparison:
- *                       type: array
- *                       items:
- *                         type: object
- *                         properties:
- *                           journal_name:
- *                             type: string
- *                             example: "Nature"
- *                           journal_id:
- *                             type: string
- *                             example: "1"
- *                           metric_code:
- *                             type: string
- *                             example: "SJR"
- *                           metric_name:
- *                             type: string
- *                             example: "SJR Score"
- *                           metric_type:
- *                             type: string
- *                             example: "SCORE"
- *                           value:
- *                             type: number
- *                             example: 15.2
- *                           year:
- *                             type: integer
- *                             example: 2025
+ *                     summary:
+ *                       type: object
+ *                       properties:
+ *                         totalArticles:
+ *                           type: integer
+ *                           example: 81
+ *                         totalKeywords:
+ *                           type: integer
+ *                           example: 1
+ *                         totalJournals:
+ *                           type: integer
+ *                           example: 12
+ *                         lastUpdatedAt:
+ *                           type: string
+ *                           format: date-time
+ *                           nullable: true
+ *                           example: "2026-07-03T00:00:00.000Z"
+ *                     charts:
+ *                       type: object
+ *                       properties:
+ *                         publicationTrend:
+ *                           type: object
+ *                           properties:
+ *                             type:
+ *                               type: string
+ *                               example: "line"
+ *                             labels:
+ *                               type: array
+ *                               items:
+ *                                 type: string
+ *                               example: ["2022", "2023", "2024", "2025"]
+ *                             datasets:
+ *                               type: array
+ *                               items:
+ *                                 type: object
+ *                                 properties:
+ *                                   label:
+ *                                     type: string
+ *                                     example: "Publications"
+ *                                   data:
+ *                                     type: array
+ *                                     items:
+ *                                       type: integer
+ *                                     example: [10, 18, 25, 28]
+ *                         subjectAreaDistribution:
+ *                           type: object
+ *                           properties:
+ *                             type:
+ *                               type: string
+ *                               example: "donut"
+ *                             labels:
+ *                               type: array
+ *                               items:
+ *                                 type: string
+ *                               example: ["Computer Science", "Engineering", "Medicine"]
+ *                             datasets:
+ *                               type: array
+ *                               items:
+ *                                 type: object
+ *                                 properties:
+ *                                   label:
+ *                                     type: string
+ *                                     example: "Subject Areas"
+ *                                   data:
+ *                                     type: array
+ *                                     items:
+ *                                       type: integer
+ *                                     example: [45, 25, 11]
+ *                         publicationTypeDistribution:
+ *                           type: object
+ *                           properties:
+ *                             type:
+ *                               type: string
+ *                               example: "donut"
+ *                             labels:
+ *                               type: array
+ *                               items:
+ *                                 type: string
+ *                               example: ["journal", "conference and proceedings", "book series"]
+ *                             datasets:
+ *                               type: array
+ *                               items:
+ *                                 type: object
+ *                                 properties:
+ *                                   label:
+ *                                     type: string
+ *                                     example: "Publication Types"
+ *                                   data:
+ *                                     type: array
+ *                                     items:
+ *                                       type: integer
+ *                                     example: [50, 21, 10]
+ *             examples:
+ *               success:
+ *                 summary: Có dữ liệu overview
+ *                 value:
+ *                   success: true
+ *                   message: "Project overview fetched successfully"
+ *                   data:
+ *                     summary:
+ *                       totalArticles: 81
+ *                       totalKeywords: 1
+ *                       totalJournals: 12
+ *                       lastUpdatedAt: "2026-07-03T00:00:00.000Z"
+ *                     charts:
+ *                       publicationTrend:
+ *                         type: "line"
+ *                         labels: ["2022", "2023", "2024", "2025"]
+ *                         datasets:
+ *                           - label: "Publications"
+ *                             data: [10, 18, 25, 28]
+ *                       subjectAreaDistribution:
+ *                         type: "donut"
+ *                         labels: ["Computer Science", "Engineering", "Medicine"]
+ *                         datasets:
+ *                           - label: "Subject Areas"
+ *                             data: [45, 25, 11]
+ *                       publicationTypeDistribution:
+ *                         type: "donut"
+ *                         labels: ["journal", "conference and proceedings", "book series"]
+ *                         datasets:
+ *                           - label: "Publication Types"
+ *                             data: [50, 21, 10]
+ *               empty:
+ *                 summary: Không có dữ liệu overview
+ *                 value:
+ *                   success: true
+ *                   message: "No overview data found"
+ *                   data:
+ *                     summary:
+ *                       totalArticles: 0
+ *                       totalKeywords: 0
+ *                       totalJournals: 0
+ *                       lastUpdatedAt: null
+ *                     charts:
+ *                       publicationTrend:
+ *                         type: "line"
+ *                         labels: []
+ *                         datasets:
+ *                           - label: "Publications"
+ *                             data: []
+ *                       subjectAreaDistribution:
+ *                         type: "donut"
+ *                         labels: []
+ *                         datasets:
+ *                           - label: "Subject Areas"
+ *                             data: []
+ *                       publicationTypeDistribution:
+ *                         type: "donut"
+ *                         labels: []
+ *                         datasets:
+ *                           - label: "Publication Types"
+ *                             data: []
  *       400:
- *         description: ID dự án không hợp lệ
+ *         description: ID project không hợp lệ
  *       401:
- *         description: Chưa xác thực (thiếu hoặc sai Token)
- *       404:
- *         description: Không tìm thấy dự án hoặc không có quyền truy cập
+ *         description: Chưa xác thực hoặc access token không hợp lệ
+ *       403:
+ *         description: Project không thuộc user hiện tại
  *       500:
  *         description: Lỗi máy chủ
  */
+router.get('/:id/overview', verifyToken, validateProjectId, getProjectOverview);
+
 router.get('/:id/analytics', verifyToken, validateProjectId, getProjectAnalytics);
 
 export default router;

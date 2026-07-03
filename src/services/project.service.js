@@ -644,3 +644,151 @@ export const getProjectAnalytics = async (projectId, userId) => {
         throw error;
     }
 };
+
+const buildChart = ({ type, label, rows }) => ({
+    type,
+    labels: rows.map(row => String(row.label)),
+    datasets: [
+        {
+            label,
+            data: rows.map(row => Number(row.count) || 0)
+        }
+    ]
+});
+
+/**
+ * Lấy dữ liệu tổng quan cho tab Tổng quan & Biểu đồ của project.
+ *
+ * @async
+ * @param {number|string} projectId - ID dự án.
+ * @param {string} userId - ID người dùng sở hữu dự án.
+ * @returns {Promise<Object|null>} Dữ liệu overview hoặc null nếu project không thuộc user.
+ */
+export const getProjectOverview = async (projectId, userId) => {
+    try {
+        const projectCheck = await pool.query(
+            `SELECT 1 FROM "Project" WHERE project_id = $1 AND user_id = $2`,
+            [Number(projectId), userId]
+        );
+
+        if (projectCheck.rows.length === 0) {
+            return null;
+        }
+
+        const matchedArticlesCte = `
+            WITH MatchedData AS (
+                SELECT ka.article_id, v.journal_id
+                FROM "Project_Keyword" pk
+                JOIN "Keyword_Article" ka ON ka.keyword_id = pk.keyword_id
+                JOIN "Article" a ON a.article_id = ka.article_id
+                JOIN "Issue" i ON i.issue_id = a.issue_id
+                JOIN "Volume" v ON v.volume_id = i.volume_id
+                WHERE pk.project_id = $1 AND COALESCE(a.is_deleted, false) = false
+
+                UNION
+
+                SELECT a.article_id, v.journal_id
+                FROM "Project_Journal" pj
+                JOIN "Volume" v ON v.journal_id = pj.journal_id
+                JOIN "Issue" i ON i.volume_id = v.volume_id
+                JOIN "Article" a ON a.issue_id = i.issue_id
+                WHERE pj.project_id = $1 AND COALESCE(a.is_deleted, false) = false
+
+                UNION
+
+                SELECT a.article_id, v.journal_id
+                FROM "Project" p
+                JOIN "Subject_Category" sc ON sc.subject_area_id = p.subject_area
+                JOIN "Journal_Subject_Category" jsc ON jsc.subject_category_id = sc.subject_category_id
+                JOIN "Volume" v ON v.journal_id = jsc.journal_id
+                JOIN "Issue" i ON i.volume_id = v.volume_id
+                JOIN "Article" a ON a.issue_id = i.issue_id
+                WHERE p.project_id = $1
+                  AND p.subject_area IS NOT NULL
+                  AND COALESCE(a.is_deleted, false) = false
+            )
+        `;
+
+        const summaryResult = await pool.query(
+            `${matchedArticlesCte}
+            SELECT
+                COUNT(DISTINCT md.article_id)::integer AS total_articles,
+                (SELECT COUNT(*) FROM "Project_Keyword" WHERE project_id = $1)::integer AS total_keywords,
+                COUNT(DISTINCT md.journal_id)::integer AS total_journals,
+                MAX(a.created_at) AS last_updated_at
+            FROM MatchedData md
+            LEFT JOIN "Article" a ON a.article_id = md.article_id`,
+            [Number(projectId)]
+        );
+
+        const trendResult = await pool.query(
+            `${matchedArticlesCte}
+            SELECT
+                a.publication_year::text AS label,
+                COUNT(DISTINCT md.article_id)::integer AS count
+            FROM MatchedData md
+            JOIN "Article" a ON a.article_id = md.article_id
+            WHERE a.publication_year IS NOT NULL
+            GROUP BY a.publication_year
+            ORDER BY a.publication_year ASC`,
+            [Number(projectId)]
+        );
+
+        const subjectAreaResult = await pool.query(
+            `${matchedArticlesCte}
+            SELECT
+                sa.display_name AS label,
+                COUNT(DISTINCT md.article_id)::integer AS count
+            FROM MatchedData md
+            JOIN "Journal_Subject_Category" jsc ON jsc.journal_id = md.journal_id
+            JOIN "Subject_Category" sc ON sc.subject_category_id = jsc.subject_category_id
+            JOIN "Subject_Area" sa ON sa.subject_area_id = sc.subject_area_id
+            GROUP BY sa.display_name
+            ORDER BY count DESC, sa.display_name ASC`,
+            [Number(projectId)]
+        );
+
+        const publicationTypeResult = await pool.query(
+            `${matchedArticlesCte}
+            SELECT
+                COALESCE(j.type, 'Unknown') AS label,
+                COUNT(DISTINCT md.article_id)::integer AS count
+            FROM MatchedData md
+            JOIN "Journal" j ON j.journal_id = md.journal_id
+            GROUP BY COALESCE(j.type, 'Unknown')
+            ORDER BY count DESC, label ASC`,
+            [Number(projectId)]
+        );
+
+        const summary = summaryResult.rows[0] || {};
+
+        return {
+            summary: {
+                totalArticles: Number(summary.total_articles) || 0,
+                totalKeywords: Number(summary.total_keywords) || 0,
+                totalJournals: Number(summary.total_journals) || 0,
+                lastUpdatedAt: summary.last_updated_at || null
+            },
+            charts: {
+                publicationTrend: buildChart({
+                    type: 'line',
+                    label: 'Publications',
+                    rows: trendResult.rows
+                }),
+                subjectAreaDistribution: buildChart({
+                    type: 'donut',
+                    label: 'Subject Areas',
+                    rows: subjectAreaResult.rows
+                }),
+                publicationTypeDistribution: buildChart({
+                    type: 'donut',
+                    label: 'Publication Types',
+                    rows: publicationTypeResult.rows
+                })
+            }
+        };
+    } catch (error) {
+        logger.error('Lỗi khi lấy dữ liệu tổng quan của dự án:', error);
+        throw error;
+    }
+};
