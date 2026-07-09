@@ -2,9 +2,309 @@ import express from 'express';
 import { verifyAdmin, verifyToken } from '../middlewares/auth.middleware.js';
 import { summary, publicationTrends, getRecentActivities, getVolumeIssueStatus, exportVolumeIssueStatusCSV, getJournalRepositorySummary } from '../controllers/admin.controller.js';
 import { adminUpdateUser, getUsers, getUserDetail, createUser } from '../controllers/user.controller.js';
+import { getAdminPayments } from '../controllers/payment.controller.js';
+import { getAdminWalletTransactions, adjustWallet } from '../controllers/wallet.controller.js';
+import { createCoinPackage, deleteCoinPackage, getAdminCoinPackages, updateCoinPackage } from '../controllers/coinPackage.controller.js';
 import { validateJournalId } from '../middlewares/journalValidation.middleware.js';
+import {
+  validateAdminAdjustWallet,
+  validateCreateCoinPackage,
+  validatePackageIdParam,
+  validatePaymentQuery,
+  validateUpdateCoinPackage,
+  validateUserIdParam,
+  validateWalletTransactionQuery,
+} from '../middlewares/coinValidation.middleware.js';
 
 const router = express.Router();
+
+/**
+ * @swagger
+ * /api/v1/admin/coin-packages:
+ *   get:
+ *     summary: Admin lay danh sach tat ca goi coin
+ *     tags:
+ *       - Coin Admin
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 50
+ *       - in: query
+ *         name: isActive
+ *         schema:
+ *           type: boolean
+ *     responses:
+ *       200:
+ *         description: Lay danh sach goi coin thanh cong
+ *       401:
+ *         description: Chua xac thuc
+ *       403:
+ *         description: Khong co quyen admin
+ *   post:
+ *     summary: Admin tao goi coin
+ *     tags:
+ *       - Coin Admin
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - name
+ *               - coin_amount
+ *               - price
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 example: Goi 500 coin
+ *               coin_amount:
+ *                 type: integer
+ *                 minimum: 1
+ *                 example: 500
+ *               bonus_coin:
+ *                 type: integer
+ *                 minimum: 0
+ *                 example: 50
+ *               price:
+ *                 type: number
+ *                 example: 100000
+ *               currency:
+ *                 type: string
+ *                 example: VND
+ *               is_active:
+ *                 type: boolean
+ *                 example: true
+ *     responses:
+ *       201:
+ *         description: Tao goi coin thanh cong
+ *       400:
+ *         description: Du lieu gui len khong hop le
+ *       401:
+ *         description: Chua xac thuc
+ *       403:
+ *         description: Khong co quyen admin
+ */
+router.get('/coin-packages', verifyToken, verifyAdmin, getAdminCoinPackages);
+router.post('/coin-packages', verifyToken, verifyAdmin, validateCreateCoinPackage, createCoinPackage);
+
+/**
+ * @swagger
+ * /api/v1/admin/coin-packages/{packageId}:
+ *   put:
+ *     summary: Admin cap nhat goi coin
+ *     tags:
+ *       - Coin Admin
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: packageId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *               coin_amount:
+ *                 type: integer
+ *                 minimum: 1
+ *               bonus_coin:
+ *                 type: integer
+ *                 minimum: 0
+ *               price:
+ *                 type: number
+ *               currency:
+ *                 type: string
+ *               is_active:
+ *                 type: boolean
+ *     responses:
+ *       200:
+ *         description: Cap nhat goi coin thanh cong
+ *       400:
+ *         description: Du lieu gui len khong hop le
+ *       401:
+ *         description: Chua xac thuc
+ *       403:
+ *         description: Khong co quyen admin
+ *       404:
+ *         description: Khong tim thay goi coin
+ *   delete:
+ *     summary: Admin vo hieu hoa goi coin
+ *     tags:
+ *       - Coin Admin
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: packageId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     responses:
+ *       200:
+ *         description: Vo hieu hoa goi coin thanh cong
+ *       401:
+ *         description: Chua xac thuc
+ *       403:
+ *         description: Khong co quyen admin
+ *       404:
+ *         description: Khong tim thay goi coin
+ */
+router.put('/coin-packages/:packageId', verifyToken, verifyAdmin, validatePackageIdParam, validateUpdateCoinPackage, updateCoinPackage);
+router.delete('/coin-packages/:packageId', verifyToken, verifyAdmin, validatePackageIdParam, deleteCoinPackage);
+
+/**
+ * @swagger
+ * /api/v1/admin/payments:
+ *   get:
+ *     summary: Admin lay danh sach giao dich thanh toan
+ *     tags:
+ *       - Coin Admin
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 50
+ *       - in: query
+ *         name: userId
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [pending, success, failed, cancelled, refunded]
+ *       - in: query
+ *         name: paymentMethod
+ *         schema:
+ *           type: string
+ *           enum: [vnpay, momo, bank_transfer, stripe, paypal]
+ *     responses:
+ *       200:
+ *         description: Lay danh sach giao dich thanh toan thanh cong
+ *       401:
+ *         description: Chua xac thuc
+ *       403:
+ *         description: Khong co quyen admin
+ */
+router.get('/payments', verifyToken, verifyAdmin, validatePaymentQuery, getAdminPayments);
+
+/**
+ * @swagger
+ * /api/v1/admin/wallet-transactions:
+ *   get:
+ *     summary: Admin lay danh sach lich su giao dich coin
+ *     tags:
+ *       - Coin Admin
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 50
+ *       - in: query
+ *         name: userId
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *       - in: query
+ *         name: type
+ *         schema:
+ *           type: string
+ *           enum: [deposit, spend, refund, admin_adjust]
+ *     responses:
+ *       200:
+ *         description: Lay danh sach lich su giao dich coin thanh cong
+ *       401:
+ *         description: Chua xac thuc
+ *       403:
+ *         description: Khong co quyen admin
+ */
+router.get('/wallet-transactions', verifyToken, verifyAdmin, validateWalletTransactionQuery, getAdminWalletTransactions);
+
+/**
+ * @swagger
+ * /api/v1/admin/wallets/{userId}/adjust:
+ *   post:
+ *     summary: Admin dieu chinh coin thu cong
+ *     tags:
+ *       - Coin Admin
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - amount
+ *             properties:
+ *               amount:
+ *                 type: integer
+ *                 example: 500
+ *                 description: So duong de cong coin, so am de tru coin.
+ *               description:
+ *                 type: string
+ *                 example: Tang coin khuyen mai
+ *     responses:
+ *       200:
+ *         description: Dieu chinh coin thu cong thanh cong
+ *       400:
+ *         description: Du lieu gui len khong hop le
+ *       401:
+ *         description: Chua xac thuc
+ *       403:
+ *         description: Khong co quyen admin
+ *       404:
+ *         description: Khong tim thay nguoi dung
+ *       409:
+ *         description: So du khong du de tru coin
+ */
+router.post('/wallets/:userId/adjust', verifyToken, verifyAdmin, validateUserIdParam, validateAdminAdjustWallet, adjustWallet);
 
 /**
  * @swagger
