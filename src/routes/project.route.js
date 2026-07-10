@@ -8,7 +8,8 @@ import {
   getRelatedArticles,
   deleteProject,
   getProjectAnalytics,
-  getProjectOverview
+  getProjectOverview,
+  activateProject
 } from '../controllers/project.controller.js';
 import { validateCreateProject, validateProjectId, validateRelatedArticlesLimit, validateUpdateProject } from '../middlewares/projectValidation.middleware.js';
 
@@ -615,6 +616,46 @@ router.delete('/:id', verifyToken, validateProjectId, deleteProject);
 router.get('/:id/overview', verifyToken, validateProjectId, getProjectOverview);
 
 router.get('/:id/analytics', verifyToken, validateProjectId, getProjectAnalytics);
+
+/**
+ * @swagger
+ * /api/v1/projects/{id}/activate:
+ *   put:
+ *     summary: Kích hoạt dự án (trừ coin)
+ *     tags:
+ *       - Project
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID của dự án cần kích hoạt
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               coinAmount:
+ *                 type: number
+ *                 example: 50
+ *     responses:
+ *       200:
+ *         description: Kích hoạt thành công
+ *       400:
+ *         description: Số coin không hợp lệ hoặc không đủ số dư coin
+ *       401:
+ *         description: Chưa xác thực
+ *       404:
+ *         description: Không tìm thấy dự án
+ *       500:
+ *         description: Lỗi hệ thống
+ */
+router.put('/:id/activate', verifyToken, validateProjectId, activateProject);
 
 export default router;
 

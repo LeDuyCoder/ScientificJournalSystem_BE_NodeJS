@@ -64,7 +64,7 @@ export const getUserProjects = async (userId) => {
 export const getProjectById = async (projectId, userId) => {
   // 1. Lấy thông tin chung của project và Subject Area tương ứng
   const projectResult = await pool.query(
-    `SELECT p.project_id, p.title, p.user_id, p.subject_area, p.created_at,
+    `SELECT p.project_id, p.title, p.user_id, p.subject_area, p.created_at, p.status,
             sa.display_name as subject_area_name, sa.description as subject_area_description
      FROM "Project" p
      LEFT JOIN "Subject_Area" sa ON p.subject_area = sa.subject_area_id
@@ -140,17 +140,17 @@ export const getProjectById = async (projectId, userId) => {
     GROUP BY ly.max_year
   `;
   const alertsResult = await pool.query(alertsQuery, [projectId, userId]);
-  
+
   let todayCount = 0;
   let currentYearCount = 0;
   let previousYearCount = 0;
   let growthRate = 0.0;
-  
+
   if (alertsResult.rows.length > 0) {
     todayCount = parseInt(alertsResult.rows[0].today_count) || 0;
     currentYearCount = parseInt(alertsResult.rows[0].current_year_count) || 0;
     previousYearCount = parseInt(alertsResult.rows[0].previous_year_count) || 0;
-    
+
     if (previousYearCount === 0) {
       growthRate = currentYearCount > 0 ? 100.0 : 0.0;
     } else {
@@ -163,6 +163,7 @@ export const getProjectById = async (projectId, userId) => {
     title: project.title,
     user_id: project.user_id,
     created_at: project.created_at,
+    status: project.status,
     subject_area: project.subject_area ? {
       subject_area_id: project.subject_area,
       display_name: project.subject_area_name,
@@ -191,7 +192,7 @@ const validateIdsExist = async (ids, tableName, idColumnName) => {
   if (!ids || ids.length === 0) return true;
   // Loại bỏ các ID trùng lặp
   const uniqueIds = [...new Set(ids)];
-  
+
   // Thực hiện truy vấn để kiểm tra xem các ID có tồn tại không
   const query = `
     SELECT ${idColumnName} 
@@ -355,7 +356,7 @@ export const updateProject = async (projectId, userId, { title, subject_area, su
     if (subject_category_ids) {
       // Xóa các quan hệ cũ
       await client.query(`DELETE FROM "Subject_Category_Project" WHERE project_id = $1`, [projectId]);
-      
+
       // Thêm các quan hệ mới
       if (subject_category_ids.length > 0) {
         const uniqueCategoryIds = [...new Set(subject_category_ids)];
@@ -372,7 +373,7 @@ export const updateProject = async (projectId, userId, { title, subject_area, su
     if (journal_ids) {
       // Xóa các quan hệ cũ
       await client.query(`DELETE FROM "Project_Journal" WHERE project_id = $1`, [projectId]);
-      
+
       // Thêm các quan hệ mới
       if (journal_ids.length > 0) {
         const uniqueJournalIds = [...new Set(journal_ids)];
@@ -453,21 +454,21 @@ export const deleteProject = async (projectId, userId) => {
  * @returns {Promise<number[]>} Mảng các journal_id.
  */
 export const getJournalIdsByProjectId = async (projectId) => {
-    try {
-        const queryText = `
+  try {
+    const queryText = `
             SELECT pj.journal_id
             FROM "Project_Journal" pj
             WHERE pj.project_id = $1;
         `;
 
-        const res = await pool.query(queryText, [Number(projectId)]);
+    const res = await pool.query(queryText, [Number(projectId)]);
 
-        // Chỉ trả về mảng số
-        return res.rows.map(row => Number(row.journal_id));
-    } catch (error) {
-        logger.error('Lỗi khi lấy journal_id của dự án:', error);
-        throw error;
-    }
+    // Chỉ trả về mảng số
+    return res.rows.map(row => Number(row.journal_id));
+  } catch (error) {
+    logger.error('Lỗi khi lấy journal_id của dự án:', error);
+    throw error;
+  }
 };
 
 /**
@@ -478,8 +479,8 @@ export const getJournalIdsByProjectId = async (projectId) => {
  * @returns {Promise<number[]>} Mảng các subject_category_id (không trùng).
  */
 export const getCategoryIdsByProjectId = async (projectId) => {
-    try {
-        const queryText = `
+  try {
+    const queryText = `
             SELECT DISTINCT jsc.subject_category_id
             FROM "Project_Journal" pj
             JOIN "Journal_Subject_Category" jsc 
@@ -487,13 +488,28 @@ export const getCategoryIdsByProjectId = async (projectId) => {
             WHERE pj.project_id = $1;
         `;
 
-        const res = await pool.query(queryText, [Number(projectId)]);
+    const res = await pool.query(queryText, [Number(projectId)]);
 
-        return res.rows.map(row => Number(row.subject_category_id));
-    } catch (error) {
-        logger.error('Lỗi khi lấy subject_category_id của dự án:', error);
-        throw error;
-    }
+    return res.rows.map(row => Number(row.subject_category_id));
+  } catch (error) {
+    logger.error('Lỗi khi lấy subject_category_id của dự án:', error);
+    throw error;
+  }
+};
+
+/**
+ * Cập nhật trạng thái của project
+ * @param {string|number} projectId
+ * @param {string} userId
+ * @param {string} status
+ * @returns {Promise<boolean>}
+ */
+export const updateProjectStatus = async (projectId, userId, status) => {
+  const result = await pool.query(
+    `UPDATE "Project" SET status = $1 WHERE project_id = $2 AND user_id = $3 RETURNING *`,
+    [status, projectId, userId]
+  );
+  return result.rows.length > 0;
 };
 
 /**
@@ -508,12 +524,12 @@ export const getCategoryIdsByProjectId = async (projectId) => {
  * @returns {Promise<Array<{article_id: (number|string), title: string, abstract: string, publication_year: number, doi: string, journal_name: string}>>} Danh sách bài viết gợi ý.
  */
 export const getRelatedArticles = async (journalIds, categoryIds, { limit = 5 }) => {
-    try {
-        // Phòng hờ trường hợp mảng truyền vào bị rỗng để tránh lỗi SQL ANY()
-        const finalJournalIds = journalIds.length > 0 ? journalIds : [-1];
-        const finalCategoryIds = categoryIds.length > 0 ? categoryIds : [-1];
+  try {
+    // Phòng hờ trường hợp mảng truyền vào bị rỗng để tránh lỗi SQL ANY()
+    const finalJournalIds = journalIds.length > 0 ? journalIds : [-1];
+    const finalCategoryIds = categoryIds.length > 0 ? categoryIds : [-1];
 
-        const queryText = `
+    const queryText = `
             SELECT DISTINCT
                 a.article_id,
                 a.title,
@@ -536,14 +552,14 @@ export const getRelatedArticles = async (journalIds, categoryIds, { limit = 5 })
             LIMIT $3;
         `;
 
-        const values = [finalJournalIds, finalCategoryIds, limit];
-        const res = await pool.query(queryText, values);
-        return res.rows; 
-        
-    } catch (error) {
-        logger.error('Lỗi khi lấy bài viết liên quan tại Service:', error);
-        throw error;
-    }
+    const values = [finalJournalIds, finalCategoryIds, limit];
+    const res = await pool.query(queryText, values);
+    return res.rows;
+
+  } catch (error) {
+    logger.error('Lỗi khi lấy bài viết liên quan tại Service:', error);
+    throw error;
+  }
 };
 
 /**
@@ -555,18 +571,18 @@ export const getRelatedArticles = async (journalIds, categoryIds, { limit = 5 })
  * @returns {Promise<Object|null>} Dữ liệu phân tích hoặc null nếu dự án không tồn tại/không thuộc quyền sở hữu.
  */
 export const getProjectAnalytics = async (projectId, userId) => {
-    try {
-        // 1. Xác thực sự tồn tại và quyền sở hữu dự án
-        const projectCheck = await pool.query(
-            `SELECT 1 FROM "Project" WHERE project_id = $1 AND user_id = $2`,
-            [Number(projectId), userId]
-        );
-        if (projectCheck.rows.length === 0) {
-            return null;
-        }
+  try {
+    // 1. Xác thực sự tồn tại và quyền sở hữu dự án
+    const projectCheck = await pool.query(
+      `SELECT 1 FROM "Project" WHERE project_id = $1 AND user_id = $2`,
+      [Number(projectId), userId]
+    );
+    if (projectCheck.rows.length === 0) {
+      return null;
+    }
 
-        // 2. Chart 1 (Article Volume Trend)
-        const articleTrendQuery = `
+    // 2. Chart 1 (Article Volume Trend)
+    const articleTrendQuery = `
             SELECT 
                 a.publication_year::integer AS year,
                 COUNT(a.article_id)::integer AS article_count
@@ -578,10 +594,10 @@ export const getProjectAnalytics = async (projectId, userId) => {
             GROUP BY a.publication_year
             ORDER BY a.publication_year ASC
         `;
-        const articleTrendRes = await pool.query(articleTrendQuery, [Number(projectId)]);
+    const articleTrendRes = await pool.query(articleTrendQuery, [Number(projectId)]);
 
-        // 3. Chart 2 (Journal Metrics Comparison)
-        const metricsCompareQuery = `
+    // 3. Chart 2 (Journal Metrics Comparison)
+    const metricsCompareQuery = `
             WITH latest_years AS (
                 SELECT jr.journal_id, MAX(jr.year) AS max_year
                 FROM "Journal_Ranking" jr
@@ -609,51 +625,51 @@ export const getProjectAnalytics = async (projectId, userId) => {
             SELECT * FROM deduped_rankings
             ORDER BY journal_name ASC, metric_code ASC
         `;
-        const metricsCompareRes = await pool.query(metricsCompareQuery, [Number(projectId)]);
-        
-        const journalMetrics = metricsCompareRes.rows.map(row => {
-            let value = null;
-            if (row.metric_type === 'QUARTILE') {
-                value = row.value_txt;
-            } else if (row.metric_type === 'SCORE') {
-                value = row.value_float !== null ? Number(row.value_float) : null;
-            } else if (row.metric_type === 'INTEGER') {
-                value = row.value_int !== null ? Number(row.value_int) : null;
-            } else {
-                value = row.value_txt !== null ? row.value_txt :
-                        row.value_float !== null ? Number(row.value_float) :
-                        row.value_int !== null ? Number(row.value_int) : null;
-            }
-            return {
-                journal_name: row.journal_name,
-                journal_id: row.journal_id,
-                metric_code: row.metric_code,
-                metric_name: row.metric_name,
-                metric_type: row.metric_type,
-                value,
-                year: row.year
-            };
-        });
+    const metricsCompareRes = await pool.query(metricsCompareQuery, [Number(projectId)]);
 
-        return {
-            article_volume_trend: articleTrendRes.rows,
-            journal_metrics_comparison: journalMetrics
-        };
-    } catch (error) {
-        logger.error('Lỗi khi lấy dữ liệu phân tích của dự án:', error);
-        throw error;
-    }
+    const journalMetrics = metricsCompareRes.rows.map(row => {
+      let value = null;
+      if (row.metric_type === 'QUARTILE') {
+        value = row.value_txt;
+      } else if (row.metric_type === 'SCORE') {
+        value = row.value_float !== null ? Number(row.value_float) : null;
+      } else if (row.metric_type === 'INTEGER') {
+        value = row.value_int !== null ? Number(row.value_int) : null;
+      } else {
+        value = row.value_txt !== null ? row.value_txt :
+          row.value_float !== null ? Number(row.value_float) :
+            row.value_int !== null ? Number(row.value_int) : null;
+      }
+      return {
+        journal_name: row.journal_name,
+        journal_id: row.journal_id,
+        metric_code: row.metric_code,
+        metric_name: row.metric_name,
+        metric_type: row.metric_type,
+        value,
+        year: row.year
+      };
+    });
+
+    return {
+      article_volume_trend: articleTrendRes.rows,
+      journal_metrics_comparison: journalMetrics
+    };
+  } catch (error) {
+    logger.error('Lỗi khi lấy dữ liệu phân tích của dự án:', error);
+    throw error;
+  }
 };
 
 const buildChart = ({ type, label, rows }) => ({
-    type,
-    labels: rows.map(row => String(row.label)),
-    datasets: [
-        {
-            label,
-            data: rows.map(row => Number(row.count) || 0)
-        }
-    ]
+  type,
+  labels: rows.map(row => String(row.label)),
+  datasets: [
+    {
+      label,
+      data: rows.map(row => Number(row.count) || 0)
+    }
+  ]
 });
 
 /**
@@ -665,17 +681,17 @@ const buildChart = ({ type, label, rows }) => ({
  * @returns {Promise<Object|null>} Dữ liệu overview hoặc null nếu project không thuộc user.
  */
 export const getProjectOverview = async (projectId, userId) => {
-    try {
-        const projectCheck = await pool.query(
-            `SELECT 1 FROM "Project" WHERE project_id = $1 AND user_id = $2`,
-            [Number(projectId), userId]
-        );
+  try {
+    const projectCheck = await pool.query(
+      `SELECT 1 FROM "Project" WHERE project_id = $1 AND user_id = $2`,
+      [Number(projectId), userId]
+    );
 
-        if (projectCheck.rows.length === 0) {
-            return null;
-        }
+    if (projectCheck.rows.length === 0) {
+      return null;
+    }
 
-        const matchedArticlesCte = `
+    const matchedArticlesCte = `
             WITH MatchedData AS (
                 SELECT ka.article_id, v.journal_id
                 FROM "Project_Keyword" pk
@@ -709,8 +725,8 @@ export const getProjectOverview = async (projectId, userId) => {
             )
         `;
 
-        const summaryResult = await pool.query(
-            `${matchedArticlesCte}
+    const summaryResult = await pool.query(
+      `${matchedArticlesCte}
             SELECT
                 COUNT(DISTINCT md.article_id)::integer AS total_articles,
                 (SELECT COUNT(*) FROM "Project_Keyword" WHERE project_id = $1)::integer AS total_keywords,
@@ -718,11 +734,11 @@ export const getProjectOverview = async (projectId, userId) => {
                 MAX(a.created_at) AS last_updated_at
             FROM MatchedData md
             LEFT JOIN "Article" a ON a.article_id = md.article_id`,
-            [Number(projectId)]
-        );
+      [Number(projectId)]
+    );
 
-        const trendResult = await pool.query(
-            `${matchedArticlesCte}
+    const trendResult = await pool.query(
+      `${matchedArticlesCte}
             SELECT
                 a.publication_year::text AS label,
                 COUNT(DISTINCT md.article_id)::integer AS count
@@ -731,11 +747,11 @@ export const getProjectOverview = async (projectId, userId) => {
             WHERE a.publication_year IS NOT NULL
             GROUP BY a.publication_year
             ORDER BY a.publication_year ASC`,
-            [Number(projectId)]
-        );
+      [Number(projectId)]
+    );
 
-        const subjectAreaResult = await pool.query(
-            `${matchedArticlesCte}
+    const subjectAreaResult = await pool.query(
+      `${matchedArticlesCte}
             SELECT
                 sa.display_name AS label,
                 COUNT(DISTINCT md.article_id)::integer AS count
@@ -745,11 +761,11 @@ export const getProjectOverview = async (projectId, userId) => {
             JOIN "Subject_Area" sa ON sa.subject_area_id = sc.subject_area_id
             GROUP BY sa.display_name
             ORDER BY count DESC, sa.display_name ASC`,
-            [Number(projectId)]
-        );
+      [Number(projectId)]
+    );
 
-        const publicationTypeResult = await pool.query(
-            `${matchedArticlesCte}
+    const publicationTypeResult = await pool.query(
+      `${matchedArticlesCte}
             SELECT
                 COALESCE(j.type, 'Unknown') AS label,
                 COUNT(DISTINCT md.article_id)::integer AS count
@@ -757,38 +773,38 @@ export const getProjectOverview = async (projectId, userId) => {
             JOIN "Journal" j ON j.journal_id = md.journal_id
             GROUP BY COALESCE(j.type, 'Unknown')
             ORDER BY count DESC, label ASC`,
-            [Number(projectId)]
-        );
+      [Number(projectId)]
+    );
 
-        const summary = summaryResult.rows[0] || {};
+    const summary = summaryResult.rows[0] || {};
 
-        return {
-            summary: {
-                totalArticles: Number(summary.total_articles) || 0,
-                totalKeywords: Number(summary.total_keywords) || 0,
-                totalJournals: Number(summary.total_journals) || 0,
-                lastUpdatedAt: summary.last_updated_at || null
-            },
-            charts: {
-                publicationTrend: buildChart({
-                    type: 'line',
-                    label: 'Publications',
-                    rows: trendResult.rows
-                }),
-                subjectAreaDistribution: buildChart({
-                    type: 'donut',
-                    label: 'Subject Areas',
-                    rows: subjectAreaResult.rows
-                }),
-                publicationTypeDistribution: buildChart({
-                    type: 'donut',
-                    label: 'Publication Types',
-                    rows: publicationTypeResult.rows
-                })
-            }
-        };
-    } catch (error) {
-        logger.error('Lỗi khi lấy dữ liệu tổng quan của dự án:', error);
-        throw error;
-    }
+    return {
+      summary: {
+        totalArticles: Number(summary.total_articles) || 0,
+        totalKeywords: Number(summary.total_keywords) || 0,
+        totalJournals: Number(summary.total_journals) || 0,
+        lastUpdatedAt: summary.last_updated_at || null
+      },
+      charts: {
+        publicationTrend: buildChart({
+          type: 'line',
+          label: 'Publications',
+          rows: trendResult.rows
+        }),
+        subjectAreaDistribution: buildChart({
+          type: 'donut',
+          label: 'Subject Areas',
+          rows: subjectAreaResult.rows
+        }),
+        publicationTypeDistribution: buildChart({
+          type: 'donut',
+          label: 'Publication Types',
+          rows: publicationTypeResult.rows
+        })
+      }
+    };
+  } catch (error) {
+    logger.error('Lỗi khi lấy dữ liệu tổng quan của dự án:', error);
+    throw error;
+  }
 };
