@@ -94,3 +94,5 @@ load-test.js
 .coverage/
 coverage/
 *.lcov
+
+docs/

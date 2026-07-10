@@ -1,6 +1,7 @@
 import * as projectService from "../services/project.service.js";
 import logger from "../utils/logger.js";
 import { createLog } from '../services/log.service.js';
+import { spendCoins } from '../services/wallet.service.js';
 
 export const projectServiceRef = { ...projectService };
 
@@ -439,6 +440,93 @@ export const getProjectAnalytics = async (req, res) => {
       success: false,
       code: "INTERNAL_SERVER_ERROR",
       message: "Có lỗi xảy ra khi lấy dữ liệu phân tích dự án",
+    });
+  }
+};
+
+/**
+ * API Kích hoạt dự án (trừ coin)
+ * Nhận vào projectId, coinAmount để trừ và chuyển trạng thái sang ACTIVE
+ *
+ * @async
+ * @param {Object} req
+ * @param {Object} res
+ */
+export const activateProject = async (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const userId = req.user.user_id;
+    const { coinAmount } = req.body;
+
+    if (!coinAmount || isNaN(coinAmount) || coinAmount <= 0) {
+      return res.status(400).json({
+        success: false,
+        code: "INVALID_COIN_AMOUNT",
+        message: "Số coin truyền vào không hợp lệ",
+      });
+    }
+
+    // Kiểm tra dự án có tồn tại và thuộc về user không
+    const project = await projectServiceRef.getProjectById(projectId, userId);
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        code: "PROJECT_NOT_FOUND_OR_ACCESS_DENIED",
+        message: "Không tìm thấy dự án hoặc bạn không có quyền",
+      });
+    }
+
+    if (project.status === "ACTIVE") {
+      return res.status(400).json({
+        success: false,
+        code: "PROJECT_ALREADY_ACTIVE",
+        message: "Dự án đã được kích hoạt trước đó",
+      });
+    }
+
+    // Tiến hành trừ coin
+    await spendCoins({
+      userId,
+      amount: Number(coinAmount),
+      description: `Kích hoạt dự án: ${project.title || projectId}`,
+    });
+
+    // Cập nhật trạng thái dự án
+    const updated = await projectServiceRef.updateProjectStatus(projectId, userId, 'ACTIVE');
+    if (!updated) {
+      throw new Error("Không thể cập nhật trạng thái project");
+    }
+
+    createLog({
+      userId: userId,
+      userRole: req.user.role,
+      action: 'UPDATE',
+      entityTable: 'Project',
+      entityId: projectId,
+      message: `Kích hoạt dự án ${project.title || projectId} (Trừ ${coinAmount} coin)`,
+      metadata: { ip: req.ip, coinAmount }
+    });
+
+    return res.status(200).json({
+      success: true,
+      code: "SUCCESS_ACTIVATE_PROJECT",
+      message: "Kích hoạt dự án thành công",
+    });
+
+  } catch (error) {
+    if (error.code === 'INSUFFICIENT_BALANCE' || (error.status && error.status === 409)) {
+       return res.status(400).json({
+         success: false,
+         code: "INSUFFICIENT_BALANCE",
+         message: "Số dư coin không đủ để thực hiện giao dịch",
+       });
+    }
+
+    logger.error("[Project Controller] Lỗi khi kích hoạt dự án:", error);
+    return res.status(500).json({
+      success: false,
+      code: "INTERNAL_SERVER_ERROR",
+      message: "Có lỗi xảy ra khi kích hoạt dự án",
     });
   }
 };
