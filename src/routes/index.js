@@ -21,6 +21,9 @@ import adminRouter from "./admin.route.js";
 import publisherRouter from "./publisher.route.js"
 import statisticsRouter from "./statistics.route.js"
 import dashboardRouter from "./dashboard.route.js"
+import walletRouter from "./wallet.route.js";
+import coinPackageRouter from "./coinPackage.route.js";
+import paymentRouter from "./payment.route.js";
 
 
 const router = express.Router();
@@ -54,6 +57,9 @@ router.use("/admin", adminRouter);
 router.use("/publishers", publisherRouter);
 router.use("/statistics", statisticsRouter);
 router.use("/dashboard", dashboardRouter);
+router.use("/wallet", walletRouter);
+router.use("/coin-packages", coinPackageRouter);
+router.use("/payments", paymentRouter);
 
 export default router;
 

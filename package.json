@@ -8,7 +8,8 @@
     "start": "node server.js",
     "test": "node --test src/tests/unit/**/*.test.js",
     "test:controller": "node --test src/tests/unit/controllers/*.test.js",
-    "test:service": "node --test src/tests/unit/service/*.test.js"
+    "test:service": "node --test src/tests/unit/service/*.test.js",
+    "setup:coin-db": "node scripts/setup_coin_db.js"
   },
   "keywords": [],
   "author": "",
