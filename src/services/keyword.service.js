@@ -77,7 +77,9 @@ export const getWatchedKeywordArticles = async (
   const offset = (page - 1) * limit;
 
   const projectCheck = await pool.query(
-    `SELECT project_id FROM "Project" WHERE project_id = $1 AND user_id = $2`,
+    `SELECT p.project_id FROM "Project" p
+     LEFT JOIN "Project_Member" pm ON pm.project_id = p.project_id AND pm.user_id = $2 AND pm.status = 'ACCEPTED'
+     WHERE p.project_id = $1 AND (p.user_id = $2 OR pm.project_id IS NOT NULL)`,
     [projectId, userId],
   );
 
@@ -99,16 +101,15 @@ export const getWatchedKeywordArticles = async (
       JOIN "Volume" v ON v.journal_id = jsc.journal_id
       JOIN "Issue" i ON i.volume_id = v.volume_id
       JOIN "Article" a ON a.issue_id = i.issue_id
-      WHERE p.project_id = $1 AND p.user_id = $2 AND p.subject_area IS NOT NULL
+      WHERE p.project_id = $1 AND p.subject_area IS NOT NULL
   `;
   
   const countQuery = `
     WITH MatchedArticles AS (
       SELECT ka.article_id, ka.keyword_id, NULL::bigint AS subject_area_id
       FROM "Project_Keyword" pk
-      JOIN "Project" p_check ON p_check.project_id = pk.project_id
       JOIN "Keyword_Article" ka ON ka.keyword_id = pk.keyword_id
-      WHERE pk.project_id = $1 AND p_check.user_id = $2
+      WHERE pk.project_id = $1
       ${unionPart}
     )
     SELECT COUNT(*) AS total FROM (SELECT DISTINCT article_id FROM MatchedArticles) AS unique_articles
@@ -118,9 +119,8 @@ export const getWatchedKeywordArticles = async (
     WITH MatchedArticles AS (
       SELECT ka.article_id, ka.keyword_id, NULL::bigint AS subject_area_id
       FROM "Project_Keyword" pk
-      JOIN "Project" p_check ON p_check.project_id = pk.project_id
       JOIN "Keyword_Article" ka ON ka.keyword_id = pk.keyword_id
-      WHERE pk.project_id = $1 AND p_check.user_id = $2
+      WHERE pk.project_id = $1
       ${unionPart}
     )
     SELECT 
@@ -154,12 +154,12 @@ export const getWatchedKeywordArticles = async (
     LEFT JOIN "Journal" j ON j.journal_id = v.journal_id
     GROUP BY a.article_id, a.title, a.abstract, a.publication_year, a.doi, a.created_at, j.display_name
     ORDER BY a.publication_year DESC, a.created_at DESC
-    LIMIT $3 OFFSET $4
+    LIMIT $2 OFFSET $3
   `;
 
   const [countResult, dataResult] = await Promise.all([
-    pool.query(countQuery, [projectId, userId]),
-    pool.query(dataQuery, [projectId, userId, limit, offset]),
+    pool.query(countQuery, [projectId]),
+    pool.query(dataQuery, [projectId, limit, offset]),
   ]);
 
   const total = parseInt(countResult.rows[0]?.total) || 0;

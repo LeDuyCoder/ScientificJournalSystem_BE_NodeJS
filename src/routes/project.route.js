@@ -7,6 +7,7 @@ import {
   updateProject,
   getRelatedArticles,
   deleteProject,
+  restoreProject,
   getProjectAnalytics,
   getProjectOverview,
   activateProject
@@ -655,6 +656,29 @@ router.get('/:id/analytics', verifyToken, validateProjectId, getProjectAnalytics
  *       500:
  *         description: Lỗi hệ thống
  */
+/**
+ * @swagger
+ * /api/v1/projects/{id}/restore:
+ *   put:
+ *     summary: Khôi phục dự án đã bị xóa mềm (chỉ owner)
+ *     tags:
+ *       - Project
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Khôi phục dự án thành công
+ *       400:
+ *         description: Dự án không tồn tại hoặc không ở trạng thái đã xóa
+ */
+router.put('/:id/restore', verifyToken, validateProjectId, restoreProject);
+
 router.put('/:id/activate', verifyToken, validateProjectId, activateProject);
 
 export default router;

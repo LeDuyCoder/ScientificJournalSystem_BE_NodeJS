@@ -251,8 +251,8 @@ export const deleteProject = async (req, res) => {
     const projectId = req.params.id;
     const userId = req.user.user_id;
 
-    const deleted = await projectServiceRef.deleteProject(projectId, userId);
-    if (!deleted) {
+    const previousStatus = await projectServiceRef.deleteProject(projectId, userId);
+    if (!previousStatus) {
       return res.status(404).json({
         success: false,
         code: "PROJECT_NOT_FOUND_OR_ACCESS_DENIED",
@@ -266,7 +266,9 @@ export const deleteProject = async (req, res) => {
       action: 'DELETE',
       entityTable: 'Project',
       entityId: projectId,
-      message: `Xóa dự án nghiên cứu có ID: ${projectId}`,
+      message: `Xóa mềm dự án nghiên cứu có ID: ${projectId}`,
+      oldData: { status: previousStatus },
+      newData: { status: 'DELETED' },
       metadata: { ip: req.ip }
     });
 
@@ -281,6 +283,54 @@ export const deleteProject = async (req, res) => {
       success: false,
       code: "INTERNAL_SERVER_ERROR",
       message: "Có lỗi xảy ra ở server khi xóa dự án",
+    });
+  }
+};
+
+/**
+ * Khôi phục dự án đã bị xóa mềm
+ */
+export const restoreProject = async (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const userId = req.user.user_id;
+
+    const restoredStatus = await projectServiceRef.restoreProject(projectId, userId);
+
+    createLog({
+      userId: userId,
+      userRole: req.user.role,
+      action: 'UPDATE', // Hoặc 'RESTORE' nếu hệ thống có action RESTORE
+      entityTable: 'Project',
+      entityId: projectId,
+      message: `Khôi phục dự án nghiên cứu có ID: ${projectId}`,
+      oldData: { status: 'DELETED' },
+      newData: { status: restoredStatus },
+      metadata: { ip: req.ip }
+    });
+
+    return res.status(200).json({
+      success: true,
+      code: "SUCCESS_RESTORE_PROJECT",
+      message: "Khôi phục dự án thành công",
+      data: { status: restoredStatus }
+    });
+  } catch (error) {
+    logger.error("[Project Controller] Lỗi khi khôi phục dự án:", error);
+    
+    if (error.message.includes('không tồn tại') || error.message.includes('không ở trạng thái đã xóa')) {
+      return res.status(400).json({
+        success: false,
+        code: "INVALID_RESTORE_REQUEST",
+        message: error.message,
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      code: "INTERNAL_SERVER_ERROR",
+      message: "Lỗi hệ thống khi khôi phục dự án",
+      error: error.message,
     });
   }
 };
