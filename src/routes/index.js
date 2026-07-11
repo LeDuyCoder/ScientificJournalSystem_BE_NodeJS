@@ -24,6 +24,7 @@ import dashboardRouter from "./dashboard.route.js"
 import walletRouter from "./wallet.route.js";
 import coinPackageRouter from "./coinPackage.route.js";
 import paymentRouter from "./payment.route.js";
+import projectMemberRouter from "./projectMember.route.js";
 
 
 const router = express.Router();
@@ -60,6 +61,7 @@ router.use("/dashboard", dashboardRouter);
 router.use("/wallet", walletRouter);
 router.use("/coin-packages", coinPackageRouter);
 router.use("/payments", paymentRouter);
+router.use("/projects", projectMemberRouter);
 
 export default router;
 

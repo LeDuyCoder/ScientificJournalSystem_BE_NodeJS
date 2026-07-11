@@ -16,8 +16,33 @@ export const getUserProjects = async (userId) => {
        p.created_at,
        (SELECT COUNT(*) FROM "Project_Keyword" pk WHERE pk.project_id = p.project_id)::integer as keyword_count,
        COALESCE(stats.journal_count, 0)::integer as journal_count,
-       COALESCE(stats.article_count, 0)::integer as article_count
+       COALESCE(stats.article_count, 0)::integer as article_count,
+       CASE WHEN p.user_id = $1 THEN 'OWNER' ELSE pm.role END as user_role,
+       json_build_object(
+         'user_id', u_owner.user_id,
+         'first_name', u_owner.first_name,
+         'last_name', u_owner.last_name,
+         'email', u_owner.email
+       ) as owner,
+       COALESCE(members_data.members, '[]'::json) as members
      FROM "Project" p 
+     JOIN "user" u_owner ON u_owner.user_id = p.user_id
+     LEFT JOIN "Project_Member" pm ON pm.project_id = p.project_id AND pm.user_id = $1 AND pm.status = 'ACCEPTED'
+     LEFT JOIN LATERAL (
+       SELECT json_agg(
+         json_build_object(
+           'user_id', pm2.user_id,
+           'first_name', u.first_name,
+           'last_name', u.last_name,
+           'email', u.email,
+           'role', pm2.role,
+           'status', pm2.status
+         )
+       ) as members
+       FROM "Project_Member" pm2
+       JOIN "user" u ON u.user_id = pm2.user_id
+       WHERE pm2.project_id = p.project_id
+     ) members_data ON true
      LEFT JOIN LATERAL (
        SELECT 
          COUNT(DISTINCT matched.journal_id) as journal_count,
@@ -48,7 +73,7 @@ export const getUserProjects = async (userId) => {
        ) AS matched
      ) stats ON true
      LEFT JOIN "Subject_Area" sa ON sa.subject_area_id = p.subject_area
-     WHERE p.user_id = $1 
+     WHERE p.user_id = $1 OR pm.project_id IS NOT NULL
      ORDER BY p.created_at DESC`,
     [userId]
   );
@@ -65,10 +90,12 @@ export const getProjectById = async (projectId, userId) => {
   // 1. Lấy thông tin chung của project và Subject Area tương ứng
   const projectResult = await pool.query(
     `SELECT p.project_id, p.title, p.user_id, p.subject_area, p.created_at, p.status,
-            sa.display_name as subject_area_name, sa.description as subject_area_description
+            sa.display_name as subject_area_name, sa.description as subject_area_description,
+            CASE WHEN p.user_id = $2 THEN 'OWNER' ELSE pm.role END as user_role
      FROM "Project" p
+     LEFT JOIN "Project_Member" pm ON pm.project_id = p.project_id AND pm.user_id = $2 AND pm.status = 'ACCEPTED'
      LEFT JOIN "Subject_Area" sa ON p.subject_area = sa.subject_area_id
-     WHERE p.project_id = $1 AND p.user_id = $2`,
+     WHERE p.project_id = $1 AND (p.user_id = $2 OR pm.project_id IS NOT NULL)`,
     [projectId, userId]
   );
 
@@ -120,7 +147,7 @@ export const getProjectById = async (projectId, userId) => {
       JOIN "Volume" v ON v.journal_id = jsc.journal_id
       JOIN "Issue" i ON i.volume_id = v.volume_id
       JOIN "Article" a ON a.issue_id = i.issue_id
-      WHERE p.project_id = $1 AND p.user_id = $2 AND p.subject_area IS NOT NULL
+      WHERE p.project_id = $1 AND p.subject_area IS NOT NULL
     ),
     MatchedData AS (
       SELECT a.article_id, a.created_at, a.publication_year
@@ -139,7 +166,7 @@ export const getProjectById = async (projectId, userId) => {
     CROSS JOIN LatestYear ly
     GROUP BY ly.max_year
   `;
-  const alertsResult = await pool.query(alertsQuery, [projectId, userId]);
+  const alertsResult = await pool.query(alertsQuery, [projectId]);
 
   let todayCount = 0;
   let currentYearCount = 0;
@@ -407,9 +434,9 @@ export const deleteProject = async (projectId, userId) => {
   try {
     await client.query('BEGIN');
 
-    // 1. Kiểm tra xem project có tồn tại và thuộc sở hữu của user hay không
+    // 1. Kiểm tra xem project có tồn tại và thuộc sở hữu của user hay không (chỉ owner mới được xóa)
     const checkResult = await client.query(
-      `SELECT 1 FROM "Project" WHERE project_id = $1 AND user_id = $2`,
+      `SELECT status FROM "Project" WHERE project_id = $1 AND user_id = $2`,
       [projectId, userId]
     );
     if (checkResult.rows.length === 0) {
@@ -417,26 +444,69 @@ export const deleteProject = async (projectId, userId) => {
       return false;
     }
 
-    // 2. Xóa các bản ghi liên quan trong Subject_Category_Project
-    await client.query(
-      `DELETE FROM "Subject_Category_Project" WHERE project_id = $1`,
-      [projectId]
-    );
+    const previousStatus = checkResult.rows[0].status;
 
-    // 3. Xóa các bản ghi liên quan trong Project_Journal
+    // 2. Cập nhật status thành DELETED thay vì xóa bản ghi
     await client.query(
-      `DELETE FROM "Project_Journal" WHERE project_id = $1`,
-      [projectId]
-    );
-
-    // 4. Xóa project chính
-    await client.query(
-      `DELETE FROM "Project" WHERE project_id = $1 AND user_id = $2`,
+      `UPDATE "Project" SET status = 'DELETED' WHERE project_id = $1 AND user_id = $2`,
       [projectId, userId]
     );
 
     await client.query('COMMIT');
-    return true;
+    return previousStatus; // Trả về status cũ để lưu vào log
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
+/**
+ * Khôi phục project bị xóa mềm (chỉ owner mới được khôi phục)
+ * @param {string|number} projectId 
+ * @param {string} userId 
+ * @returns {Promise<string>} Trạng thái sau khi khôi phục
+ */
+export const restoreProject = async (projectId, userId) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const checkResult = await client.query(
+      `SELECT status FROM "Project" WHERE project_id = $1 AND user_id = $2`,
+      [projectId, userId]
+    );
+    if (checkResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      throw new Error("Dự án không tồn tại hoặc bạn không phải là OWNER.");
+    }
+
+    if (checkResult.rows[0].status !== 'DELETED') {
+      await client.query('ROLLBACK');
+      throw new Error("Dự án không ở trạng thái đã xóa.");
+    }
+
+    // Lấy trạng thái trước đó từ bảng system_log
+    const logResult = await client.query(
+      `SELECT old_data FROM system_log 
+       WHERE entity_table = 'Project' AND entity_id = $1 AND action = 'DELETE' 
+       ORDER BY created_at DESC LIMIT 1`,
+      [String(projectId)]
+    );
+
+    let previousStatus = 'INACTIVE'; // mặc định nếu không có log
+    if (logResult.rows.length > 0 && logResult.rows[0].old_data && logResult.rows[0].old_data.status) {
+      previousStatus = logResult.rows[0].old_data.status;
+    }
+
+    await client.query(
+      `UPDATE "Project" SET status = $1 WHERE project_id = $2 AND user_id = $3`,
+      [previousStatus, projectId, userId]
+    );
+
+    await client.query('COMMIT');
+    return previousStatus;
   } catch (error) {
     await client.query('ROLLBACK');
     throw error;
@@ -572,9 +642,11 @@ export const getRelatedArticles = async (journalIds, categoryIds, { limit = 5 })
  */
 export const getProjectAnalytics = async (projectId, userId) => {
   try {
-    // 1. Xác thực sự tồn tại và quyền sở hữu dự án
+    // 1. Xác thực sự tồn tại và quyền sở hữu/thành viên dự án
     const projectCheck = await pool.query(
-      `SELECT 1 FROM "Project" WHERE project_id = $1 AND user_id = $2`,
+      `SELECT 1 FROM "Project" p
+       LEFT JOIN "Project_Member" pm ON pm.project_id = p.project_id AND pm.user_id = $2 AND pm.status = 'ACCEPTED'
+       WHERE p.project_id = $1 AND (p.user_id = $2 OR pm.project_id IS NOT NULL)`,
       [Number(projectId), userId]
     );
     if (projectCheck.rows.length === 0) {
@@ -683,7 +755,9 @@ const buildChart = ({ type, label, rows }) => ({
 export const getProjectOverview = async (projectId, userId) => {
   try {
     const projectCheck = await pool.query(
-      `SELECT 1 FROM "Project" WHERE project_id = $1 AND user_id = $2`,
+      `SELECT 1 FROM "Project" p
+       LEFT JOIN "Project_Member" pm ON pm.project_id = p.project_id AND pm.user_id = $2 AND pm.status = 'ACCEPTED'
+       WHERE p.project_id = $1 AND (p.user_id = $2 OR pm.project_id IS NOT NULL)`,
       [Number(projectId), userId]
     );
 
