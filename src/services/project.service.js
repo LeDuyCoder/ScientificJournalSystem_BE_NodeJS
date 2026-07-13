@@ -14,6 +14,7 @@ export const getUserProjects = async (userId) => {
        p.title as project_name, 
        sa.display_name as subject_area, 
        p.created_at,
+       p.status,
        (SELECT COUNT(*) FROM "Project_Keyword" pk WHERE pk.project_id = p.project_id)::integer as keyword_count,
        COALESCE(stats.journal_count, 0)::integer as journal_count,
        COALESCE(stats.article_count, 0)::integer as article_count,
