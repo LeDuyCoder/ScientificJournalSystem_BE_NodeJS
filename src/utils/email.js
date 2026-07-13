@@ -385,5 +385,155 @@ export const emailHelper = {
         'Unable to send password reset email'
       );
     }
+  },
+
+  /**
+   * Gửi email mời vào project
+   * @param {string} toEmail Email người nhận
+   * @param {string} projectName Tên dự án
+   * @param {string} inviterName Tên người mời
+   * @param {string} token Token (hoặc link) để chấp nhận lời mời
+   */
+  sendProjectInviteEmail: async (
+    toEmail,
+    projectName,
+    inviterName,
+    token
+  ) => {
+    try {
+      const baseUrl =
+        process.env.BASE_URL_JOIN_PROJECT ||
+        'http://localhost:8000';
+
+      // Example route: /project-invite/accept?token=...
+      const inviteUrl =
+        `${baseUrl}?token=${token}`;
+
+      const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="UTF-8" />
+        <title>Project Invitation</title>
+      </head>
+
+      <body
+        style="
+          font-family: Arial, sans-serif;
+          background: #f5f5f5;
+          padding: 20px;
+        "
+      >
+        <div
+          style="
+            max-width: 600px;
+            margin: auto;
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+          "
+        >
+          <div
+            style="
+              background: #2563eb;
+              color: white;
+              padding: 30px;
+              text-align: center;
+            "
+          >
+            <h1>Scientific Journal System</h1>
+          </div>
+
+          <div style="padding: 30px">
+            <p>
+              Hello,
+            </p>
+
+            <p>
+              <strong>${inviterName}</strong> has invited you to join the project <strong>${projectName}</strong> at the Scientific Journal System.
+            </p>
+
+            <p>
+              Please click the button below to accept the invitation and join the project:
+            </p>
+
+            <div
+              style="
+                margin: 30px 0;
+                text-align: center;
+              "
+            >
+              <a
+                href="${inviteUrl}"
+                style="
+                  background: #2563eb;
+                  color: white;
+                  text-decoration: none;
+                  padding: 14px 28px;
+                  border-radius: 8px;
+                  display: inline-block;
+                  font-weight: bold;
+                "
+              >
+                Accept Invitation
+              </a>
+            </div>
+
+            <p>
+              If the button above does not work, please copy and paste the following link into your browser:
+            </p>
+
+            <p
+              style="
+                word-break: break-all;
+                background: #f3f4f6;
+                padding: 12px;
+                border-radius: 6px;
+              "
+            >
+              ${inviteUrl}
+            </p>
+          </div>
+
+          <div
+            style="
+              background: #f9fafb;
+              padding: 20px;
+              text-align: center;
+              color: #6b7280;
+              font-size: 13px;
+            "
+          >
+            This is an automated email. Please do not reply to this message.
+          </div>
+        </div>
+      </body>
+    </html>
+      `;
+
+      const raw = createRawEmail({
+        to: toEmail,
+        from: `Scientific Journal System <${process.env.EMAIL_USER}>`,
+        subject: `Invitation to join project ${projectName}`,
+        html
+      });
+
+      const response = await gmail.users.messages.send({
+        userId: 'me',
+        requestBody: { raw }
+      });
+
+      logger.info(
+        `[MAIL]: Đã gửi email mời vào project tới ${toEmail}`
+      );
+
+      return response.data;
+    } catch (error) {
+      logger.error(
+        `[MAIL]: Lỗi gửi email mời vào project tới ${toEmail}`,
+        error
+      );
+      throw new Error('Unable to send project invitation email');
+    }
   }
 };

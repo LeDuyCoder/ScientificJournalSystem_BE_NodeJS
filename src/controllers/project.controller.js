@@ -1,5 +1,7 @@
 import * as projectService from "../services/project.service.js";
 import logger from "../utils/logger.js";
+import { createLog } from '../services/log.service.js';
+import { spendCoins } from '../services/wallet.service.js';
 
 export const projectServiceRef = { ...projectService };
 
@@ -110,6 +112,16 @@ export const createProject = async (req, res) => {
       journal_ids,
     });
 
+    createLog({
+      userId: userId,
+      userRole: req.user.role,
+      action: 'CREATE',
+      entityTable: 'Project',
+      entityId: newProject.project_id,
+      message: `Tạo mới dự án nghiên cứu: ${newProject.title}`,
+      metadata: { ip: req.ip }
+    });
+
     return res.status(201).json({
       success: true,
       code: "SUCCESS_CREATE_PROJECT",
@@ -187,6 +199,16 @@ export const updateProject = async (req, res) => {
       });
     }
 
+    createLog({
+      userId: userId,
+      userRole: req.user.role,
+      action: 'UPDATE',
+      entityTable: 'Project',
+      entityId: projectId,
+      message: `Cập nhật dự án nghiên cứu: ${title || projectId}`,
+      metadata: { ip: req.ip }
+    });
+
     return res.status(200).json({
       success: true,
       code: "SUCCESS_UPDATE_PROJECT",
@@ -229,14 +251,26 @@ export const deleteProject = async (req, res) => {
     const projectId = req.params.id;
     const userId = req.user.user_id;
 
-    const deleted = await projectServiceRef.deleteProject(projectId, userId);
-    if (!deleted) {
+    const previousStatus = await projectServiceRef.deleteProject(projectId, userId);
+    if (!previousStatus) {
       return res.status(404).json({
         success: false,
         code: "PROJECT_NOT_FOUND_OR_ACCESS_DENIED",
         message: "Không tìm thấy dự án hoặc bạn không có quyền xóa dự án này",
       });
     }
+
+    createLog({
+      userId: userId,
+      userRole: req.user.role,
+      action: 'DELETE',
+      entityTable: 'Project',
+      entityId: projectId,
+      message: `Xóa mềm dự án nghiên cứu có ID: ${projectId}`,
+      oldData: { status: previousStatus },
+      newData: { status: 'DELETED' },
+      metadata: { ip: req.ip }
+    });
 
     return res.status(200).json({
       success: true,
@@ -249,6 +283,54 @@ export const deleteProject = async (req, res) => {
       success: false,
       code: "INTERNAL_SERVER_ERROR",
       message: "Có lỗi xảy ra ở server khi xóa dự án",
+    });
+  }
+};
+
+/**
+ * Khôi phục dự án đã bị xóa mềm
+ */
+export const restoreProject = async (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const userId = req.user.user_id;
+
+    const restoredStatus = await projectServiceRef.restoreProject(projectId, userId);
+
+    createLog({
+      userId: userId,
+      userRole: req.user.role,
+      action: 'UPDATE', // Hoặc 'RESTORE' nếu hệ thống có action RESTORE
+      entityTable: 'Project',
+      entityId: projectId,
+      message: `Khôi phục dự án nghiên cứu có ID: ${projectId}`,
+      oldData: { status: 'DELETED' },
+      newData: { status: restoredStatus },
+      metadata: { ip: req.ip }
+    });
+
+    return res.status(200).json({
+      success: true,
+      code: "SUCCESS_RESTORE_PROJECT",
+      message: "Khôi phục dự án thành công",
+      data: { status: restoredStatus }
+    });
+  } catch (error) {
+    logger.error("[Project Controller] Lỗi khi khôi phục dự án:", error);
+    
+    if (error.message.includes('không tồn tại') || error.message.includes('không ở trạng thái đã xóa')) {
+      return res.status(400).json({
+        success: false,
+        code: "INVALID_RESTORE_REQUEST",
+        message: error.message,
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      code: "INTERNAL_SERVER_ERROR",
+      message: "Lỗi hệ thống khi khôi phục dự án",
+      error: error.message,
     });
   }
 };
@@ -304,6 +386,66 @@ export const getRelatedArticles = async (req, res) => {
 };
 
 /**
+ * API Lấy dữ liệu tổng quan và biểu đồ của một dự án.
+ * User ID được lấy từ access token, không nhận từ client.
+ *
+ * @async
+ * @param {Object} req - Express request object
+ * @param {Object} req.params - Các tham số trên URL
+ * @param {string} req.params.id - ID của dự án cần lấy overview
+ * @param {Object} req.user - Thông tin người dùng đã xác thực
+ * @param {string} req.user.user_id - ID người dùng
+ * @param {Object} res - Express response object
+ * @returns {Promise<Object>} JSON response chứa dữ liệu overview
+ */
+export const getProjectOverview = async (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const userId = req.user.user_id;
+
+    if (!/^\d+$/.test(projectId) || Number(projectId) <= 0) {
+      return res.status(400).json({
+        success: false,
+        code: "INVALID_PROJECT_ID",
+        message: 'ID dự án không hợp lệ'
+      });
+    }
+
+    const overviewData = await projectServiceRef.getProjectOverview(projectId, userId);
+
+    if (!overviewData) {
+      return res.status(403).json({
+        success: false,
+        code: "FORBIDDEN",
+        message: "Bạn không có quyền truy cập project này",
+      });
+    }
+
+    const hasData = overviewData.summary.totalArticles > 0
+      || overviewData.summary.totalKeywords > 0
+      || overviewData.summary.totalJournals > 0;
+
+    return res.status(200).json({
+      success: true,
+      message: hasData
+        ? "Project overview fetched successfully"
+        : "No overview data found",
+      data: overviewData,
+    });
+  } catch (error) {
+    logger.error(
+      "[Project Controller] Lỗi khi lấy dữ liệu tổng quan dự án:",
+      error,
+    );
+    return res.status(500).json({
+      success: false,
+      code: "INTERNAL_SERVER_ERROR",
+      message: "Có lỗi xảy ra khi lấy dữ liệu tổng quan dự án",
+    });
+  }
+};
+
+/**
  * API Lấy dữ liệu phân tích/thống kê của một dự án (Trending Charts)
  *
  * @async
@@ -348,6 +490,93 @@ export const getProjectAnalytics = async (req, res) => {
       success: false,
       code: "INTERNAL_SERVER_ERROR",
       message: "Có lỗi xảy ra khi lấy dữ liệu phân tích dự án",
+    });
+  }
+};
+
+/**
+ * API Kích hoạt dự án (trừ coin)
+ * Nhận vào projectId, coinAmount để trừ và chuyển trạng thái sang ACTIVE
+ *
+ * @async
+ * @param {Object} req
+ * @param {Object} res
+ */
+export const activateProject = async (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const userId = req.user.user_id;
+    const { coinAmount } = req.body;
+
+    if (!coinAmount || isNaN(coinAmount) || coinAmount <= 0) {
+      return res.status(400).json({
+        success: false,
+        code: "INVALID_COIN_AMOUNT",
+        message: "Số coin truyền vào không hợp lệ",
+      });
+    }
+
+    // Kiểm tra dự án có tồn tại và thuộc về user không
+    const project = await projectServiceRef.getProjectById(projectId, userId);
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        code: "PROJECT_NOT_FOUND_OR_ACCESS_DENIED",
+        message: "Không tìm thấy dự án hoặc bạn không có quyền",
+      });
+    }
+
+    if (project.status === "ACTIVE") {
+      return res.status(400).json({
+        success: false,
+        code: "PROJECT_ALREADY_ACTIVE",
+        message: "Dự án đã được kích hoạt trước đó",
+      });
+    }
+
+    // Tiến hành trừ coin
+    await spendCoins({
+      userId,
+      amount: Number(coinAmount),
+      description: `Kích hoạt dự án: ${project.title || projectId}`,
+    });
+
+    // Cập nhật trạng thái dự án
+    const updated = await projectServiceRef.updateProjectStatus(projectId, userId, 'ACTIVE');
+    if (!updated) {
+      throw new Error("Không thể cập nhật trạng thái project");
+    }
+
+    createLog({
+      userId: userId,
+      userRole: req.user.role,
+      action: 'UPDATE',
+      entityTable: 'Project',
+      entityId: projectId,
+      message: `Kích hoạt dự án ${project.title || projectId} (Trừ ${coinAmount} coin)`,
+      metadata: { ip: req.ip, coinAmount }
+    });
+
+    return res.status(200).json({
+      success: true,
+      code: "SUCCESS_ACTIVATE_PROJECT",
+      message: "Kích hoạt dự án thành công",
+    });
+
+  } catch (error) {
+    if (error.code === 'INSUFFICIENT_BALANCE' || (error.status && error.status === 409)) {
+       return res.status(400).json({
+         success: false,
+         code: "INSUFFICIENT_BALANCE",
+         message: "Số dư coin không đủ để thực hiện giao dịch",
+       });
+    }
+
+    logger.error("[Project Controller] Lỗi khi kích hoạt dự án:", error);
+    return res.status(500).json({
+      success: false,
+      code: "INTERNAL_SERVER_ERROR",
+      message: "Có lỗi xảy ra khi kích hoạt dự án",
     });
   }
 };

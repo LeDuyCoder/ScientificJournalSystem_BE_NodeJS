@@ -1,5 +1,5 @@
 import express from "express";
-import { requireAuth } from "../middlewares/auth.middleware.js";
+import { verifyToken } from "../middlewares/auth.middleware.js";
 import {
   createSubjectArea,
   getSubjectAreas,
@@ -55,7 +55,7 @@ const router = express.Router();
  *       500:
  *         description: Lỗi hệ thống
  */
-router.post("/", requireAuth, validateCreateSubjectArea, createSubjectArea);
+router.post("/", verifyToken, validateCreateSubjectArea, createSubjectArea);
 
 /**
  * @swagger
@@ -180,7 +180,7 @@ router.get("/:id", validateSubjectAreaId, getSubjectAreaById);
  */
 router.put(
   "/:id",
-  requireAuth,
+  verifyToken,
   validateSubjectAreaId,
   validateUpdateSubjectArea,
   updateSubjectArea
@@ -215,7 +215,7 @@ router.put(
  *       500:
  *         description: Lỗi hệ thống
  */
-router.delete("/:id", requireAuth, validateSubjectAreaId, deleteSubjectArea);
+router.delete("/:id", verifyToken, validateSubjectAreaId, deleteSubjectArea);
 
 /**
  * @swagger
@@ -246,7 +246,7 @@ router.delete("/:id", requireAuth, validateSubjectAreaId, deleteSubjectArea);
  *       500:
  *         description: Lỗi hệ thống
  */
-router.patch("/:id/restore", requireAuth, validateSubjectAreaId, restoreSubjectArea);
+router.patch("/:id/restore", verifyToken, validateSubjectAreaId, restoreSubjectArea);
 
 /**
  * @swagger
