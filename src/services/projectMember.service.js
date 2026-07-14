@@ -71,15 +71,15 @@ const inviteMember = async (projectId, email, role, inviterId) => {
       // Update existing invite
       await client.query(`
         UPDATE "Project_Member" 
-        SET role = $1, status = 'INVITED', invited_by = $2, invited_at = NOW() 
+        SET role = $1, status = 'INVITED', invited_by = $2, invited_at = NOW(), invited_email = $5 
         WHERE project_id = $3 AND user_id = $4
-      `, [role, inviterId, projectId, user.user_id]);
+      `, [role, inviterId, projectId, user.user_id, email]);
     } else {
       // Insert new invite
       await client.query(`
-        INSERT INTO "Project_Member" (project_id, user_id, role, status, invited_by) 
-        VALUES ($1, $2, $3, 'INVITED', $4)
-      `, [projectId, user.user_id, role, inviterId]);
+        INSERT INTO "Project_Member" (project_id, user_id, role, status, invited_by, invited_email) 
+        VALUES ($1, $2, $3, 'INVITED', $4, $5)
+      `, [projectId, user.user_id, role, inviterId, email]);
     }
 
     await client.query('COMMIT');
