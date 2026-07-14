@@ -33,6 +33,7 @@ export const login = async (req, res) => {
 
     // 1. Luôn luôn set Access Token vào cookie (vì dù có ghi nhớ hay không thì vẫn phải có quyền truy cập)
     res.cookie('access_token', data.token, {
+      domain: process.env.COOKIE_DOMAIN,
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'none',
@@ -41,17 +42,19 @@ export const login = async (req, res) => {
 
     if (remember === true) {
       const refreshToken = signRefreshToken(data.user);
-      
+
       res.cookie('refresh_token', refreshToken, {
+        domain: process.env.COOKIE_DOMAIN,
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        sameSite: 'none',  
+        sameSite: 'none',
         maxAge: Number(process.env.COOKIE_REFRESH_MAX_AGE) // Sống dài ngày (ví dụ 30 ngày)
       });
     } else {
       // 💡 MẸO AN TOÀN: Nếu người dùng ĐÃ TỪNG tích chọn remember trước đó, 
       // nhưng lần này họ đăng nhập tài khoản khác và BỎ TÍCH, ta chủ động xóa cái cookie cũ đi cho chắc ăn.
       res.clearCookie('refresh_token', {
+        domain: process.env.COOKIE_DOMAIN,
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'none'
@@ -106,7 +109,7 @@ export const login = async (req, res) => {
 export const refreshToken = async (req, res) => {
   try {
     const refreshToken = req.cookies.refresh_token;
-    
+
     if (!refreshToken) {
       return res.status(401).json({
         success: false,
@@ -137,6 +140,7 @@ export const refreshToken = async (req, res) => {
     return res
       .status(200)
       .cookie("access_token", newAccessToken, {
+        domain: process.env.COOKIE_DOMAIN,
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
         sameSite: "none",
@@ -150,7 +154,7 @@ export const refreshToken = async (req, res) => {
           token: newAccessToken,
         },
       });
-  }catch (error) {
+  } catch (error) {
     logger.error("Lỗi hệ thống trong controller đăng nhập:", error);
     return res.status(error.statusCode || 500).json({
       success: false,
@@ -211,6 +215,7 @@ export const logout = (req, res) => {
   try {
     // Xóa cookie chứa Access Token
     res.clearCookie('access_token', {
+      domain: process.env.COOKIE_DOMAIN,
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'none',
@@ -218,6 +223,7 @@ export const logout = (req, res) => {
 
     // Xóa cookie chứa Refresh Token
     res.clearCookie('refresh_token', {
+      domain: process.env.COOKIE_DOMAIN,
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'none',
