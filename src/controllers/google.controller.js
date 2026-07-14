@@ -35,16 +35,18 @@ export const googleLogin = async (req, res) => {
 
     return res.status(200)
       .cookie("access_token", data.token, {
+        domain: process.env.COOKIE_DOMAIN,
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
         sameSite: "none",
-        maxAge: process.env.COOKIE_ACCESS_MAX_AGE,
+        maxAge: Number(process.env.COOKIE_ACCESS_MAX_AGE),
       })
       .cookie("refresh_token", refreshToken, {
+        domain: process.env.COOKIE_DOMAIN,
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
         sameSite: "none",
-        maxAge: process.env.COOKIE_REFRESH_MAX_AGE,
+        maxAge: Number(process.env.COOKIE_REFRESH_MAX_AGE),
       })
       .json({
         success: true,
