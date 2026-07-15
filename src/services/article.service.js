@@ -1,13 +1,17 @@
 import pool from '../config/database.js';
 import logger from '../utils/logger.js';
+import cacheService from './cache.service.js';
+import crypto from 'crypto';
+
+const ARTICLE_CACHE_TTL = parseInt(process.env.ARTICLE_CACHE_TTL, 10) || 900;
 
 /**
  * Tìm các bài báo có chứa các keyword người dùng nhập vào trên toàn hệ thống
  * Luồng JOIN trong DB: Article → Keyword_Article → Keyword
  * @param {string[]} keywords - Mảng tên keyword (ví dụ: ["Machine Learning", "Deep Learning"])
- * @param {number} limit - Số bài tối đa trả về
- * @param {number} offset - Vị trí bắt đầu (dùng cho phân trang)
- * @returns {Array} Danh sách bài báo kèm keyword matched
+ * @param {number} [limit=20] - Số bài tối đa trả về
+ * @param {number} [offset=0] - Vị trí bắt đầu (dùng cho phân trang)
+ * @returns {Promise<Array<Object>>} Danh sách bài báo kèm keyword matched
  */
 export const getArticlesByKeywords = async (keywords, limit = 20, offset = 0) => {
     const keywordPlaceholders = keywords
@@ -33,7 +37,12 @@ export const getArticlesByKeywords = async (keywords, limit = 20, offset = 0) =>
         LIMIT $1 OFFSET $2
     `;
 
+    const cacheKey = `article:list:keywords:${crypto.createHash('md5').update(JSON.stringify({ keywords, limit, offset })).digest('hex')}`;
+    const cachedData = await cacheService.get(cacheKey);
+    if (cachedData) return cachedData;
+
     const result = await pool.query(query, values);
+    await cacheService.set(cacheKey, result.rows, ARTICLE_CACHE_TTL);
     return result.rows;
 };
 
@@ -59,8 +68,14 @@ export const countArticlesByKeywords = async (keywords) => {
           AND a."is_deleted" = false
     `;
 
+    const cacheKey = `article:count:keywords:${crypto.createHash('md5').update(JSON.stringify(keywords)).digest('hex')}`;
+    const cachedData = await cacheService.get(cacheKey);
+    if (cachedData !== null && cachedData !== undefined) return parseInt(cachedData, 10);
+
     const result = await pool.query(query, values);
-    return parseInt(result.rows[0].total);
+    const total = parseInt(result.rows[0].total, 10);
+    await cacheService.set(cacheKey, total, ARTICLE_CACHE_TTL);
+    return total;
 };
 
 const toOptionalNumber = (value) => {
@@ -71,7 +86,17 @@ const toOptionalNumber = (value) => {
 
 /**
  * Đếm tổng số bài báo công khai theo cùng bộ lọc với trang Article List.
- * @param {Object} params
+ * 
+ * @param {Object} [params={}] - Cấu hình bộ lọc
+ * @param {string} [params.search] - Từ khóa tìm kiếm (title, doi, abstract)
+ * @param {string|number} [params.publicationYear] - Lọc theo năm xuất bản
+ * @param {string|number} [params.journalId] - Lọc theo ID của Journal
+ * @param {string|number} [params.topicId] - Lọc theo Topic ID
+ * @param {string|number} [params.volumeId] - Lọc theo Volume ID
+ * @param {string|number} [params.issueId] - Lọc theo Issue ID
+ * @param {boolean|string} [params.isOpenAccess] - Lọc theo trạng thái Open Access
+ * @param {string|number} [params.countryId] - Lọc theo ID Quốc gia của Journal
+ * @returns {Promise<number>} Tổng số bài báo thoả mãn bộ lọc
  */
 export const countAllArticles = async ({
     search = '',
@@ -86,17 +111,12 @@ export const countAllArticles = async ({
     const values = [];
     const where = ['a."is_deleted" = false'];
 
-    let query = `
-        SELECT COUNT(*) AS "total"
-        FROM "Article" a
-        LEFT JOIN "Issue" i   ON i."issue_id"   = a."issue_id" AND COALESCE(i."is_deleted", false) = false
-        LEFT JOIN "Volume" v  ON v."volume_id"  = i."volume_id" AND COALESCE(v."is_deleted", false) = false
-        LEFT JOIN "Journal" j ON j."journal_id" = v."journal_id" AND COALESCE(j."is_deleted", false) = false
-        LEFT JOIN "Topic" t   ON t."topic_id"   = a."primary_topic"
-    `;
+    let needsIssue = false;
+    let needsVolume = false;
+    let needsJournal = false;
 
-    if (search) {
-        values.push(`%${search}%`);
+    if (search && search.trim()) {
+        values.push(`%${search.trim()}%`);
         where.push(`(a."title" ILIKE $${values.length} OR a."doi" ILIKE $${values.length} OR a."abstract" ILIKE $${values.length})`);
     }
 
@@ -108,6 +128,7 @@ export const countAllArticles = async ({
 
     const journalIdNum = toOptionalNumber(journalId);
     if (journalIdNum !== undefined) {
+        needsJournal = true;
         values.push(journalIdNum);
         where.push(`j."journal_id" = $${values.length}`);
     }
@@ -120,30 +141,55 @@ export const countAllArticles = async ({
 
     const volumeIdNum = toOptionalNumber(volumeId);
     if (volumeIdNum !== undefined) {
+        needsVolume = true;
         values.push(volumeIdNum);
         where.push(`v."volume_id" = $${values.length}`);
     }
 
     const issueIdNum = toOptionalNumber(issueId);
     if (issueIdNum !== undefined) {
+        needsIssue = true;
         values.push(issueIdNum);
         where.push(`a."issue_id" = $${values.length}`);
     }
 
     if (isOpenAccess !== undefined) {
+        needsJournal = true;
         values.push(isOpenAccess === true || isOpenAccess === 'true');
-        where.push(`COALESCE(j."is_open_access", false) = $${values.length}`);
+        where.push(`(j."is_open_access" = $${values.length})`);
     }
 
     if (countryId) {
+        needsJournal = true;
         values.push(Number(countryId));
         where.push(`j."country" = $${values.length}`);
     }
 
-    query += ` WHERE ${where.join(' AND ')}`;
+    if (needsJournal) needsVolume = true;
+    if (needsVolume) needsIssue = true;
+
+    const joins = [];
+    if (needsIssue) joins.push(`LEFT JOIN "Issue" i ON i."issue_id" = a."issue_id" AND (i."is_deleted" = false OR i."is_deleted" IS NULL)`);
+    if (needsVolume) joins.push(`LEFT JOIN "Volume" v ON v."volume_id" = i."volume_id" AND (v."is_deleted" = false OR v."is_deleted" IS NULL)`);
+    if (needsJournal) joins.push(`LEFT JOIN "Journal" j ON j."journal_id" = v."journal_id" AND (j."is_deleted" = false OR j."is_deleted" IS NULL)`);
+
+    let query = `
+        SELECT COUNT(*) AS "total"
+        FROM "Article" a
+        ${joins.join('\n        ')}
+        WHERE ${where.join(' AND ')}
+    `;
+
+    const cacheKey = `article:count:${crypto.createHash('md5').update(JSON.stringify({
+        search, publicationYear, journalId, topicId, volumeId, issueId, isOpenAccess, countryId
+    })).digest('hex')}`;
+    const cachedData = await cacheService.get(cacheKey);
+    if (cachedData !== null && cachedData !== undefined) return parseInt(cachedData, 10);
 
     const result = await pool.query(query, values);
-    return parseInt(result.rows[0].total, 10);
+    const total = parseInt(result.rows[0].total, 10);
+    await cacheService.set(cacheKey, total, ARTICLE_CACHE_TTL);
+    return total;
 };
 
 /**
@@ -162,28 +208,49 @@ export const getTotalArticles = async () => {
     }
 };
 
+/**
+ * Lấy các thông số thống kê tổng quan của danh sách bài báo.
+ * Dữ liệu trả về bao gồm tổng số bài báo, số lượng bài open access, số lượng tác giả, và số topic.
+ *
+ * @returns {Promise<{totalArticles: number, openAccessCount: number, authorsCount: number, topicsCount: number}>} Đối tượng chứa các thống kê
+ */
 export const getArticleListStats = async () => {
     try {
-        const query = `
-            SELECT
-                COUNT(DISTINCT a."article_id")::integer AS "totalArticles",
-                COUNT(DISTINCT a."article_id") FILTER (WHERE COALESCE(j."is_open_access", false) = true)::integer AS "openAccessCount",
-                COUNT(DISTINCT aa."author_id")::integer AS "authorsCount",
-                COUNT(DISTINCT a."primary_topic") FILTER (WHERE a."primary_topic" IS NOT NULL)::integer AS "topicsCount"
+        const cacheKey = `article:stats:all`;
+        const cachedData = await cacheService.get(cacheKey);
+        if (cachedData) return cachedData;
+
+        const totalArticlesPromise = pool.query(`SELECT COUNT(*) AS total FROM "Article" WHERE "is_deleted" = false;`);
+        
+        const openAccessCountPromise = pool.query(`
+            SELECT COUNT(a."article_id") AS total
             FROM "Article" a
-            LEFT JOIN "Issue" i ON i."issue_id" = a."issue_id" AND COALESCE(i."is_deleted", false) = false
-            LEFT JOIN "Volume" v ON v."volume_id" = i."volume_id" AND COALESCE(v."is_deleted", false) = false
-            LEFT JOIN "Journal" j ON j."journal_id" = v."journal_id" AND COALESCE(j."is_deleted", false) = false
-            LEFT JOIN "Author_Article" aa ON aa."article_id" = a."article_id"
-            WHERE a."is_deleted" = false;
-        `;
-        const result = await pool.query(query);
-        return result.rows[0] || {
-            totalArticles: 0,
-            openAccessCount: 0,
-            authorsCount: 0,
-            topicsCount: 0,
+            JOIN "Issue" i ON i."issue_id" = a."issue_id" AND (i."is_deleted" = false OR i."is_deleted" IS NULL)
+            JOIN "Volume" v ON v."volume_id" = i."volume_id" AND (v."is_deleted" = false OR v."is_deleted" IS NULL)
+            JOIN "Journal" j ON j."journal_id" = v."journal_id" AND (j."is_deleted" = false OR j."is_deleted" IS NULL)
+            WHERE a."is_deleted" = false AND j."is_open_access" = true;
+        `);
+
+        const authorsCountPromise = pool.query(`SELECT COUNT(DISTINCT "author_id") AS total FROM "Author_Article";`);
+        
+        const topicsCountPromise = pool.query(`SELECT COUNT(DISTINCT "primary_topic") AS total FROM "Article" WHERE "is_deleted" = false AND "primary_topic" IS NOT NULL;`);
+
+        const [totalRes, openAccessRes, authorsRes, topicsRes] = await Promise.all([
+            totalArticlesPromise,
+            openAccessCountPromise,
+            authorsCountPromise,
+            topicsCountPromise
+        ]);
+
+        const stats = {
+            totalArticles: parseInt(totalRes.rows[0]?.total || 0, 10),
+            openAccessCount: parseInt(openAccessRes.rows[0]?.total || 0, 10),
+            authorsCount: parseInt(authorsRes.rows[0]?.total || 0, 10),
+            topicsCount: parseInt(topicsRes.rows[0]?.total || 0, 10),
         };
+
+        await cacheService.set(cacheKey, stats, ARTICLE_CACHE_TTL);
+        return stats;
     } catch (error) {
         logger.error('Lỗi khi lấy thống kê bài báo:', error);
         throw error;
@@ -194,11 +261,23 @@ export const getArticleListStats = async () => {
  * Lấy danh sách bài báo công khai cho Article List Page.
  * Hỗ trợ search, filter, sort và JOIN metadata từ Issue → Volume → Journal → Topic.
  *
- * @param {Object|number} [firstParam={}] - Object params hoặc legacy numeric limit
- * @param {number} [offsetParam=0]
- * @param {string} [sortByParam='created_at']
- * @param {string} [sortOrderParam='DESC']
- * @returns {Promise<Array>} Mảng bài báo đã enrich metadata
+ * @param {Object|number} [firstParam={}] - Object chứa các bộ lọc hoặc `limit` (hỗ trợ legacy)
+ * @param {number} [firstParam.limit=10] - Số lượng bài báo mỗi trang
+ * @param {number} [firstParam.offset=0] - Vị trí bắt đầu phân trang
+ * @param {string} [firstParam.search=''] - Từ khóa tìm kiếm
+ * @param {string} [firstParam.sortBy='created_at'] - Trường dùng để sắp xếp
+ * @param {string} [firstParam.sortOrder='DESC'] - Chiều sắp xếp (ASC/DESC)
+ * @param {string|number} [firstParam.publicationYear] - Năm xuất bản
+ * @param {string|number} [firstParam.journalId] - ID của tạp chí
+ * @param {string|number} [firstParam.topicId] - ID của Topic
+ * @param {string|number} [firstParam.volumeId] - ID của Volume
+ * @param {string|number} [firstParam.issueId] - ID của Issue
+ * @param {boolean|string} [firstParam.isOpenAccess] - Chỉ lấy bài báo Open Access
+ * @param {string|number} [firstParam.countryId] - ID của quốc gia xuất bản
+ * @param {number} [offsetParam=0] - Vị trí bắt đầu (legacy)
+ * @param {string} [sortByParam='created_at'] - Trường sắp xếp (legacy)
+ * @param {string} [sortOrderParam='DESC'] - Chiều sắp xếp (legacy)
+ * @returns {Promise<Array<Object>>} Mảng bài báo đã enrich metadata
  */
 export const getAllArticles = async (firstParam = {}, offsetParam = 0, sortByParam = 'created_at', sortOrderParam = 'DESC') => {
     try {
@@ -238,8 +317,16 @@ export const getAllArticles = async (firstParam = {}, offsetParam = 0, sortByPar
             ? String(sortOrder).toUpperCase()
             : 'DESC';
 
+        const cacheKey = `article:list:${crypto.createHash('md5').update(JSON.stringify(params)).digest('hex')}`;
+        const cachedData = await cacheService.get(cacheKey);
+        if (cachedData) return cachedData;
+
         const values = [];
         const where = ['a."is_deleted" = false'];
+
+        let needsIssue = false;
+        let needsVolume = false;
+        let needsJournal = false;
 
         if (search && search.trim()) {
             values.push(`%${search.trim()}%`);
@@ -254,6 +341,7 @@ export const getAllArticles = async (firstParam = {}, offsetParam = 0, sortByPar
 
         const journalIdNum = toOptionalNumber(journalId);
         if (journalIdNum !== undefined) {
+            needsJournal = true;
             values.push(journalIdNum);
             where.push(`j."journal_id" = $${values.length}`);
         }
@@ -266,22 +354,26 @@ export const getAllArticles = async (firstParam = {}, offsetParam = 0, sortByPar
 
         const volumeIdNum = toOptionalNumber(volumeId);
         if (volumeIdNum !== undefined) {
+            needsVolume = true;
             values.push(volumeIdNum);
             where.push(`v."volume_id" = $${values.length}`);
         }
 
         const issueIdNum = toOptionalNumber(issueId);
         if (issueIdNum !== undefined) {
+            needsIssue = true;
             values.push(issueIdNum);
             where.push(`a."issue_id" = $${values.length}`);
         }
 
         if (isOpenAccess !== undefined) {
+            needsJournal = true;
             values.push(isOpenAccess === true || isOpenAccess === 'true');
-            where.push(`COALESCE(j."is_open_access", false) = $${values.length}`);
+            where.push(`(j."is_open_access" = $${values.length})`);
         }
 
         if (countryId) {
+            needsJournal = true;
             values.push(Number(countryId));
             where.push(`j."country" = $${values.length}`);
         }
@@ -291,46 +383,77 @@ export const getAllArticles = async (firstParam = {}, offsetParam = 0, sortByPar
         values.push(toOptionalNumber(offset) ?? 0);
         const offsetIndex = values.length;
 
+        if (needsJournal) needsVolume = true;
+        if (needsVolume) needsIssue = true;
+
+        const innerJoins = [];
+        if (needsIssue) innerJoins.push(`LEFT JOIN "Issue" i ON i."issue_id" = a."issue_id" AND (i."is_deleted" = false OR i."is_deleted" IS NULL)`);
+        if (needsVolume) innerJoins.push(`LEFT JOIN "Volume" v ON v."volume_id" = i."volume_id" AND (v."is_deleted" = false OR v."is_deleted" IS NULL)`);
+        if (needsJournal) innerJoins.push(`LEFT JOIN "Journal" j ON j."journal_id" = v."journal_id" AND (j."is_deleted" = false OR j."is_deleted" IS NULL)`);
+
         const query = `
+            WITH article_page AS (
+                SELECT 
+                    a."article_id",
+                    a."version",
+                    a."issue_id",
+                    a."title",
+                    a."abstract",
+                    a."publication_year",
+                    a."doi",
+                    a."primary_topic",
+                    a."created_at"
+                FROM "Article" a
+                ${innerJoins.join('\n                ')}
+                WHERE ${where.join(' AND ')}
+                ORDER BY ${column} ${order}, a."article_id" DESC
+                LIMIT $${limitIndex} OFFSET $${offsetIndex}
+            ),
+            author_json AS (
+                SELECT
+                    aa."article_id",
+                    json_agg(
+                        json_build_object(
+                            'author_id', au."author_id"::text,
+                            'display_name', au."display_name"
+                        )
+                    ) AS authors
+                FROM "Author_Article" aa
+                JOIN "Author" au
+                    ON au."author_id" = aa."author_id"
+                   AND (au."is_deleted" = false OR au."is_deleted" IS NULL)
+                WHERE aa."article_id" IN (
+                    SELECT "article_id" FROM article_page
+                )
+                GROUP BY aa."article_id"
+            )
             SELECT
-                a."article_id"::text,
-                a."version",
-                a."issue_id"::text,
-                a."title",
-                a."abstract",
-                a."publication_year",
-                a."doi",
-                a."primary_topic"::text,
+                ap."article_id"::text,
+                ap."version",
+                ap."issue_id"::text,
+                ap."title",
+                ap."abstract",
+                ap."publication_year",
+                ap."doi",
+                ap."primary_topic"::text,
                 t."display_name" AS "topic_name",
-                a."created_at",
+                ap."created_at",
                 j."journal_id"::text,
                 j."display_name" AS "journal_name",
                 j."issn" AS "journal_issn",
                 COALESCE(j."is_open_access", false) AS "is_open_access",
-                COALESCE(
-                    (
-                        SELECT json_agg(json_build_object(
-                            'author_id', au."author_id"::text,
-                            'display_name', au."display_name"
-                        ))
-                        FROM "Author_Article" aa
-                        JOIN "Author" au ON au."author_id" = aa."author_id"
-                        WHERE aa."article_id" = a."article_id"
-                          AND COALESCE(au."is_deleted", false) = false
-                    ),
-                    '[]'::json
-                ) AS "authors"
-            FROM "Article" a
-            LEFT JOIN "Issue" i   ON i."issue_id"   = a."issue_id" AND COALESCE(i."is_deleted", false) = false
-            LEFT JOIN "Volume" v  ON v."volume_id"  = i."volume_id" AND COALESCE(v."is_deleted", false) = false
-            LEFT JOIN "Journal" j ON j."journal_id" = v."journal_id" AND COALESCE(j."is_deleted", false) = false
-            LEFT JOIN "Topic" t   ON t."topic_id"   = a."primary_topic"
-            WHERE ${where.join(' AND ')}
-            ORDER BY ${column} ${order} NULLS LAST, a."article_id" DESC
-            LIMIT $${limitIndex} OFFSET $${offsetIndex};
+                COALESCE(aj.authors, '[]'::json) AS "authors"
+            FROM article_page ap
+            LEFT JOIN "Issue" i   ON i."issue_id"   = ap."issue_id" AND (i."is_deleted" = false OR i."is_deleted" IS NULL)
+            LEFT JOIN "Volume" v  ON v."volume_id"  = i."volume_id" AND (v."is_deleted" = false OR v."is_deleted" IS NULL)
+            LEFT JOIN "Journal" j ON j."journal_id" = v."journal_id" AND (j."is_deleted" = false OR j."is_deleted" IS NULL)
+            LEFT JOIN "Topic" t ON t."topic_id" = ap."primary_topic"
+            LEFT JOIN author_json aj ON aj."article_id" = ap."article_id"
+            ORDER BY ${column.replace('a.', 'ap.')} ${order}, ap."article_id" DESC;
         `;
 
         const result = await pool.query(query, values);
+        await cacheService.set(cacheKey, result.rows, ARTICLE_CACHE_TTL);
         return result.rows;
 
     } catch (error) {
@@ -348,6 +471,10 @@ export const getAllArticles = async (firstParam = {}, offsetParam = 0, sortByPar
  */
 export const getArticleById = async (articleId) => {
     try {
+        const cacheKey = `article:detail:${articleId}`;
+        const cachedData = await cacheService.get(cacheKey);
+        if (cachedData) return cachedData;
+
         const detailQuery = `
             SELECT 
                 a."article_id"::text AS "article_id",
@@ -445,12 +572,15 @@ export const getArticleById = async (articleId) => {
             pool.query(topicsQuery, [articleId])
         ]);
 
-        return {
+        const finalResult = {
             ...article,
             authors: authorsResult.rows,
             keywords: keywordsResult.rows,
             topics: topicsResult.rows,
         };
+
+        await cacheService.set(cacheKey, finalResult, ARTICLE_CACHE_TTL);
+        return finalResult;
     } catch (error) {
         logger.error('Lỗi khi lấy thông tin bài báo theo ID:', error);
         throw error;
@@ -510,6 +640,11 @@ export const createArticle = async (articleData) => {
         ];
 
         const result = await pool.query(query, values);
+        
+        await cacheService.delByPattern('article:list:*');
+        await cacheService.delByPattern('article:count:*');
+        await cacheService.del('article:stats:all');
+        
         return result.rows[0];
 
     } catch (error) {
@@ -642,6 +777,12 @@ export const updateArticle = async ({ article_id, ...updateData }) => {
         `;
 
         const result = await pool.query(query, values);
+        
+        await cacheService.delByPattern('article:list:*');
+        await cacheService.delByPattern('article:count:*');
+        await cacheService.del('article:stats:all');
+        await cacheService.del(`article:detail:${article_id}`);
+        
         return result.rows[0] || null;
 
     } catch (error) {
@@ -672,6 +813,11 @@ export const deleteArticle = async (articleId) => {
         const values = [articleId];
 
         const result = await pool.query(query, values);
+
+        await cacheService.delByPattern('article:list:*');
+        await cacheService.delByPattern('article:count:*');
+        await cacheService.del('article:stats:all');
+        await cacheService.del(`article:detail:${articleId}`);
 
         // Nếu cập nhật thành công, result.rows[0] sẽ chứa thông tin bài báo kèm theo is_deleted = true
         // Nếu bài báo đã bị xóa mềm từ trước hoặc không tồn tại, result.rows[0] sẽ là undefined
@@ -706,6 +852,11 @@ export const restoreArticle = async (articleId) => {
         const values = [articleId];
 
         const result = await pool.query(query, values);
+
+        await cacheService.delByPattern('article:list:*');
+        await cacheService.delByPattern('article:count:*');
+        await cacheService.del('article:stats:all');
+        await cacheService.del(`article:detail:${articleId}`);
 
         // Nếu cập nhật thành công, result.rows[0] sẽ chứa thông tin bài báo kèm theo is_deleted = false
         // Nếu bài báo không bị xóa hoặc không tồn tại, result.rows[0] sẽ là undefined

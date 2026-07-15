@@ -16,6 +16,8 @@ import {
   getArticlesByKeyword,
 } from "../services/keyword.service.js";
 import logger from "../utils/logger.js";
+import cacheService from '../services/cache.service.js';
+import crypto from 'crypto';
 
 /**
  * Validate display_name cho keyword
@@ -48,13 +50,19 @@ export const getTrendingKeywords = async (req, res) => {
       });
     }
 
+    const cacheKey = `keywords:trending:project:${projectId}:${crypto.createHash('md5').update(JSON.stringify(req.query)).digest('hex')}`;
+    const cachedData = await cacheService.get(cacheKey);
+    if (cachedData) return res.status(200).json(cachedData);
+
     const result = await getTrendingKeywordsService(projectId, req.query);
 
-    return res.status(200).json({
+    const responseData = {
       success: true,
       message: "Lấy danh sách từ khóa trending thành công",
       data: result,
-    });
+    };
+    await cacheService.set(cacheKey, responseData);
+    return res.status(200).json(responseData);
   } catch (error) {
     logger.error("[Keyword Controller] Lỗi khi lấy trending keywords:", error);
     return res.status(500).json({

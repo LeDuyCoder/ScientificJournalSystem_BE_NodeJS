@@ -120,7 +120,7 @@ export const getArticles = async (req, res) => {
 
     const [articles, total] = await Promise.all([
       articleService.getAllArticles(serviceParams),
-      articleService.countAllArticles(serviceParams),
+      articleService.countAllArticles(serviceParams)
     ]);
 
     // 2. Sau khi đã có danh sách và giải phóng kết nối trên, mới chạy hàm thống kê nặng một cách tuần tự
@@ -431,6 +431,7 @@ export const restoreArticle = async (req, res) => {
           message: "Article không tìm thấy hoặc đã được khôi phục",
         });
     }
+
     return res
       .status(200)
       .json({

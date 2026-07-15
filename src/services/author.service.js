@@ -361,8 +361,7 @@ export const getAllAuthors = async ({ page = 1, limit = 10, search = "", sort = 
     SELECT 
       author_id, orcid, display_name, url_image, openalex_id,
       works_count, cited_by_count, h_index, i10_index,
-      last_known_institution, last_known_institution_id,
-      created_at
+      last_known_institution, last_known_institution_id
     FROM "Author"
     WHERE is_deleted = false
       AND ($1 = '%%' OR (

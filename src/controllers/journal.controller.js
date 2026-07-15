@@ -1,6 +1,8 @@
 import logger from "../utils/logger.js";
 import * as journalService from "../services/journal.service.js";
 import { createLog } from '../services/log.service.js';
+import cacheService from '../services/cache.service.js';
+import crypto from 'crypto';
 
 /**
  * Controller lấy danh sách journal có tìm kiếm và phân trang.
@@ -49,6 +51,10 @@ export const getJournals = async (req, res) => {
       });
     }
 
+    const cacheKey = `journals:list:${crypto.createHash('md5').update(JSON.stringify(req.query)).digest('hex')}`;
+    const cachedData = await cacheService.get(cacheKey);
+    if (cachedData) return res.status(200).json(cachedData);
+
     const result = await journalService.getJournals({
       search,
       page: pageNum,
@@ -67,7 +73,7 @@ export const getJournals = async (req, res) => {
       sort_order,
     });
 
-    return res.status(200).json({
+    const responseData = {
       success: true,
       message: "Lấy danh sách journal thành công",
       data: {
@@ -78,7 +84,10 @@ export const getJournals = async (req, res) => {
           total: result.total,
         },
       },
-    });
+    };
+
+    await cacheService.set(cacheKey, responseData);
+    return res.status(200).json(responseData);
   } catch (error) {
     logger.error("Lỗi khi lấy danh sách journal trong catalog:", error);
     return res.status(500).json({
@@ -164,6 +173,8 @@ export const createJournal = async (req, res) => {
       metadata: { ip: req.ip }
     });
 
+    await cacheService.delByPattern('journals:list:*');
+
     return res.status(201).json({
       success: true,
       code: "CREATE_JOURNAL_SUCCESS",
@@ -215,6 +226,8 @@ export const updateJournal = async (req, res) => {
       metadata: { ip: req.ip }
     });
 
+    await cacheService.delByPattern('journals:list:*');
+
     return res.status(200).json({
       success: true,
       code: "UPDATE_JOURNAL_SUCCESS",
@@ -248,6 +261,8 @@ export const deleteJournal = async (req, res) => {
       metadata: { ip: req.ip }
     });
 
+    await cacheService.delByPattern('journals:list:*');
+
     return res.status(200).json({
       success: true,
       code: "DELETE_JOURNAL_SUCCESS",
@@ -267,6 +282,8 @@ export const deleteJournal = async (req, res) => {
 export const restoreJournal = async (req, res) => {
   try {
     await journalService.restoreJournal(req.params.id);
+
+    await cacheService.delByPattern('journals:list:*');
 
     return res.status(200).json({
       success: true,

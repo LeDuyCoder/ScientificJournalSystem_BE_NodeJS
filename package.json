@@ -6,9 +6,9 @@
   "scripts": {
     "dev": "nodemon server.js",
     "start": "node server.js",
-    "test": "node --test src/tests/unit/**/*.test.js",
-    "test:controller": "node --test src/tests/unit/controllers/*.test.js",
-    "test:service": "node --test src/tests/unit/service/*.test.js",
+    "test": "node --test tests/unit/**/*.test.js",
+    "test:controller": "node --test tests/unit/controllers/*.test.js",
+    "test:service": "node --test tests/unit/service/*.test.js",
     "setup:coin-db": "node scripts/setup_coin_db.js"
   },
   "keywords": [],
@@ -23,6 +23,7 @@
     "dotenv": "17.4.2",
     "express": "5.2.1",
     "googleapis": "^173.0.0",
+    "ioredis": "^5.11.1",
     "jsonwebtoken": "9.0.3",
     "nodemailer": "^8.0.10",
     "pg": "8.21.0",
