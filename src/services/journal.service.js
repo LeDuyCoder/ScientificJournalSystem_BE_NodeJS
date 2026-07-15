@@ -134,9 +134,19 @@ export const getJournals = async ({
     ) latest_quartile ON true
   `;
 
-  // Filter by rankingYear: only journals that have an SJR entry for that year
+  // Filter by rankingYear: only journals that have an SJR entry for that year.
+  // Dùng EXISTS thay vì latest_sjr.metric_year để whereSql không phụ thuộc vào
+  // các LEFT JOIN LATERAL, nhờ đó countQuery có thể bỏ hẳn các join tốn kém đó.
   if (yearNum) {
-    whereClauses.push(`latest_sjr.metric_year = ${yearNum}`);
+    values.push(yearNum);
+    whereClauses.push(`EXISTS (
+      SELECT 1
+      FROM "Journal_Ranking" jr
+      INNER JOIN "Ranking_Metric" rm ON rm.metric_id = jr.metric_id
+      WHERE jr.journal_id = j.journal_id
+        AND UPPER(rm.code) = 'SJR'
+        AND jr.year = $${values.length}
+    )`);
   }
 
   const whereSql = `WHERE ${whereClauses.join(' AND ')}`;
@@ -146,8 +156,6 @@ export const getJournals = async ({
     const order = (sort_order || 'ASC').toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
     if (sort_by === 'display_name') {
       orderBySql = `ORDER BY j.display_name ${order}`;
-    } else if (sort_by === 'created_at') {
-      orderBySql = `ORDER BY j.created_at ${order}`;
     } else if (sort_by === 'volume_count') {
       orderBySql = `ORDER BY volume_count ${order}`;
     }
@@ -183,9 +191,12 @@ export const getJournals = async ({
     LIMIT $${values.length + 1} OFFSET $${values.length + 2}
   `;
 
+  // Tất cả whereClauses đều tự chứa điều kiện qua EXISTS/subquery trên j.journal_id,
+  // nên đếm tổng số không cần JOIN Publisher/Zone/Journal_Ranking (LATERAL) như items query.
+  // Không có JOIN nào nhân bản dòng nên cũng không cần DISTINCT.
   const countQuery = `
-    SELECT COUNT(DISTINCT j.journal_id)::integer AS total
-    ${fromSql}
+    SELECT COUNT(*)::integer AS total
+    FROM "Journal" j
     ${whereSql}
   `;
 
