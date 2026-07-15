@@ -2,6 +2,7 @@ import * as projectService from "../services/project.service.js";
 import logger from "../utils/logger.js";
 import { createLog } from '../services/log.service.js';
 import { spendCoins } from '../services/wallet.service.js';
+import cacheService from '../services/cache.service.js';
 
 export const projectServiceRef = { ...projectService };
 
@@ -209,6 +210,8 @@ export const updateProject = async (req, res) => {
       metadata: { ip: req.ip }
     });
 
+    await cacheService.del(`project:${projectId}:analytics`);
+
     return res.status(200).json({
       success: true,
       code: "SUCCESS_UPDATE_PROJECT",
@@ -272,6 +275,8 @@ export const deleteProject = async (req, res) => {
       metadata: { ip: req.ip }
     });
 
+    await cacheService.del(`project:${projectId}:analytics`);
+
     return res.status(200).json({
       success: true,
       code: "SUCCESS_DELETE_PROJECT",
@@ -308,6 +313,8 @@ export const restoreProject = async (req, res) => {
       newData: { status: restoredStatus },
       metadata: { ip: req.ip }
     });
+
+    await cacheService.del(`project:${projectId}:analytics`);
 
     return res.status(200).json({
       success: true,
@@ -462,6 +469,17 @@ export const getProjectAnalytics = async (req, res) => {
     const projectId = req.params.id;
     const userId = req.user.user_id;
 
+    const cacheKey = `project:${projectId}:analytics`;
+    const cachedData = await cacheService.get(cacheKey);
+    if (cachedData) {
+      return res.status(200).json({
+        success: true,
+        code: "SUCCESS_GET_PROJECT_ANALYTICS",
+        message: "Lấy dữ liệu phân tích dự án thành công (từ cache)",
+        data: cachedData,
+      });
+    }
+
     const analyticsData = await projectServiceRef.getProjectAnalytics(
       projectId,
       userId,
@@ -474,6 +492,8 @@ export const getProjectAnalytics = async (req, res) => {
           "Không tìm thấy dự án hoặc bạn không có quyền truy cập dự án này",
       });
     }
+
+    await cacheService.set(cacheKey, analyticsData);
 
     return res.status(200).json({
       success: true,
@@ -556,6 +576,8 @@ export const activateProject = async (req, res) => {
       message: `Kích hoạt dự án ${project.title || projectId} (Trừ ${coinAmount} coin)`,
       metadata: { ip: req.ip, coinAmount }
     });
+
+    await cacheService.del(`project:${projectId}:analytics`);
 
     return res.status(200).json({
       success: true,

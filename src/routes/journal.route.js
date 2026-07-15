@@ -49,8 +49,8 @@ const router = express.Router();
  *         name: sort_by
  *         schema:
  *           type: string
- *           enum: [display_name, created_at, volume_count]
- *         description: Sắp xếp theo trường (tên, ngày tạo, hoặc số lượng volume)
+ *           enum: [display_name, volume_count]
+ *         description: Sắp xếp theo trường (tên hoặc số lượng volume)
  *       - in: query
  *         name: sort_order
  *         schema:
