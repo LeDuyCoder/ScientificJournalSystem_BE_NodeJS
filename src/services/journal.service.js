@@ -107,33 +107,6 @@ export const getJournals = async ({
     )`);
   }
 
-  const fromSql = `
-    FROM "Journal" j
-    LEFT JOIN "Publisher" p ON p.publisher_id = j.publisher_id
-    LEFT JOIN "Zone" country_zone ON country_zone.zone_id = j.country
-    LEFT JOIN LATERAL (
-      SELECT jr.value_float AS metric_value, jr.year AS metric_year
-      FROM "Journal_Ranking" jr
-      INNER JOIN "Ranking_Metric" rm ON rm.metric_id = jr.metric_id
-      WHERE jr.journal_id = j.journal_id
-        AND UPPER(rm.code) = 'SJR'
-        ${yearNum ? `AND jr.year = ${yearNum}` : ''}
-      ORDER BY jr.year DESC NULLS LAST
-      LIMIT 1
-    ) latest_sjr ON true
-    LEFT JOIN LATERAL (
-      SELECT jr.value_txt AS quartile, jr.year AS quartile_year
-      FROM "Journal_Ranking" jr
-      INNER JOIN "Ranking_Metric" rm ON rm.metric_id = jr.metric_id
-      WHERE jr.journal_id = j.journal_id
-        AND rm.metric_type = 'QUARTILE'
-        AND jr.value_txt IS NOT NULL
-        ${yearNum ? `AND jr.year = ${yearNum}` : ''}
-      ORDER BY jr.year DESC NULLS LAST
-      LIMIT 1
-    ) latest_quartile ON true
-  `;
-
   // Filter by rankingYear: only journals that have an SJR entry for that year.
   // Dùng EXISTS thay vì latest_sjr.metric_year để whereSql không phụ thuộc vào
   // các LEFT JOIN LATERAL, nhờ đó countQuery có thể bỏ hẳn các join tốn kém đó.
@@ -151,45 +124,149 @@ export const getJournals = async ({
 
   const whereSql = `WHERE ${whereClauses.join(' AND ')}`;
 
-  let orderBySql = 'ORDER BY j.display_name ASC';
-  if (sort_by) {
-    const order = (sort_order || 'ASC').toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
-    if (sort_by === 'display_name') {
-      orderBySql = `ORDER BY j.display_name ${order}`;
-    } else if (sort_by === 'volume_count') {
-      orderBySql = `ORDER BY volume_count ${order}`;
-    }
-  } else {
-    orderBySql = sort === 'name'
-      ? 'ORDER BY j.display_name ASC'
-      : sort === 'metric'
-        ? 'ORDER BY latest_sjr.metric_value DESC NULLS LAST, j.display_name ASC'
-        : 'ORDER BY j.display_name ASC';
-  }
-
-  const query = `
-    SELECT
-      j.journal_id::text AS journal_id,
-      j.display_name,
-      j.issn,
-      j.type,
-      j.coverage,
-      j.is_open_access,
-      j.is_oa_diamond,
-      p.display_name AS publisher_name,
-      j.country::text AS country_id,
-      country_zone.name AS country_name,
-      latest_sjr.metric_value,
-      latest_sjr.metric_year,
-      latest_quartile.quartile,
-      latest_quartile.quartile AS best_quartile,
-      latest_quartile.quartile_year,
-      (SELECT COUNT(*) FROM "Volume" v WHERE v.journal_id = j.journal_id AND v.is_deleted = false)::integer AS volume_count
-    ${fromSql}
+  const baseQuery = `
+    FROM "Journal" j
     ${whereSql}
-    ${orderBySql}
-    LIMIT $${values.length + 1} OFFSET $${values.length + 2}
   `;
+
+  let finalQuery;
+
+  if (sort === 'metric') {
+    // Tối ưu hóa cho trường hợp sắp xếp theo metric
+    // Chỉ tính toán SJR cho những bản ghi cần thiết, sau đó phân trang, rồi mới JOIN các thông tin nặng (volume_count, publisher, quartile)
+    finalQuery = `
+      WITH FilteredJournals AS (
+        SELECT 
+          j.journal_id,
+          j.display_name,
+          (
+            SELECT jr.value_float
+            FROM "Journal_Ranking" jr
+            INNER JOIN "Ranking_Metric" rm ON rm.metric_id = jr.metric_id
+            WHERE jr.journal_id = j.journal_id
+              AND UPPER(rm.code) = 'SJR'
+              ${yearNum ? `AND jr.year = ${yearNum}` : ''}
+            ORDER BY jr.year DESC NULLS LAST
+            LIMIT 1
+          ) AS metric_value,
+          (
+            SELECT jr.year
+            FROM "Journal_Ranking" jr
+            INNER JOIN "Ranking_Metric" rm ON rm.metric_id = jr.metric_id
+            WHERE jr.journal_id = j.journal_id
+              AND UPPER(rm.code) = 'SJR'
+              ${yearNum ? `AND jr.year = ${yearNum}` : ''}
+            ORDER BY jr.year DESC NULLS LAST
+            LIMIT 1
+          ) AS metric_year
+        ${baseQuery}
+      ),
+      PagedJournals AS (
+        SELECT *
+        FROM FilteredJournals
+        ORDER BY metric_value DESC NULLS LAST, display_name ASC
+        LIMIT $${values.length + 1} OFFSET $${values.length + 2}
+      )
+      SELECT 
+        j.journal_id::text AS journal_id,
+        j.display_name,
+        j.issn,
+        j.type,
+        j.coverage,
+        j.is_open_access,
+        j.is_oa_diamond,
+        p.display_name AS publisher_name,
+        j.country::text AS country_id,
+        country_zone.name AS country_name,
+        pj.metric_value,
+        pj.metric_year,
+        latest_quartile.quartile,
+        latest_quartile.quartile AS best_quartile,
+        latest_quartile.quartile_year,
+        (SELECT COUNT(*) FROM "Volume" v WHERE v.journal_id = j.journal_id AND v.is_deleted = false)::integer AS volume_count
+      FROM PagedJournals pj
+      JOIN "Journal" j ON j.journal_id = pj.journal_id
+      LEFT JOIN "Publisher" p ON p.publisher_id = j.publisher_id
+      LEFT JOIN "Zone" country_zone ON country_zone.zone_id = j.country
+      LEFT JOIN LATERAL (
+        SELECT jr.value_txt AS quartile, jr.year AS quartile_year
+        FROM "Journal_Ranking" jr
+        INNER JOIN "Ranking_Metric" rm ON rm.metric_id = jr.metric_id
+        WHERE jr.journal_id = j.journal_id
+          AND rm.metric_type = 'QUARTILE'
+          AND jr.value_txt IS NOT NULL
+          ${yearNum ? `AND jr.year = ${yearNum}` : ''}
+        ORDER BY jr.year DESC NULLS LAST
+        LIMIT 1
+      ) latest_quartile ON true
+      ORDER BY pj.metric_value DESC NULLS LAST, j.display_name ASC
+    `;
+  } else {
+    // Các trường hợp sort khác (theo tên, theo volume_count)
+    let orderClause = 'ORDER BY j.display_name ASC';
+    if (sort_by === 'display_name') {
+      const order = (sort_order || 'ASC').toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
+      orderClause = `ORDER BY j.display_name ${order}`;
+    } else if (sort_by === 'volume_count') {
+      const order = (sort_order || 'ASC').toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
+      // Lưu ý: Sắp xếp theo volume_count sẽ chậm vì phải COUNT(*) cho tất cả các bản ghi
+      orderClause = `ORDER BY volume_count ${order}`;
+    }
+
+    finalQuery = `
+      WITH PagedJournals AS (
+        SELECT 
+          j.journal_id
+          ${sort_by === 'volume_count' ? `, (SELECT COUNT(*) FROM "Volume" v WHERE v.journal_id = j.journal_id AND v.is_deleted = false) AS volume_count` : ''}
+        ${baseQuery}
+        ${orderClause}
+        LIMIT $${values.length + 1} OFFSET $${values.length + 2}
+      )
+      SELECT 
+        j.journal_id::text AS journal_id,
+        j.display_name,
+        j.issn,
+        j.type,
+        j.coverage,
+        j.is_open_access,
+        j.is_oa_diamond,
+        p.display_name AS publisher_name,
+        j.country::text AS country_id,
+        country_zone.name AS country_name,
+        latest_sjr.metric_value,
+        latest_sjr.metric_year,
+        latest_quartile.quartile,
+        latest_quartile.quartile AS best_quartile,
+        latest_quartile.quartile_year,
+        ${sort_by === 'volume_count' ? 'pj.volume_count::integer' : '(SELECT COUNT(*) FROM "Volume" v WHERE v.journal_id = j.journal_id AND v.is_deleted = false)::integer'} AS volume_count
+      FROM PagedJournals pj
+      JOIN "Journal" j ON j.journal_id = pj.journal_id
+      LEFT JOIN "Publisher" p ON p.publisher_id = j.publisher_id
+      LEFT JOIN "Zone" country_zone ON country_zone.zone_id = j.country
+      LEFT JOIN LATERAL (
+        SELECT jr.value_float AS metric_value, jr.year AS metric_year
+        FROM "Journal_Ranking" jr
+        INNER JOIN "Ranking_Metric" rm ON rm.metric_id = jr.metric_id
+        WHERE jr.journal_id = j.journal_id
+          AND UPPER(rm.code) = 'SJR'
+          ${yearNum ? `AND jr.year = ${yearNum}` : ''}
+        ORDER BY jr.year DESC NULLS LAST
+        LIMIT 1
+      ) latest_sjr ON true
+      LEFT JOIN LATERAL (
+        SELECT jr.value_txt AS quartile, jr.year AS quartile_year
+        FROM "Journal_Ranking" jr
+        INNER JOIN "Ranking_Metric" rm ON rm.metric_id = jr.metric_id
+        WHERE jr.journal_id = j.journal_id
+          AND rm.metric_type = 'QUARTILE'
+          AND jr.value_txt IS NOT NULL
+          ${yearNum ? `AND jr.year = ${yearNum}` : ''}
+        ORDER BY jr.year DESC NULLS LAST
+        LIMIT 1
+      ) latest_quartile ON true
+      ${orderClause.replace('ORDER BY ', 'ORDER BY ' + (sort_by === 'volume_count' ? 'pj.' : 'j.'))}
+    `;
+  }
 
   // Tất cả whereClauses đều tự chứa điều kiện qua EXISTS/subquery trên j.journal_id,
   // nên đếm tổng số không cần JOIN Publisher/Zone/Journal_Ranking (LATERAL) như items query.
@@ -201,7 +278,7 @@ export const getJournals = async ({
   `;
 
   const [itemsRes, countRes] = await Promise.all([
-    pool.query(query, [...values, limitNum, offset]),
+    pool.query(finalQuery, [...values, limitNum, offset]),
     pool.query(countQuery, values)
   ]);
 
@@ -365,7 +442,7 @@ export const createJournal = async (data) => {
     is_oa_diamond = is_oa_diamond ?? null;
     coverage = coverage || scope_detail || description || null;
     issn = issn || null;
-    const is_deleted = false; 
+    const is_deleted = false;
 
     const query = `
         INSERT INTO "Journal" (
@@ -377,11 +454,11 @@ export const createJournal = async (data) => {
     `;
 
     const values = [
-        source_id,
-        publisher_id ? BigInt(publisher_id) : null,
-        country ? BigInt(country) : null,
-        region ? BigInt(region) : null,
-        display_name, type, is_open_access, is_oa_diamond, coverage, issn, is_deleted
+      source_id,
+      publisher_id ? BigInt(publisher_id) : null,
+      country ? BigInt(country) : null,
+      region ? BigInt(region) : null,
+      display_name, type, is_open_access, is_oa_diamond, coverage, issn, is_deleted
     ];
 
     const result = await pool.query(query, values);
@@ -404,7 +481,7 @@ export const createJournal = async (data) => {
   * @param {number|string} id - ID của journal cần cập nhật (có thể là số hoặc chuỗi số).
   * @param {Object} data - Dữ liệu mới để cập nhật cho journal, có thể chứa một hoặc nhiều trường trong số các trường được phép cập nhật.
   * @returns {Promise<Object|null>} Thông tin journal đã được cập nhật nếu thành công, null nếu không tìm thấy journal với ID đó, hoặc lỗi nếu có lỗi hệ thống.
-*/ 
+*/
 export const updateJournal = async (id, data) => {
   try {
     const normalizedData = { ...data };
@@ -437,7 +514,7 @@ export const updateJournal = async (id, data) => {
 
     if (updateParts.length === 0) {
       logger.warn(`Không có trường nào hợp lệ để cập nhật cho journal ID ${id}`);
-      return null; 
+      return null;
     }
 
     values.push(BigInt(id));
