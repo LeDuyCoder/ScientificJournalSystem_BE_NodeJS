@@ -203,10 +203,10 @@ export const getJournals = async ({
     `;
   } else {
     // Các trường hợp sort khác (theo tên, theo volume_count)
-    let orderClause = 'ORDER BY j.display_name ASC';
+    let orderClause = 'ORDER BY display_name ASC';
     if (sort_by === 'display_name') {
       const order = (sort_order || 'ASC').toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
-      orderClause = `ORDER BY j.display_name ${order}`;
+      orderClause = `ORDER BY display_name ${order}`;
     } else if (sort_by === 'volume_count') {
       const order = (sort_order || 'ASC').toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
       // Lưu ý: Sắp xếp theo volume_count sẽ chậm vì phải COUNT(*) cho tất cả các bản ghi
