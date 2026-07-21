@@ -121,7 +121,7 @@ export const countAllArticles = async ({
         try {
             const searchResults = await meiliClient.index('articles').search(search.trim(), {
                 limit: 1000,
-                attributesToRetrieve: ['article_id']
+                attributesToRetrieve: ['article_id', 'id', 'entity_id']
             });
             const matchingIds = searchResults.hits
                 .map(h => Number(h.article_id || h.id || h.entity_id))
@@ -350,7 +350,7 @@ export const getAllArticles = async (firstParam = {}, offsetParam = 0, sortByPar
             try {
                 const searchResults = await meiliClient.index('articles').search(search.trim(), {
                     limit: 1000,
-                    attributesToRetrieve: ['article_id']
+                    attributesToRetrieve: ['article_id', 'id', 'entity_id']
                 });
                 const matchingIds = searchResults.hits
                     .map(h => Number(h.article_id || h.id || h.entity_id))

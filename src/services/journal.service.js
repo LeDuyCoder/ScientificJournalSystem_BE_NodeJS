@@ -45,12 +45,11 @@ export const getJournals = async ({
 
   if (search && search.trim() !== '') {
     try {
-      const searchResults = await meiliClient.index('global_search').search(search.trim(), {
-        filter: ['type = JOURNAL'],
+      const searchResults = await meiliClient.index('journals').search(search.trim(), {
         limit: 1000,
       });
       const matchingIds = searchResults.hits
-        .map(h => Number(h.id || h.journal_id))
+        .map(h => Number(h.id || h.journal_id || h.entity_id))
         .filter(id => !isNaN(id));
       if (matchingIds.length === 0) {
         return { items: [], total: 0 };
