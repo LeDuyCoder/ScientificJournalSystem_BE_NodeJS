@@ -1,4 +1,6 @@
 import pool from '../config/database.js';
+import cacheService from './cache.service.js';
+import crypto from 'crypto';
 
 /**
  * Lấy danh sách thống kê sản lượng bài viết theo từng quốc gia (phân trang).
@@ -9,10 +11,15 @@ import pool from '../config/database.js';
  * @param {number} params.limit - Số lượng bản ghi trên mỗi trang.
  * @returns {Promise<{ countries: Array<Object>, total: number }>} Danh sách các quốc gia cùng tổng số lượng bản ghi.
  */
-export const getCountryStats = async ({ page = 1, limit = 10, year }) => {
+export const getCountryStats = async (paramsInput = {}) => {
+  const { page = 1, limit = 10, year } = paramsInput;
   const parsedPage = parseInt(page, 10) || 1;
   const parsedLimit = parseInt(limit, 10) || 10;
   const offset = (parsedPage - 1) * parsedLimit;
+
+  const cacheKey = `zone:country-stats:${parsedPage}:${parsedLimit}:${year || 'all'}`;
+  const cachedData = await cacheService.get(cacheKey);
+  if (cachedData) return cachedData;
 
   // 1. Đếm tổng số quốc gia có trong hệ thống
   const countQuery = 'SELECT COUNT(*)::integer AS total FROM "Zone" WHERE type = \'COUNTRY\'';
@@ -54,10 +61,13 @@ export const getCountryStats = async ({ page = 1, limit = 10, year }) => {
   `;
   const statsResult = await pool.query(statsQuery, values);
 
-  return {
+  const result = {
     countries: statsResult.rows,
     total
   };
+
+  await cacheService.set(cacheKey, result, 3600); // Cache 1 hour
+  return result;
 };
 
 /**

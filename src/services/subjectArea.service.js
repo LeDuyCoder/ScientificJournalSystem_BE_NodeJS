@@ -1,5 +1,7 @@
 import pool from "../config/database.js";
 import logger from "../utils/logger.js";
+import cacheService from "./cache.service.js";
+import crypto from "crypto";
 
 /**
  * Kiểm tra sự tồn tại của một Subject Area trong database dựa trên ID.
@@ -90,6 +92,9 @@ export const createSubjectArea = async (data) => {
         is_deleted;
     `;
     const result = await pool.query(query, [trimmedName, cleanDesc]);
+    if (result.rows.length > 0) {
+      await cacheService.delByPattern('sa:list:*');
+    }
     return result.rows[0];
   } catch (error) {
     logger.error("Lỗi khi tạo mới Subject Area:", error.message);
@@ -105,14 +110,20 @@ export const createSubjectArea = async (data) => {
  * @param {Object} params - Tham số đầu vào.
  * @returns {Promise<{ items: Array<Object>, total: number }>}
  */
-export const getSubjectAreas = async ({
-  page = 1,
-  limit = 10,
-  search,
-  sort_by = "display_name",
-  sort_order = "asc"
-} = {}) => {
+export const getSubjectAreas = async (paramsInput = {}) => {
+  const {
+    page = 1,
+    limit = 10,
+    search,
+    sort_by = "display_name",
+    sort_order = "asc"
+  } = paramsInput;
+
   try {
+    const cacheKey = `sa:list:${crypto.createHash('md5').update(JSON.stringify(paramsInput)).digest('hex')}`;
+    const cachedData = await cacheService.get(cacheKey);
+    if (cachedData) return cachedData;
+
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const limitNum = Math.max(1, parseInt(limit, 10) || 10);
     const offset = (pageNum - 1) * limitNum;
@@ -153,10 +164,12 @@ export const getSubjectAreas = async ({
     `;
 
     const dataRes = await pool.query(dataQuery, queryParams);
-    return {
+    const result = {
       items: dataRes.rows,
       total
     };
+    await cacheService.set(cacheKey, result, 3600);
+    return result;
   } catch (error) {
     logger.error("Lỗi khi lấy danh sách Subject Area:", error.message);
     throw error;
@@ -232,7 +245,11 @@ export const updateSubjectArea = async (id, data) => {
         is_deleted;
     `;
     const result = await pool.query(query, values);
-    return result.rows.length > 0 ? result.rows[0] : null;
+    if (result.rows.length > 0) {
+      await cacheService.delByPattern('sa:list:*');
+      return result.rows[0];
+    }
+    return null;
   } catch (error) {
     logger.error(`Lỗi khi cập nhật Subject Area ID ${id}:`, error.message);
     throw error;
@@ -259,7 +276,11 @@ export const deleteSubjectArea = async (id) => {
         is_deleted;
     `;
     const result = await pool.query(query, [BigInt(id)]);
-    return result.rows.length > 0 ? result.rows[0] : null;
+    if (result.rows.length > 0) {
+      await cacheService.delByPattern('sa:list:*');
+      return result.rows[0];
+    }
+    return null;
   } catch (error) {
     logger.error(`Lỗi khi xóa mềm Subject Area ID ${id}:`, error.message);
     throw error;
@@ -286,7 +307,11 @@ export const restoreSubjectArea = async (id) => {
         is_deleted;
     `;
     const result = await pool.query(query, [BigInt(id)]);
-    return result.rows.length > 0 ? result.rows[0] : null;
+    if (result.rows.length > 0) {
+      await cacheService.delByPattern('sa:list:*');
+      return result.rows[0];
+    }
+    return null;
   } catch (error) {
     logger.error(`Lỗi khi khôi phục Subject Area ID ${id}:`, error.message);
     throw error;

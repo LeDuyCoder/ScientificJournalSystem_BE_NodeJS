@@ -110,6 +110,12 @@ export const countAllArticles = async ({
     isOpenAccess,
     countryId,
 } = {}) => {
+    const cacheKey = `article:count:${crypto.createHash('md5').update(JSON.stringify({
+        search, publicationYear, journalId, topicId, volumeId, issueId, isOpenAccess, countryId
+    })).digest('hex')}`;
+    const cachedData = await cacheService.get(cacheKey);
+    if (cachedData !== null && cachedData !== undefined) return parseInt(cachedData, 10);
+
     const values = [];
     const where = ['a."is_deleted" = false'];
 
@@ -121,7 +127,7 @@ export const countAllArticles = async ({
         try {
             const searchResults = await meiliClient.index('articles').search(search.trim(), {
                 limit: 1000,
-                attributesToRetrieve: ['article_id']
+                attributesToRetrieve: ['article_id', 'id', 'entity_id']
             });
             const matchingIds = searchResults.hits
                 .map(h => Number(h.article_id || h.id || h.entity_id))
@@ -197,12 +203,6 @@ export const countAllArticles = async ({
         ${joins.join('\n        ')}
         WHERE ${where.join(' AND ')}
     `;
-
-    const cacheKey = `article:count:${crypto.createHash('md5').update(JSON.stringify({
-        search, publicationYear, journalId, topicId, volumeId, issueId, isOpenAccess, countryId
-    })).digest('hex')}`;
-    const cachedData = await cacheService.get(cacheKey);
-    if (cachedData !== null && cachedData !== undefined) return parseInt(cachedData, 10);
 
     const result = await pool.query(query, values);
     const total = parseInt(result.rows[0].total, 10);
@@ -350,7 +350,7 @@ export const getAllArticles = async (firstParam = {}, offsetParam = 0, sortByPar
             try {
                 const searchResults = await meiliClient.index('articles').search(search.trim(), {
                     limit: 1000,
-                    attributesToRetrieve: ['article_id']
+                    attributesToRetrieve: ['article_id', 'id', 'entity_id']
                 });
                 const matchingIds = searchResults.hits
                     .map(h => Number(h.article_id || h.id || h.entity_id))

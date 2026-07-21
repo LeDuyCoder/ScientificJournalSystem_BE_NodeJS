@@ -79,6 +79,10 @@ export const search = async (keyword, limit = 20) => {
       limit: limit,
     });
 
+    if (!searchResult.hits || searchResult.hits.length === 0) {
+      return searchDbFallback(keyword, limit);
+    }
+
     return searchResult.hits.map(hit => ({
       id: hit.id,
       name: hit.name,
