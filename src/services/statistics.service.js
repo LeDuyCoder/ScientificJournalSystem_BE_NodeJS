@@ -1,6 +1,7 @@
 import * as statisticsRepository from '../repositories/statistics.repository.js';
 import { PublicationTrendDTO } from '../dtos/publicationTrend.dto.js';
 import logger from '../utils/logger.js';
+import cacheService from './cache.service.js';
 
 /**
  * Lấy thống kê xu hướng xuất bản (số lượng bài báo theo từng năm) từ các project của user.
@@ -15,6 +16,10 @@ import logger from '../utils/logger.js';
  * @throws {Error} Ném lỗi 404 nếu không tìm thấy User hoặc Project không thuộc quyền quản lý của User.
  */
 export const getPublicationTrends = async ({ userId, projectId, fromYear, toYear }) => {
+  const cacheKey = `trends:${userId}:${projectId || 'all'}:${fromYear || 'any'}:${toYear || 'any'}`;
+  const cached = await cacheService.get(cacheKey);
+  if (cached) return cached;
+
   try {
     // 1. Kiểm tra User có tồn tại không
     const userIsPresent = await statisticsRepository.userExists(userId);
@@ -45,7 +50,9 @@ export const getPublicationTrends = async ({ userId, projectId, fromYear, toYear
     });
 
     // 4. Map dữ liệu trả về qua DTO
-    return rows.map(row => new PublicationTrendDTO(row));
+    const result = rows.map(row => new PublicationTrendDTO(row));
+    await cacheService.set(cacheKey, result, 600); // 10 mins cache
+    return result;
   } catch (error) {
     logger.error('[Statistics Service] Lỗi khi xử lý getPublicationTrends:', error.message);
     throw error;

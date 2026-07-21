@@ -1,5 +1,7 @@
 import pool from "../config/database.js";
 import logger from "../utils/logger.js";
+import cacheService from "./cache.service.js";
+import crypto from "crypto";
 
 /**
  * Kiểm tra sự tồn tại của một Subject Category trong database dựa trên ID.
@@ -96,6 +98,9 @@ export const createSubjectCategory = async (data) => {
         is_deleted;
     `;
     const result = await pool.query(query, [BigInt(subject_area_id), trimmedName, cleanDesc]);
+    if (result.rows.length > 0) {
+      await cacheService.delByPattern('sc:list:*');
+    }
     return result.rows[0];
   } catch (error) {
     logger.error("Lỗi khi tạo mới Subject Category:", error.message);
@@ -111,15 +116,21 @@ export const createSubjectCategory = async (data) => {
  * @param {Object} params - Tham số đầu vào.
  * @returns {Promise<{ items: Array<Object>, total: number }>}
  */
-export const getSubjectCategories = async ({
-  page = 1,
-  limit = 10,
-  search,
-  subject_area_id,
-  sort_by = "display_name",
-  sort_order = "asc"
-} = {}) => {
+export const getSubjectCategories = async (paramsInput = {}) => {
+  const {
+    page = 1,
+    limit = 10,
+    search,
+    subject_area_id,
+    sort_by = "display_name",
+    sort_order = "asc"
+  } = paramsInput;
+
   try {
+    const cacheKey = `sc:list:${crypto.createHash('md5').update(JSON.stringify(paramsInput)).digest('hex')}`;
+    const cachedData = await cacheService.get(cacheKey);
+    if (cachedData) return cachedData;
+
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const limitNum = Math.max(1, parseInt(limit, 10) || 10);
     const offset = (pageNum - 1) * limitNum;
@@ -167,10 +178,12 @@ export const getSubjectCategories = async ({
     `;
 
     const dataRes = await pool.query(dataQuery, queryParams);
-    return {
+    const result = {
       items: dataRes.rows,
       total
     };
+    await cacheService.set(cacheKey, result, 3600);
+    return result;
   } catch (error) {
     logger.error("Lỗi khi lấy danh sách Subject Category:", error.message);
     throw error;
@@ -252,7 +265,11 @@ export const updateSubjectCategory = async (id, data) => {
         is_deleted;
     `;
     const result = await pool.query(query, values);
-    return result.rows.length > 0 ? result.rows[0] : null;
+    if (result.rows.length > 0) {
+      await cacheService.delByPattern('sc:list:*');
+      return result.rows[0];
+    }
+    return null;
   } catch (error) {
     logger.error(`Lỗi khi cập nhật Subject Category ID ${id}:`, error.message);
     throw error;
@@ -280,7 +297,11 @@ export const deleteSubjectCategory = async (id) => {
         is_deleted;
     `;
     const result = await pool.query(query, [BigInt(id)]);
-    return result.rows.length > 0 ? result.rows[0] : null;
+    if (result.rows.length > 0) {
+      await cacheService.delByPattern('sc:list:*');
+      return result.rows[0];
+    }
+    return null;
   } catch (error) {
     logger.error(`Lỗi khi xóa mềm Subject Category ID ${id}:`, error.message);
     throw error;
@@ -308,7 +329,11 @@ export const restoreSubjectCategory = async (id) => {
         is_deleted;
     `;
     const result = await pool.query(query, [BigInt(id)]);
-    return result.rows.length > 0 ? result.rows[0] : null;
+    if (result.rows.length > 0) {
+      await cacheService.delByPattern('sc:list:*');
+      return result.rows[0];
+    }
+    return null;
   } catch (error) {
     logger.error(`Lỗi khi khôi phục Subject Category ID ${id}:`, error.message);
     throw error;

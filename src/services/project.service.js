@@ -1,6 +1,7 @@
 import pool from '../config/database.js';
 import logger from '../utils/logger.js';
 import cacheService from './cache.service.js';
+import crypto from 'crypto';
 
 /**
  * Lấy số lượng journal và article của một project, có sử dụng cache Redis để tối ưu hiệu năng
@@ -66,6 +67,10 @@ export const getProjectStats = async (projectId, subjectAreaId) => {
  * @returns {Promise<Array>}
  */
 export const getUserProjects = async (userId) => {
+  const cacheKey = `project:user-list:${userId}`;
+  const cached = await cacheService.get(cacheKey);
+  if (cached) return cached;
+
   const result = await pool.query(
     `SELECT 
        p.project_id, 
@@ -119,6 +124,7 @@ export const getUserProjects = async (userId) => {
     })
   );
 
+  await cacheService.set(cacheKey, projects, 300); // 5 mins cache
   return projects;
 };
 
@@ -349,6 +355,7 @@ export const createProject = async ({ userId, title, subject_area, subject_categ
     }
 
     await client.query('COMMIT');
+    await cacheService.del(`project:user-list:${userId}`);
     return newProject;
   } catch (error) {
     await client.query('ROLLBACK');
@@ -456,6 +463,9 @@ export const updateProject = async (projectId, userId, { title, subject_area, su
     }
 
     await client.query('COMMIT');
+    await cacheService.del(`project:user-list:${userId}`);
+    await cacheService.del(`project:overview:${projectId}`);
+    await cacheService.del(`project:stats:${projectId}`);
     return true;
   } catch (error) {
     await client.query('ROLLBACK');
@@ -495,6 +505,9 @@ export const deleteProject = async (projectId, userId) => {
     );
 
     await client.query('COMMIT');
+    await cacheService.del(`project:user-list:${userId}`);
+    await cacheService.del(`project:overview:${projectId}`);
+    await cacheService.del(`project:stats:${projectId}`);
     return previousStatus; // Trả về status cũ để lưu vào log
   } catch (error) {
     await client.query('ROLLBACK');
@@ -548,6 +561,9 @@ export const restoreProject = async (projectId, userId) => {
     );
 
     await client.query('COMMIT');
+    await cacheService.del(`project:user-list:${userId}`);
+    await cacheService.del(`project:overview:${projectId}`);
+    await cacheService.del(`project:stats:${projectId}`);
     return previousStatus;
   } catch (error) {
     await client.query('ROLLBACK');
@@ -621,7 +637,13 @@ export const updateProjectStatus = async (projectId, userId, status) => {
     `UPDATE "Project" SET status = $1 WHERE project_id = $2 AND user_id = $3 RETURNING *`,
     [status, projectId, userId]
   );
-  return result.rows.length > 0;
+  if (result.rows.length > 0) {
+    await cacheService.del(`project:user-list:${userId}`);
+    await cacheService.del(`project:overview:${projectId}`);
+    await cacheService.del(`project:stats:${projectId}`);
+    return true;
+  }
+  return false;
 };
 
 /**
@@ -795,6 +817,10 @@ const buildChart = ({ type, label, rows }) => ({
  * @returns {Promise<Object|null>} Dữ liệu overview hoặc null nếu project không thuộc user.
  */
 export const getProjectOverview = async (projectId, userId) => {
+  const cacheKey = `project:overview:${projectId}`;
+  const cached = await cacheService.get(cacheKey);
+  if (cached) return cached;
+
   try {
     const projectCheck = await pool.query(
       `SELECT 1 FROM "Project" p
@@ -841,20 +867,16 @@ export const getProjectOverview = async (projectId, userId) => {
             )
         `;
 
-    const summaryResult = await pool.query(
-      `${matchedArticlesCte}
+    const summaryQuery = `${matchedArticlesCte}
             SELECT
                 COUNT(DISTINCT md.article_id)::integer AS total_articles,
                 (SELECT COUNT(*) FROM "Project_Keyword" WHERE project_id = $1)::integer AS total_keywords,
                 COUNT(DISTINCT md.journal_id)::integer AS total_journals,
                 MAX(a.created_at) AS last_updated_at
             FROM MatchedData md
-            LEFT JOIN "Article" a ON a.article_id = md.article_id`,
-      [Number(projectId)]
-    );
+            LEFT JOIN "Article" a ON a.article_id = md.article_id`;
 
-    const trendResult = await pool.query(
-      `${matchedArticlesCte}
+    const trendQuery = `${matchedArticlesCte}
             SELECT
                 a.publication_year::text AS label,
                 COUNT(DISTINCT md.article_id)::integer AS count
@@ -862,12 +884,9 @@ export const getProjectOverview = async (projectId, userId) => {
             JOIN "Article" a ON a.article_id = md.article_id
             WHERE a.publication_year IS NOT NULL
             GROUP BY a.publication_year
-            ORDER BY a.publication_year ASC`,
-      [Number(projectId)]
-    );
+            ORDER BY a.publication_year ASC`;
 
-    const subjectAreaResult = await pool.query(
-      `${matchedArticlesCte}
+    const subjectAreaQuery = `${matchedArticlesCte}
             SELECT
                 sa.display_name AS label,
                 COUNT(DISTINCT md.article_id)::integer AS count
@@ -876,25 +895,27 @@ export const getProjectOverview = async (projectId, userId) => {
             JOIN "Subject_Category" sc ON sc.subject_category_id = jsc.subject_category_id
             JOIN "Subject_Area" sa ON sa.subject_area_id = sc.subject_area_id
             GROUP BY sa.display_name
-            ORDER BY count DESC, sa.display_name ASC`,
-      [Number(projectId)]
-    );
+            ORDER BY count DESC, sa.display_name ASC`;
 
-    const publicationTypeResult = await pool.query(
-      `${matchedArticlesCte}
+    const publicationTypeQuery = `${matchedArticlesCte}
             SELECT
                 COALESCE(j.type, 'Unknown') AS label,
                 COUNT(DISTINCT md.article_id)::integer AS count
             FROM MatchedData md
             JOIN "Journal" j ON j.journal_id = md.journal_id
             GROUP BY COALESCE(j.type, 'Unknown')
-            ORDER BY count DESC, label ASC`,
-      [Number(projectId)]
-    );
+            ORDER BY count DESC, label ASC`;
+
+    const [summaryResult, trendResult, subjectAreaResult, publicationTypeResult] = await Promise.all([
+      pool.query(summaryQuery, [Number(projectId)]),
+      pool.query(trendQuery, [Number(projectId)]),
+      pool.query(subjectAreaQuery, [Number(projectId)]),
+      pool.query(publicationTypeQuery, [Number(projectId)])
+    ]);
 
     const summary = summaryResult.rows[0] || {};
 
-    return {
+    const overviewData = {
       summary: {
         totalArticles: Number(summary.total_articles) || 0,
         totalKeywords: Number(summary.total_keywords) || 0,
@@ -919,6 +940,9 @@ export const getProjectOverview = async (projectId, userId) => {
         })
       }
     };
+
+    await cacheService.set(cacheKey, overviewData, 600); // 10 mins cache
+    return overviewData;
   } catch (error) {
     logger.error('Lỗi khi lấy dữ liệu tổng quan của dự án:', error);
     throw error;

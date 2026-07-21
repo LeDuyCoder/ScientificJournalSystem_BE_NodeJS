@@ -3,6 +3,8 @@ import logger from "../utils/logger.js";
 import { publisherExist } from "./publisher.service.js";
 import { zoneExist } from "./zone.service.js";
 import meiliClient from "../config/meilisearch.js";
+import cacheService from "./cache.service.js";
+import crypto from "crypto";
 
 /**
  * Lấy danh sách journal có hỗ trợ tìm kiếm theo tên và phân trang.
@@ -14,23 +16,29 @@ import meiliClient from "../config/meilisearch.js";
  * @param {number} [params.limit=10] - Số lượng bản ghi mỗi trang.
  * @returns {Promise<{ items: Array<Object>, total: number }>} Danh sách journal và tổng số lượng bản ghi phù hợp.
  */
-export const getJournals = async ({
-  search,
-  page = 1,
-  limit = 10,
-  sort = 'relevance',
-  subjectAreaIds,
-  subjectCategoryIds,
-  isOpenAccess,
-  quartiles,
-  rankingYear,
-  isOaDiamond,
-  countryIds,
-  subject_area_id,
-  publisher_id,
-  sort_by,
-  sort_order,
-} = {}) => {
+export const getJournals = async (paramsInput = {}) => {
+  const {
+    search,
+    page = 1,
+    limit = 10,
+    sort = 'relevance',
+    subjectAreaIds,
+    subjectCategoryIds,
+    isOpenAccess,
+    quartiles,
+    rankingYear,
+    isOaDiamond,
+    countryIds,
+    subject_area_id,
+    publisher_id,
+    sort_by,
+    sort_order,
+  } = paramsInput;
+
+  const cacheKey = `journals:list:${crypto.createHash('md5').update(JSON.stringify(paramsInput)).digest('hex')}`;
+  const cachedData = await cacheService.get(cacheKey);
+  if (cachedData) return cachedData;
+
   const pageNum = Math.max(1, parseInt(page, 10) || 1);
   const limitNum = Math.max(1, parseInt(limit, 10) || 10);
   const offset = (pageNum - 1) * limitNum;
@@ -44,19 +52,23 @@ export const getJournals = async ({
     .filter(Boolean);
 
   if (search && search.trim() !== '') {
+    const cacheKey = `journals:search:${search.trim()}`;
+    const cachedData = await cacheService.get(cacheKey);
+    if (cachedData) return cachedData;
+
     try {
-      const searchResults = await meiliClient.index('global_search').search(search.trim(), {
-        filter: ['type = JOURNAL'],
+      const searchResults = await meiliClient.index('journals').search(search.trim(), {
         limit: 1000,
       });
       const matchingIds = searchResults.hits
-        .map(h => Number(h.id || h.journal_id))
+        .map(h => Number(h.id || h.journal_id || h.entity_id))
         .filter(id => !isNaN(id));
       if (matchingIds.length === 0) {
         return { items: [], total: 0 };
       }
       values.push(matchingIds);
       whereClauses.push(`j.journal_id = ANY($${values.length}::bigint[])`);
+      // Cache hits mapping if needed, but for simplicity here we just cache the result set
     } catch (err) {
       logger.error('Meilisearch getJournals error, falling back to database ILIKE search:', err);
       values.push(`%${search.trim()}%`);
@@ -299,10 +311,14 @@ export const getJournals = async ({
     pool.query(countQuery, values)
   ]);
 
-  return {
+  const result = {
     items: itemsRes.rows,
     total: countRes.rows[0]?.total || 0
   };
+  
+  await cacheService.set(cacheKey, result, 300); // 5 min TTL
+
+  return result;
 };
 
 /**
@@ -545,7 +561,11 @@ export const updateJournal = async (id, data) => {
     `;
 
     const result = await pool.query(query, values);
-    return result.rows.length ? result.rows[0] : null;
+    if (result.rows.length) {
+      await cacheService.delByPattern('journals:list:*');
+      return result.rows[0];
+    }
+    return null;
 
   } catch (error) {
     logger.error(`Lỗi khi cập nhật động journal với ID ${id}:`, error.message);
@@ -570,7 +590,11 @@ export const deleteJournal = async (id) => {
     `;
     const result = await pool.query(query, [BigInt(id)]);
 
-    return result.rows.length ? result.rows[0] : null;
+    if (result.rows.length) {
+      await cacheService.delByPattern('journals:list:*');
+      return result.rows[0];
+    }
+    return null;
   } catch (error) {
     logger.error(`Lỗi khi xóa journal với ID ${id}:`, error.message);
     throw error;
@@ -592,7 +616,11 @@ export const restoreJournal = async (id) => {
       RETURNING *;
     `;
     const result = await pool.query(query, [BigInt(id)]);
-    return result.rows.length ? result.rows[0] : null;
+    if (result.rows.length) {
+      await cacheService.delByPattern('journals:list:*');
+      return result.rows[0];
+    }
+    return null;
   } catch (error) {
     logger.error(`Lỗi khi khôi phục journal với ID ${id}:`, error.message);
     throw error;
