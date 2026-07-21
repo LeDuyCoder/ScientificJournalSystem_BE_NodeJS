@@ -2,6 +2,7 @@ import pool from "../config/database.js";
 import logger from "../utils/logger.js";
 import { publisherExist } from "./publisher.service.js";
 import { zoneExist } from "./zone.service.js";
+import meiliClient from "../config/meilisearch.js";
 
 /**
  * Lấy danh sách journal có hỗ trợ tìm kiếm theo tên và phân trang.
@@ -43,8 +44,24 @@ export const getJournals = async ({
     .filter(Boolean);
 
   if (search && search.trim() !== '') {
-    values.push(`%${search.trim()}%`);
-    whereClauses.push(`j.display_name ILIKE $${values.length}`);
+    try {
+      const searchResults = await meiliClient.index('global_search').search(search.trim(), {
+        filter: ['type = JOURNAL'],
+        limit: 1000,
+      });
+      const matchingIds = searchResults.hits
+        .map(h => Number(h.id || h.journal_id))
+        .filter(id => !isNaN(id));
+      if (matchingIds.length === 0) {
+        return { items: [], total: 0 };
+      }
+      values.push(matchingIds);
+      whereClauses.push(`j.journal_id = ANY($${values.length}::bigint[])`);
+    } catch (err) {
+      logger.error('Meilisearch getJournals error, falling back to database ILIKE search:', err);
+      values.push(`%${search.trim()}%`);
+      whereClauses.push(`j.display_name ILIKE $${values.length}`);
+    }
   }
 
   const areaIds = pushCsvFilter(subjectAreaIds || subject_area_id);
@@ -203,10 +220,10 @@ export const getJournals = async ({
     `;
   } else {
     // Các trường hợp sort khác (theo tên, theo volume_count)
-    let orderClause = 'ORDER BY j.display_name ASC';
+    let orderClause = 'ORDER BY display_name ASC';
     if (sort_by === 'display_name') {
       const order = (sort_order || 'ASC').toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
-      orderClause = `ORDER BY j.display_name ${order}`;
+      orderClause = `ORDER BY display_name ${order}`;
     } else if (sort_by === 'volume_count') {
       const order = (sort_order || 'ASC').toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
       // Lưu ý: Sắp xếp theo volume_count sẽ chậm vì phải COUNT(*) cho tất cả các bản ghi

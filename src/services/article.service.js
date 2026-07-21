@@ -2,6 +2,8 @@ import pool from '../config/database.js';
 import logger from '../utils/logger.js';
 import cacheService from './cache.service.js';
 import crypto from 'crypto';
+import { syncArticleToMeili, removeArticleFromMeili } from './meilisearch.service.js';
+import meiliClient from '../config/meilisearch.js';
 
 const ARTICLE_CACHE_TTL = parseInt(process.env.ARTICLE_CACHE_TTL, 10) || 900;
 
@@ -116,8 +118,24 @@ export const countAllArticles = async ({
     let needsJournal = false;
 
     if (search && search.trim()) {
-        values.push(`%${search.trim()}%`);
-        where.push(`(a."title" ILIKE $${values.length} OR a."doi" ILIKE $${values.length} OR a."abstract" ILIKE $${values.length})`);
+        try {
+            const searchResults = await meiliClient.index('articles').search(search.trim(), {
+                limit: 1000,
+                attributesToRetrieve: ['article_id']
+            });
+            const matchingIds = searchResults.hits
+                .map(h => Number(h.article_id || h.id || h.entity_id))
+                .filter(id => !isNaN(id));
+            if (matchingIds.length === 0) {
+                return 0;
+            }
+            values.push(matchingIds);
+            where.push(`a."article_id" = ANY($${values.length}::integer[])`);
+        } catch (err) {
+            logger.error('Meilisearch countAllArticles error, falling back to database ILIKE search:', err);
+            values.push(`%${search.trim()}%`);
+            where.push(`(a."title" ILIKE $${values.length} OR a."doi" ILIKE $${values.length} OR a."abstract" ILIKE $${values.length})`);
+        }
     }
 
     const publicationYearNum = toOptionalNumber(publicationYear);
@@ -329,8 +347,24 @@ export const getAllArticles = async (firstParam = {}, offsetParam = 0, sortByPar
         let needsJournal = false;
 
         if (search && search.trim()) {
-            values.push(`%${search.trim()}%`);
-            where.push(`(a."title" ILIKE $${values.length} OR a."doi" ILIKE $${values.length} OR a."abstract" ILIKE $${values.length})`);
+            try {
+                const searchResults = await meiliClient.index('articles').search(search.trim(), {
+                    limit: 1000,
+                    attributesToRetrieve: ['article_id']
+                });
+                const matchingIds = searchResults.hits
+                    .map(h => Number(h.article_id || h.id || h.entity_id))
+                    .filter(id => !isNaN(id));
+                if (matchingIds.length === 0) {
+                    return [];
+                }
+                values.push(matchingIds);
+                where.push(`a."article_id" = ANY($${values.length}::integer[])`);
+            } catch (err) {
+                logger.error('Meilisearch getAllArticles error, falling back to database ILIKE search:', err);
+                values.push(`%${search.trim()}%`);
+                where.push(`(a."title" ILIKE $${values.length} OR a."doi" ILIKE $${values.length} OR a."abstract" ILIKE $${values.length})`);
+            }
         }
 
         const publicationYearNum = toOptionalNumber(publicationYear);
@@ -645,8 +679,12 @@ export const createArticle = async (articleData) => {
         await cacheService.delByPattern('article:count:*');
         await cacheService.del('article:stats:all');
         
-        return result.rows[0];
+        const createdArticle = result.rows[0];
+        if (createdArticle) {
+            syncArticleToMeili(createdArticle).catch(err => logger.error('Error syncing new article to Meilisearch:', err));
+        }
 
+        return createdArticle;
     } catch (error) {
         logger.error('Error creating article:', error);
         throw error;
@@ -783,8 +821,12 @@ export const updateArticle = async ({ article_id, ...updateData }) => {
         await cacheService.del('article:stats:all');
         await cacheService.del(`article:detail:${article_id}`);
         
-        return result.rows[0] || null;
+        const updatedArticle = result.rows[0] || null;
+        if (updatedArticle) {
+            syncArticleToMeili(updatedArticle).catch(err => logger.error('Error syncing updated article to Meilisearch:', err));
+        }
 
+        return updatedArticle;
     } catch (error) {
         throw error; // Quăng lỗi lên để Controller bắt lấy và trả về res.status
     }
@@ -818,6 +860,10 @@ export const deleteArticle = async (articleId) => {
         await cacheService.delByPattern('article:count:*');
         await cacheService.del('article:stats:all');
         await cacheService.del(`article:detail:${articleId}`);
+
+        if (result.rows[0]) {
+            removeArticleFromMeili(articleId).catch(err => logger.error('Error removing article from Meilisearch:', err));
+        }
 
         // Nếu cập nhật thành công, result.rows[0] sẽ chứa thông tin bài báo kèm theo is_deleted = true
         // Nếu bài báo đã bị xóa mềm từ trước hoặc không tồn tại, result.rows[0] sẽ là undefined
@@ -858,9 +904,14 @@ export const restoreArticle = async (articleId) => {
         await cacheService.del('article:stats:all');
         await cacheService.del(`article:detail:${articleId}`);
 
+        const restoredArticle = result.rows[0] || null;
+        if (restoredArticle) {
+            syncArticleToMeili(restoredArticle).catch(err => logger.error('Error syncing restored article to Meilisearch:', err));
+        }
+
         // Nếu cập nhật thành công, result.rows[0] sẽ chứa thông tin bài báo kèm theo is_deleted = false
         // Nếu bài báo không bị xóa hoặc không tồn tại, result.rows[0] sẽ là undefined
-        return result.rows[0] || null;
+        return restoredArticle;
 
     } catch (error) {
         logger.error(`Error restoring article with ID ${articleId}:`, error);
