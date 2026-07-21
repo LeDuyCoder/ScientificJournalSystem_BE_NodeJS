@@ -1,5 +1,64 @@
 import pool from '../config/database.js';
 import logger from '../utils/logger.js';
+import cacheService from './cache.service.js';
+
+/**
+ * Lấy số lượng journal và article của một project, có sử dụng cache Redis để tối ưu hiệu năng
+ * @param {string|number} projectId
+ * @param {string|number} subjectAreaId
+ * @returns {Promise<{journal_count: number, article_count: number}>}
+ */
+export const getProjectStats = async (projectId, subjectAreaId) => {
+  const cacheKey = `project:stats:${projectId}`;
+  const cached = await cacheService.get(cacheKey);
+  if (cached) return cached;
+
+  try {
+    // 1. Đếm số lượng journal và article từ config riêng biệt của project
+    const statsQuery = `
+      SELECT 
+        (SELECT COUNT(DISTINCT journal_id) FROM "Project_Journal" WHERE project_id = $1)::integer as journal_count,
+        (SELECT COUNT(DISTINCT ka.article_id) FROM "Project_Keyword" pk JOIN "Keyword_Article" ka ON ka.keyword_id = pk.keyword_id WHERE pk.project_id = $1)::integer as article_count
+    `;
+    const res = await pool.query(statsQuery, [projectId]);
+    let journal_count = parseInt(res.rows[0].journal_count || 0, 10);
+    let article_count = parseInt(res.rows[0].article_count || 0, 10);
+
+    // 2. Cộng thêm số lượng từ Subject Area nếu project cấu hình area (dùng cache riêng cho area vì dữ liệu này rất lớn)
+    if (subjectAreaId) {
+      const saCacheKey = `sa:stats:${subjectAreaId}`;
+      let saStats = await cacheService.get(saCacheKey);
+      if (!saStats) {
+        const saRes = await pool.query(`
+          SELECT 
+            COUNT(DISTINCT jsc.journal_id) as sa_j_count,
+            COUNT(DISTINCT a.article_id) as sa_a_count
+          FROM "Subject_Category" sc 
+          JOIN "Journal_Subject_Category" jsc ON jsc.subject_category_id = sc.subject_category_id 
+          JOIN "Volume" v ON v.journal_id = jsc.journal_id 
+          JOIN "Issue" i ON i.volume_id = v.volume_id 
+          JOIN "Article" a ON a.issue_id = i.issue_id 
+          WHERE sc.subject_area_id = $1
+        `, [subjectAreaId]);
+        
+        saStats = {
+          journal_count: parseInt(saRes.rows[0].sa_j_count || 0, 10),
+          article_count: parseInt(saRes.rows[0].sa_a_count || 0, 10)
+        };
+        await cacheService.set(saCacheKey, saStats, 86400); // Lưu cache 1 ngày cho Subject Area
+      }
+      journal_count += saStats.journal_count;
+      article_count += saStats.article_count;
+    }
+
+    const finalStats = { journal_count, article_count };
+    await cacheService.set(cacheKey, finalStats, 3600); // Lưu cache 1 giờ cho Project cụ thể
+    return finalStats;
+  } catch (error) {
+    logger.error(`Error calculating project stats for project ${projectId}:`, error);
+    return { journal_count: 0, article_count: 0 };
+  }
+};
 
 /**
  * Lấy danh sách các project của một user
@@ -13,11 +72,10 @@ export const getUserProjects = async (userId) => {
        p.title, 
        p.title as project_name, 
        sa.display_name as subject_area, 
+       p.subject_area as subject_area_id,
        p.created_at,
        p.status,
        (SELECT COUNT(*) FROM "Project_Keyword" pk WHERE pk.project_id = p.project_id)::integer as keyword_count,
-       COALESCE(stats.journal_count, 0)::integer as journal_count,
-       COALESCE(stats.article_count, 0)::integer as article_count,
        CASE WHEN p.user_id = $1 THEN 'OWNER' ELSE pm.role END as user_role,
        json_build_object(
          'user_id', u_owner.user_id,
@@ -44,41 +102,24 @@ export const getUserProjects = async (userId) => {
        JOIN "user" u ON u.user_id = pm2.user_id
        WHERE pm2.project_id = p.project_id
      ) members_data ON true
-     LEFT JOIN LATERAL (
-       SELECT 
-         COUNT(DISTINCT matched.journal_id) as journal_count,
-         COUNT(DISTINCT matched.article_id) as article_count
-       FROM (
-         SELECT ka.article_id, v.journal_id 
-         FROM "Project_Keyword" pk 
-         JOIN "Keyword_Article" ka ON ka.keyword_id = pk.keyword_id 
-         JOIN "Article" a ON a.article_id = ka.article_id
-         JOIN "Issue" i ON i.issue_id = a.issue_id
-         JOIN "Volume" v ON v.volume_id = i.volume_id
-         WHERE pk.project_id = p.project_id
-         UNION
-         SELECT a.article_id, v.journal_id 
-         FROM "Project_Journal" pj 
-         JOIN "Volume" v ON v.journal_id = pj.journal_id 
-         JOIN "Issue" i ON i.volume_id = v.volume_id 
-         JOIN "Article" a ON a.issue_id = i.issue_id 
-         WHERE pj.project_id = p.project_id
-         UNION
-         SELECT a.article_id, v.journal_id 
-         FROM "Subject_Category" sc 
-         JOIN "Journal_Subject_Category" jsc ON jsc.subject_category_id = sc.subject_category_id 
-         JOIN "Volume" v ON v.journal_id = jsc.journal_id 
-         JOIN "Issue" i ON i.volume_id = v.volume_id 
-         JOIN "Article" a ON a.issue_id = i.issue_id 
-         WHERE sc.subject_area_id = p.subject_area AND p.subject_area IS NOT NULL
-       ) AS matched
-     ) stats ON true
      LEFT JOIN "Subject_Area" sa ON sa.subject_area_id = p.subject_area
      WHERE p.user_id = $1 OR pm.project_id IS NOT NULL
      ORDER BY p.created_at DESC`,
     [userId]
   );
-  return result.rows;
+
+  const projects = result.rows;
+  
+  // Lấy các chỉ số thống kê song song và gán lại cho từng project
+  await Promise.all(
+    projects.map(async (project) => {
+      const stats = await getProjectStats(project.project_id, project.subject_area_id);
+      project.journal_count = stats.journal_count;
+      project.article_count = stats.article_count;
+    })
+  );
+
+  return projects;
 };
 
 /**
