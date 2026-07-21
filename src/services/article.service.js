@@ -110,6 +110,12 @@ export const countAllArticles = async ({
     isOpenAccess,
     countryId,
 } = {}) => {
+    const cacheKey = `article:count:${crypto.createHash('md5').update(JSON.stringify({
+        search, publicationYear, journalId, topicId, volumeId, issueId, isOpenAccess, countryId
+    })).digest('hex')}`;
+    const cachedData = await cacheService.get(cacheKey);
+    if (cachedData !== null && cachedData !== undefined) return parseInt(cachedData, 10);
+
     const values = [];
     const where = ['a."is_deleted" = false'];
 
@@ -197,12 +203,6 @@ export const countAllArticles = async ({
         ${joins.join('\n        ')}
         WHERE ${where.join(' AND ')}
     `;
-
-    const cacheKey = `article:count:${crypto.createHash('md5').update(JSON.stringify({
-        search, publicationYear, journalId, topicId, volumeId, issueId, isOpenAccess, countryId
-    })).digest('hex')}`;
-    const cachedData = await cacheService.get(cacheKey);
-    if (cachedData !== null && cachedData !== undefined) return parseInt(cachedData, 10);
 
     const result = await pool.query(query, values);
     const total = parseInt(result.rows[0].total, 10);
