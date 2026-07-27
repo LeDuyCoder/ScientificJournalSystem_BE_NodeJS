@@ -66,18 +66,33 @@ export const getUserById = async (userId) => {
   try {
     const query = `
       SELECT 
-        "user_id", 
-        "email", 
-        "first_name", 
-        "last_name", 
-        "date_of_birth", 
-        "gender", 
-        "url_image", 
-        "role", 
-        "status", 
-        "type" 
-      FROM "user" 
-      WHERE "user_id" = $1
+        u."user_id", 
+        u."email", 
+        u."first_name", 
+        u."last_name", 
+        u."date_of_birth", 
+        u."gender", 
+        u."url_image", 
+        u."role", 
+        u."status", 
+        u."type",
+        (
+          SELECT COUNT(DISTINCT p.project_id)
+          FROM "Project" p
+          LEFT JOIN "Project_Member" pm ON pm.project_id = p.project_id
+          WHERE (p.user_id = $1 AND p.status != 'DELETED') 
+             OR (pm.user_id = $1 AND pm.status = 'ACCEPTED' AND p.status != 'DELETED')
+        )::integer AS followed_projects_count,
+        (
+          SELECT COUNT(DISTINCT pk.keyword_id)
+          FROM "Project_Keyword" pk
+          JOIN "Project" p ON pk.project_id = p.project_id
+          LEFT JOIN "Project_Member" pm ON pm.project_id = p.project_id
+          WHERE (p.user_id = $1 AND p.status != 'DELETED') 
+             OR (pm.user_id = $1 AND pm.status = 'ACCEPTED' AND p.status != 'DELETED')
+        )::integer AS saved_keywords_count
+      FROM "user" u
+      WHERE u."user_id" = $1
     `;
     
     const result = await pool.query(query, [userId]);
