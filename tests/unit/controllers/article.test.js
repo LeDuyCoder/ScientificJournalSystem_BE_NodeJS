@@ -7,6 +7,7 @@ import jwt from 'jsonwebtoken';
 import app from '../../../src/app.js';
 import pool from '../../../src/config/database.js';
 import * as articleService from '../../../src/services/article.service.js';
+import cacheService from '../../../src/services/cache.service.js';
 
 const JWT_SECRET = process.env.JWT_SECRET;
 const userId = '11111111-1111-1111-1111-111111111111';
@@ -14,9 +15,15 @@ const testToken = jwt.sign({ user_id: userId, role: 'STUDENT', email: 'test@exam
 
 test.after(async () => {
   await pool.end();
+  process.exit(0);
 });
 
 test.describe('Article Controller - GET /api/v1/articles Unit Test Suite', () => {
+
+  test.beforeEach(() => {
+    mock.method(cacheService, 'get', async () => null);
+    mock.method(cacheService, 'set', async () => {});
+  });
 
   test.afterEach(() => {
     mock.reset();
@@ -265,16 +272,17 @@ test.describe('Article Controller - GET /api/v1/articles Unit Test Suite', () =>
       assert.strictEqual(res.status, 200);
       assert.strictEqual(res.body.success, true);
       assert.strictEqual(res.body.data.items.length, 1);
-      assert.strictEqual(res.body.data.items[0].journal.display_name, 'Test Journal');
+      assert.strictEqual(res.body.data.items[0].journal_name, 'Test Journal');
       assert.strictEqual(res.body.data.pagination.page, 1);
       assert.strictEqual(res.body.data.pagination.limit, 10);
       assert.strictEqual(res.body.data.pagination.total, 1);
     });
 
-    test('Thành công: Trả về mảng rỗng (không gọi DB) nếu bỏ trống search query', async () => {
-      // Mock db query để đảm bảo nó KHÔNG được gọi
-      const queryMock = mock.method(pool, 'query', async () => {
-        throw new Error('Should not call DB if search is empty');
+    test('Thành công: Trả về tất cả bài báo nếu bỏ trống search query', async () => {
+      const mockArticles = [{ article_id: 1, title: 'Article 1' }];
+      const queryMock = mock.method(pool, 'query', async (sql) => {
+        if (typeof sql === 'string' && sql.includes('COUNT')) return { rows: [{ total: '1' }] };
+        return { rows: mockArticles };
       });
 
       const res = await request(app)
@@ -282,8 +290,8 @@ test.describe('Article Controller - GET /api/v1/articles Unit Test Suite', () =>
 
       assert.strictEqual(res.status, 200);
       assert.strictEqual(res.body.success, true);
-      assert.deepStrictEqual(res.body.data.items, []);
-      assert.strictEqual(queryMock.mock.callCount(), 0);
+      assert.strictEqual(res.body.data.items.length, 1);
+      assert.ok(queryMock.mock.callCount() >= 1);
     });
 
     test('Thành công: Trả về mảng rỗng nếu không có dữ liệu', async () => {

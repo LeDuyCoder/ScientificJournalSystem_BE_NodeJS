@@ -28,8 +28,10 @@ class CacheService {
    */
   async set(key, value, ttl = DEFAULT_TTL) {
     try {
+      const parsedTtl = parseInt(ttl, 10);
+      const finalTtl = (!isNaN(parsedTtl) && parsedTtl > 0) ? parsedTtl : DEFAULT_TTL;
       const stringValue = JSON.stringify(value);
-      await redisClient.set(key, stringValue, 'EX', ttl);
+      await redisClient.set(key, stringValue, 'EX', finalTtl);
     } catch (error) {
       logger.error(`Cache set error for key ${key}:`, error);
     }

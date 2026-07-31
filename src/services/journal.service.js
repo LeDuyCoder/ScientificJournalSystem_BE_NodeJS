@@ -315,7 +315,7 @@ export const getJournals = async (paramsInput = {}) => {
     items: itemsRes.rows,
     total: countRes.rows[0]?.total || 0
   };
-  
+
   await cacheService.set(cacheKey, result, 300); // 5 min TTL
 
   return result;
@@ -495,6 +495,10 @@ export const createJournal = async (data) => {
     ];
 
     const result = await pool.query(query, values);
+
+    // Xóa cache tìm kiếm journal sau khi tạo mới
+    invalidateCacheByPattern('journal-search:*').catch(() => { });
+
     return result.rows[0];
 
   } catch (error) {
