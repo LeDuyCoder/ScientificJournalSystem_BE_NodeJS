@@ -5,6 +5,7 @@ import {
   getRegionStats,
   getCountryRegionsStats,
 } from "../controllers/zone.controller.js";
+import { cacheMiddleware } from "../middlewares/cache.middleware.js";
 
 const router = express.Router();
 
@@ -87,7 +88,7 @@ const router = express.Router();
  *       500:
  *         description: Lỗi hệ thống
  */
-router.get("/countries/stats", getCountryStats);
+router.get("/countries/stats", cacheMiddleware('catalog-filters', 86400), getCountryStats);
 
 /**
  * @swagger

@@ -2,6 +2,7 @@ import express from 'express';
 import { verifyToken } from '../middlewares/auth.middleware.js';
 import { createJournal, deleteJournal, getJournals, getJournalsById, restoreJournal, updateJournal } from '../controllers/journal.controller.js';
 import { validateCreateJournal, validateJournalId, validateUpdateJournal } from '../middlewares/journalValidation.middleware.js';
+import { cacheMiddleware } from '../middlewares/cache.middleware.js';
 
 const router = express.Router();
 
@@ -119,7 +120,7 @@ const router = express.Router();
  *       500:
  *         description: Lỗi hệ thống
  */
-router.get('/', getJournals);
+router.get('/', cacheMiddleware('journal-search', 300), getJournals);
 
 /**
  * @swagger
