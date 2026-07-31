@@ -2,6 +2,7 @@ import pool from "../config/database.js";
 import logger from "../utils/logger.js";
 import { publisherExist } from "./publisher.service.js";
 import { zoneExist } from "./zone.service.js";
+import { invalidateCacheByPattern } from '../middlewares/cache.middleware.js';
 
 /**
  * Lấy danh sách journal có hỗ trợ tìm kiếm theo tên và phân trang.
@@ -374,6 +375,10 @@ export const createJournal = async (data) => {
     ];
 
     const result = await pool.query(query, values);
+
+    // Xóa cache tìm kiếm journal sau khi tạo mới
+    invalidateCacheByPattern('journal-search:*').catch(() => {});
+
     return result.rows[0];
 
   } catch (error) {
@@ -440,6 +445,12 @@ export const updateJournal = async (id, data) => {
     `;
 
     const result = await pool.query(query, values);
+
+    // Xóa cache tìm kiếm journal sau khi cập nhật
+    if (result.rows.length) {
+      invalidateCacheByPattern('journal-search:*').catch(() => {});
+    }
+
     return result.rows.length ? result.rows[0] : null;
 
   } catch (error) {
@@ -465,6 +476,11 @@ export const deleteJournal = async (id) => {
     `;
     const result = await pool.query(query, [BigInt(id)]);
 
+    // Xóa cache tìm kiếm journal sau khi xóa
+    if (result.rows.length) {
+      invalidateCacheByPattern('journal-search:*').catch(() => {});
+    }
+
     return result.rows.length ? result.rows[0] : null;
   } catch (error) {
     logger.error(`Lỗi khi xóa journal với ID ${id}:`, error.message);
@@ -487,6 +503,12 @@ export const restoreJournal = async (id) => {
       RETURNING *;
     `;
     const result = await pool.query(query, [BigInt(id)]);
+
+    // Xóa cache tìm kiếm journal sau khi khôi phục
+    if (result.rows.length) {
+      invalidateCacheByPattern('journal-search:*').catch(() => {});
+    }
+
     return result.rows.length ? result.rows[0] : null;
   } catch (error) {
     logger.error(`Lỗi khi khôi phục journal với ID ${id}:`, error.message);

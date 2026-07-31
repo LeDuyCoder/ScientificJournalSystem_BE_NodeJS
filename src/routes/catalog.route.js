@@ -7,6 +7,7 @@ import {
   getVolumes,
   getIssues
 } from '../controllers/catalog.controller.js';
+import { cacheMiddleware } from '../middlewares/cache.middleware.js';
 
 const router = express.Router();
 
@@ -54,7 +55,7 @@ const router = express.Router();
  *       500:
  *         description: Lỗi hệ thống
  */
-router.get('/subject-areas', getSubjectAreas);
+router.get('/subject-areas', cacheMiddleware(86400, 'catalog-filters'), getSubjectAreas);
 
 /**
  * @swagger
@@ -109,7 +110,7 @@ router.get('/subject-areas', getSubjectAreas);
  *       500:
  *         description: Lỗi hệ thống
  */
-router.get('/subject-categories', getSubjectCategories);
+router.get('/subject-categories', cacheMiddleware(86400, 'catalog-filters'), getSubjectCategories);
 
 /**
  * @swagger
