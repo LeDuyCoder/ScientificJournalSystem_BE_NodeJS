@@ -18,7 +18,7 @@ export const cacheMiddleware = (entityPrefix, ttl) => {
     // or include user ID in hash. For read-only public APIs, we just hash query/params.
     const pathAndQuery = req.originalUrl || req.url;
     const hash = crypto.createHash('md5').update(pathAndQuery).digest('hex');
-    
+
     // Pattern: entity:list:hash
     // We use a simplified key here. For detailed entities we use cacheService in controller.
     const key = `${entityPrefix}:list:${hash}`;

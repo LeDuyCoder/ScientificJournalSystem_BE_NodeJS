@@ -649,6 +649,30 @@ export const createArticle = async (articleData) => {
             throw new Error('Title and publication_year are required fields.');
         }
 
+        let finalTopicId = primary_topic;
+        if (primary_topic) {
+            // Check if it's already a valid topic_id
+            const checkTopic = await pool.query(`SELECT topic_id FROM "Topic" WHERE topic_id = $1`, [primary_topic]);
+            if (checkTopic.rows.length === 0) {
+                // Not a valid topic_id, assume it's a category_id. Pick the first topic in this category.
+                const catTopic = await pool.query(
+                    `SELECT topic_id FROM "Topic" WHERE subject_category_id = $1 LIMIT 1`,
+                    [primary_topic.toString()]
+                );
+                if (catTopic.rows.length > 0) {
+                    finalTopicId = catTopic.rows[0].topic_id;
+                } else {
+                    // Fallback to the first available topic in the database
+                    const firstTopic = await pool.query(`SELECT topic_id FROM "Topic" LIMIT 1`);
+                    if (firstTopic.rows.length > 0) {
+                        finalTopicId = firstTopic.rows[0].topic_id;
+                    } else {
+                        finalTopicId = null;
+                    }
+                }
+            }
+        }
+
         const query = `
             INSERT INTO "Article" (
                 version, 
@@ -670,7 +694,7 @@ export const createArticle = async (articleData) => {
             abstract,
             publication_year,
             doi,
-            primary_topic
+            finalTopicId
         ];
 
         const result = await pool.query(query, values);

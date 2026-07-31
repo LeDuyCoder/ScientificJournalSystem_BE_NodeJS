@@ -204,6 +204,7 @@ export const getJournals = async (paramsInput = {}) => {
         j.coverage,
         j.is_open_access,
         j.is_oa_diamond,
+        p.publisher_id::text AS publisher_id,
         p.display_name AS publisher_name,
         j.country::text AS country_id,
         country_zone.name AS country_name,
@@ -259,6 +260,7 @@ export const getJournals = async (paramsInput = {}) => {
         j.coverage,
         j.is_open_access,
         j.is_oa_diamond,
+        p.publisher_id::text AS publisher_id,
         p.display_name AS publisher_name,
         j.country::text AS country_id,
         country_zone.name AS country_name,
@@ -315,7 +317,7 @@ export const getJournals = async (paramsInput = {}) => {
     items: itemsRes.rows,
     total: countRes.rows[0]?.total || 0
   };
-  
+
   await cacheService.set(cacheKey, result, 300); // 5 min TTL
 
   return result;
@@ -495,6 +497,10 @@ export const createJournal = async (data) => {
     ];
 
     const result = await pool.query(query, values);
+
+    // Xóa cache tìm kiếm journal sau khi tạo mới
+    invalidateCacheByPattern('journal-search:*').catch(() => { });
+
     return result.rows[0];
 
   } catch (error) {
