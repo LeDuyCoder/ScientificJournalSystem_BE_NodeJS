@@ -87,7 +87,7 @@ const router = express.Router();
  * - Nếu không đi kèm `keywords` -> Cho phép truy cập công khai (Public) thông qua hàm gộp tổng `getArticles`.
  */
 router.get('/', async (req, res, next) => {
-    if (req.query.keywords !== undefined && req.query.keywords.trim() !== '') {
+    if (req.query.keywords !== undefined) {
         // Có keywords -> Bắt buộc kiểm tra token tài khoản
         return verifyToken(req, res, () => getArticlesByKeywords(req, res));
     }

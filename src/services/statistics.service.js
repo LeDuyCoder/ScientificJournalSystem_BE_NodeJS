@@ -1,7 +1,19 @@
 import * as statisticsRepository from '../repositories/statistics.repository.js';
-import { PublicationTrendDTO } from '../dtos/publicationTrend.dto.js';
 import logger from '../utils/logger.js';
 import cacheService from './cache.service.js';
+
+/**
+ * Chuẩn hóa một dòng dữ liệu publication trend từ database thành format response cho client.
+ *
+ * @param {Object} row - Dòng dữ liệu thô từ database query.
+ * @param {string|number} row.year - Năm xuất bản.
+ * @param {string|number} row.totalPublications - Tổng số bài báo xuất bản trong năm đó.
+ * @returns {{ year: number, totalPublications: number }}
+ */
+const mapPublicationTrendRow = (row) => ({
+  year: parseInt(row.year, 10),
+  totalPublications: parseInt(row.totalPublications, 10) || 0,
+});
 
 /**
  * Lấy thống kê xu hướng xuất bản (số lượng bài báo theo từng năm) từ các project của user.
@@ -12,7 +24,7 @@ import cacheService from './cache.service.js';
  * @param {string|number|null} params.projectId - ID của project.
  * @param {number|null} params.fromYear - Năm bắt đầu.
  * @param {number|null} params.toYear - Năm kết thúc.
- * @returns {Promise<Array<PublicationTrendDTO>>}
+ * @returns {Promise<Array<{ year: number, totalPublications: number }>>}
  * @throws {Error} Ném lỗi 404 nếu không tìm thấy User hoặc Project không thuộc quyền quản lý của User.
  */
 export const getPublicationTrends = async ({ userId, projectId, fromYear, toYear }) => {
@@ -49,8 +61,8 @@ export const getPublicationTrends = async ({ userId, projectId, fromYear, toYear
       toYear
     });
 
-    // 4. Map dữ liệu trả về qua DTO
-    const result = rows.map(row => new PublicationTrendDTO(row));
+    // 4. Map dữ liệu trả về
+    const result = rows.map(row => mapPublicationTrendRow(row));
     await cacheService.set(cacheKey, result, 600); // 10 mins cache
     return result;
   } catch (error) {

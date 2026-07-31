@@ -120,7 +120,7 @@ const router = express.Router();
  *       500:
  *         description: Lỗi hệ thống
  */
-router.get('/', cacheMiddleware(300, 'journal-search'), getJournals);
+router.get('/', cacheMiddleware('journal-search', 300), getJournals);
 
 /**
  * @swagger

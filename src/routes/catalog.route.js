@@ -55,7 +55,7 @@ const router = express.Router();
  *       500:
  *         description: Lỗi hệ thống
  */
-router.get('/subject-areas', cacheMiddleware(86400, 'catalog-filters'), getSubjectAreas);
+router.get('/subject-areas', cacheMiddleware('catalog-filters', 86400), getSubjectAreas);
 
 /**
  * @swagger
@@ -110,7 +110,7 @@ router.get('/subject-areas', cacheMiddleware(86400, 'catalog-filters'), getSubje
  *       500:
  *         description: Lỗi hệ thống
  */
-router.get('/subject-categories', cacheMiddleware(86400, 'catalog-filters'), getSubjectCategories);
+router.get('/subject-categories', cacheMiddleware('catalog-filters', 86400), getSubjectCategories);
 
 /**
  * @swagger

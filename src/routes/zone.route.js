@@ -88,7 +88,7 @@ const router = express.Router();
  *       500:
  *         description: Lỗi hệ thống
  */
-router.get("/countries/stats", cacheMiddleware(86400, 'catalog-filters'), getCountryStats);
+router.get("/countries/stats", cacheMiddleware('catalog-filters', 86400), getCountryStats);
 
 /**
  * @swagger
