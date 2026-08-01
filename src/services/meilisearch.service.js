@@ -27,7 +27,7 @@ export const initMeiliSearch = async () => {
     await articleIndex.updateSettings({
       searchableAttributes: ['title', 'doi', 'abstract'],
       filterableAttributes: ['publication_year', 'primary_topic', 'is_deleted'],
-      sortableAttributes: ['publication_year', 'created_at'],
+      sortableAttributes: ['title', 'publication_year', 'created_at'],
     });
 
     logger.info('Meilisearch indices initialized successfully.');
