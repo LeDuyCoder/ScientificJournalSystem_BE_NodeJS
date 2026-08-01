@@ -22,4 +22,18 @@ meiliClient.isHealthy()
     logger.error('Failed to connect to Meilisearch:', err.message);
   });
 
+meiliClient.searchWithRetry = async (indexUid, query, options, retries = 3, delay = 200) => {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      return await meiliClient.index(indexUid).search(query, options);
+    } catch (error) {
+      if (attempt === retries) {
+        throw error;
+      }
+      logger.warn(`Meilisearch search failed (attempt ${attempt}/${retries}). Retrying in ${delay * attempt}ms... Error: ${error.message}`);
+      await new Promise(resolve => setTimeout(resolve, delay * attempt));
+    }
+  }
+};
+
 export default meiliClient;
