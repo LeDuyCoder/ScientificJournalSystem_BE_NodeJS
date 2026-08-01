@@ -125,9 +125,10 @@ export const countAllArticles = async ({
 
     if (search && search.trim()) {
         try {
-            const searchResults = await meiliClient.index('articles').search(search.trim(), {
+            const searchResults = await meiliClient.searchWithRetry('articles', search.trim(), {
                 limit: 1000,
-                attributesToRetrieve: ['article_id', 'id', 'entity_id']
+                attributesToRetrieve: ['article_id', 'id', 'entity_id'],
+                attributesToSearchOn: ['title', 'doi', 'abstract']
             });
             const matchingIds = searchResults.hits
                 .map(h => Number(h.article_id || h.id || h.entity_id))
@@ -138,9 +139,8 @@ export const countAllArticles = async ({
             values.push(matchingIds);
             where.push(`a."article_id" = ANY($${values.length}::integer[])`);
         } catch (err) {
-            logger.error('Meilisearch countAllArticles error, falling back to database ILIKE search:', err);
-            values.push(`%${search.trim()}%`);
-            where.push(`(a."title" ILIKE $${values.length} OR a."doi" ILIKE $${values.length} OR a."abstract" ILIKE $${values.length})`);
+            logger.error('Meilisearch countAllArticles error:', err);
+            throw err; // Rethrow search error, no database fallback
         }
     }
 
@@ -346,11 +346,13 @@ export const getAllArticles = async (firstParam = {}, offsetParam = 0, sortByPar
         let needsVolume = false;
         let needsJournal = false;
 
+        let searchOrderIdsIndex = null;
         if (search && search.trim()) {
             try {
-                const searchResults = await meiliClient.index('articles').search(search.trim(), {
+                const searchResults = await meiliClient.searchWithRetry('articles', search.trim(), {
                     limit: 1000,
-                    attributesToRetrieve: ['article_id', 'id', 'entity_id']
+                    attributesToRetrieve: ['article_id', 'id', 'entity_id'],
+                    attributesToSearchOn: ['title', 'doi', 'abstract']
                 });
                 const matchingIds = searchResults.hits
                     .map(h => Number(h.article_id || h.id || h.entity_id))
@@ -360,10 +362,10 @@ export const getAllArticles = async (firstParam = {}, offsetParam = 0, sortByPar
                 }
                 values.push(matchingIds);
                 where.push(`a."article_id" = ANY($${values.length}::integer[])`);
+                searchOrderIdsIndex = values.length;
             } catch (err) {
-                logger.error('Meilisearch getAllArticles error, falling back to database ILIKE search:', err);
-                values.push(`%${search.trim()}%`);
-                where.push(`(a."title" ILIKE $${values.length} OR a."doi" ILIKE $${values.length} OR a."abstract" ILIKE $${values.length})`);
+                logger.error('Meilisearch getAllArticles error:', err);
+                throw err; // Rethrow search error, no database fallback
             }
         }
 
@@ -425,6 +427,13 @@ export const getAllArticles = async (firstParam = {}, offsetParam = 0, sortByPar
         if (needsVolume) innerJoins.push(`LEFT JOIN "Volume" v ON v."volume_id" = i."volume_id" AND (v."is_deleted" = false OR v."is_deleted" IS NULL)`);
         if (needsJournal) innerJoins.push(`LEFT JOIN "Journal" j ON j."journal_id" = v."journal_id" AND (j."is_deleted" = false OR j."is_deleted" IS NULL)`);
 
+        const innerOrderBy = searchOrderIdsIndex !== null
+            ? `array_position($${searchOrderIdsIndex}::integer[], a."article_id") ASC`
+            : `${column} ${order}, a."article_id" DESC`;
+        const outerOrderBy = searchOrderIdsIndex !== null
+            ? `array_position($${searchOrderIdsIndex}::integer[], ap."article_id") ASC`
+            : `${column.replace('a.', 'ap.')} ${order}, ap."article_id" DESC`;
+
         const query = `
             WITH article_page AS (
                 SELECT 
@@ -440,7 +449,7 @@ export const getAllArticles = async (firstParam = {}, offsetParam = 0, sortByPar
                 FROM "Article" a
                 ${innerJoins.join('\n                ')}
                 WHERE ${where.join(' AND ')}
-                ORDER BY ${column} ${order}, a."article_id" DESC
+                ORDER BY ${innerOrderBy}
                 LIMIT $${limitIndex} OFFSET $${offsetIndex}
             ),
             author_json AS (
@@ -483,7 +492,7 @@ export const getAllArticles = async (firstParam = {}, offsetParam = 0, sortByPar
             LEFT JOIN "Journal" j ON j."journal_id" = v."journal_id" AND (j."is_deleted" = false OR j."is_deleted" IS NULL)
             LEFT JOIN "Topic" t ON t."topic_id" = ap."primary_topic"
             LEFT JOIN author_json aj ON aj."article_id" = ap."article_id"
-            ORDER BY ${column.replace('a.', 'ap.')} ${order}, ap."article_id" DESC;
+            ORDER BY ${outerOrderBy};
         `;
 
         const result = await pool.query(query, values);
