@@ -4,12 +4,11 @@ import zoneRouter from "./zone.route.js";
 import keywordRouter from "./keyword.route.js";
 import catalogRouter from "./catalog.route.js";
 // import authorRouter from "./author.route.js";
-import topicRouter from "./topic.route.js";
-// import journalRouter from "./journal.route.js";
-import volumeRouter from "./volume.route.js";
-import issueRouter from "./issue.route.js";
-import subjectAreaRouter from "./subjectArea.route.js";
-import subjectCategoryRouter from "./subjectCategory.route.js";
+// import topicRouter from "./topic.route.js";
+// import volumeRouter from "./volume.route.js";
+// import issueRouter from "./issue.route.js";
+// import subjectAreaRouter from "./subjectArea.route.js";
+// import subjectCategoryRouter from "./subjectCategory.route.js";
 import searchRotuer from "./search.route.js";
 import adminRouter from "./admin.route.js";
 // import publisherRouter from "./publisher.route.js";
@@ -26,7 +25,12 @@ import articlesRoutes from "../modules/articles/articles.routes.js";
 import publishersRoutes from "../modules/publishers/publishers.routes.js";
 import authorsRoutes from "../modules/authors/authors.routes.js";
 import journalsRoutes from "../modules/journals/journals.routes.js";
-
+import keywordsRoutes from "../modules/keywords/keywords.routes.js";
+import subjectAreasRoutes from "../modules/subject-areas/subject-areas.routes.js";
+import subjectCategoriesRoutes from "../modules/subject-categories/subject-categories.routes.js";
+import topicsRoutes from "../modules/topics/topics.routes.js";
+import volumesRoutes from "../modules/volumes/volumes.routes.js";
+import issuesRoutes from "../modules/issues/issues.routes.js";
 /**
  * Fastify root router
  * @param {import('fastify').FastifyInstance} fastify 
@@ -39,6 +43,12 @@ export default async function rootRoutes(fastify, options) {
   fastify.register(publishersRoutes, { prefix: '/publishers' });
   fastify.register(authorsRoutes, { prefix: '/authors' });
   fastify.register(journalsRoutes, { prefix: '/journal' }); // or /journals
+  fastify.register(keywordsRoutes, { prefix: '/keywords' });
+  fastify.register(subjectAreasRoutes, { prefix: '/subject-areas' });
+  fastify.register(subjectCategoriesRoutes, { prefix: '/subject-categories' });
+  fastify.register(topicsRoutes, { prefix: '/topics' });
+  fastify.register(volumesRoutes, { prefix: '/volumes' });
+  fastify.register(issuesRoutes, { prefix: '/issues' });
 
   // 2. Wrap các route Express cũ
   const expressRouter = express.Router();
@@ -48,13 +58,13 @@ export default async function rootRoutes(fastify, options) {
   expressRouter.use("/catalog", catalogRouter);
   expressRouter.use("/projects", keywordRouter);
   // expressRouter.use("/author", authorRouter); // Moved to Fastify
-  expressRouter.use("/topics", topicRouter);
-  expressRouter.use("/keywords", keywordRouter);
+  // expressRouter.use("/topics", topicRouter); // Moved to Fastify
+  // expressRouter.use("/keywords", keywordRouter); // Moved to Fastify
   // expressRouter.use("/journal", journalRouter); // Moved to Fastify
-  expressRouter.use("/volumes", volumeRouter);
-  expressRouter.use("/subject-areas", subjectAreaRouter);
-  expressRouter.use("/subject-categories", subjectCategoryRouter);
-  expressRouter.use("/issues", issueRouter);
+  // expressRouter.use("/volumes", volumeRouter); // Moved to Fastify
+  // expressRouter.use("/subject-areas", subjectAreaRouter); // Moved to Fastify
+  // expressRouter.use("/subject-categories", subjectCategoryRouter); // Moved to Fastify
+  // expressRouter.use("/issues", issueRouter); // Moved to Fastify
   expressRouter.use("/search", searchRotuer);
   expressRouter.use("/admin", adminRouter);
   // expressRouter.use("/publishers", publisherRouter); // Moved to Fastify
