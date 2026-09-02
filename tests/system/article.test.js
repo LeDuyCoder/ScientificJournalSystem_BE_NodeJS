@@ -1,6 +1,7 @@
 import { jest, test, expect, beforeAll, afterAll } from '@jest/globals';
 import request from 'supertest';
-import app from '../../src/app.js';
+import { buildApp } from '../../src/app.js';
+let app;
 import pool from '../../src/config/database.js';
 
 jest.setTimeout(30000);
@@ -17,6 +18,8 @@ let authToken = '';
 let articleId = null;
 
 beforeAll(async () => {
+    app = await buildApp();
+    await app.ready();
     // Setup: Create a dummy user and login to get a token
     const userData = { email: 'test_article@example.com', password: 'Password123!', role: 'STUDENT' };
     await pool.query('DELETE FROM "user" WHERE email = $1', [userData.email]);
@@ -29,7 +32,7 @@ beforeAll(async () => {
         [userId, userData.email, hashedPassword, userData.role, 'ACTIVE', 'LOCAL']
     );
 
-    const loginRes = await request(app).post('/api/v1/auth/login').send({
+    const loginRes = await request(app.server).post('/api/v1/auth/login').send({
         email: userData.email,
         password: userData.password
     });
@@ -46,6 +49,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+    if (app) await app.close();
     // Cleanup
     if (articleId) await pool.query('DELETE FROM "Article" WHERE article_id = $1', [articleId]);
     await pool.query('DELETE FROM "user" WHERE email = $1', ['test_article@example.com']);
@@ -53,7 +57,7 @@ afterAll(async () => {
 });
 
 test("ST-ARTICLE-001 Create a new article with valid information", async () => {
-    const res = await request(app)
+    const res = await request(app.server)
         .post('/api/v1/articles')
         .set('Authorization', `Bearer ${authToken}`)
         .send(TEST_ARTICLE);
@@ -63,7 +67,7 @@ test("ST-ARTICLE-001 Create a new article with valid information", async () => {
 });
 
 test("ST-ARTICLE-002 Create an article with invalid or incomplete information", async () => {
-    const res = await request(app)
+    const res = await request(app.server)
         .post('/api/v1/articles')
         .set('Authorization', `Bearer ${authToken}`)
         .send({ title: '' }); // Invalid: missing required fields
@@ -72,24 +76,24 @@ test("ST-ARTICLE-002 Create an article with invalid or incomplete information", 
 });
 
 test("ST-ARTICLE-003 Retrieve the article list successfully", async () => {
-    const res = await request(app).get('/api/v1/articles');
+    const res = await request(app.server).get('/api/v1/articles');
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
 });
 
 test("ST-ARTICLE-004 View article details successfully", async () => {
-    const res = await request(app).get(`/api/v1/articles/${articleId}`);
+    const res = await request(app.server).get(`/api/v1/articles/${articleId}`);
     expect(res.status).toBe(200);
     expect(res.body.data.article_id).toBe(articleId);
 });
 
 test("ST-ARTICLE-005 View details of a non-existing article", async () => {
-    const res = await request(app).get('/api/v1/articles/999999999');
+    const res = await request(app.server).get('/api/v1/articles/999999999');
     expect(res.status).toBe(404);
 });
 
 test("ST-ARTICLE-006 Update an article with valid information", async () => {
-    const res = await request(app)
+    const res = await request(app.server)
         .put(`/api/v1/articles/${articleId}`)
         .set('Authorization', `Bearer ${authToken}`)
         .send({ title: 'Updated Title' });
@@ -100,7 +104,7 @@ test("ST-ARTICLE-006 Update an article with valid information", async () => {
 
 test("ST-ARTICLE-007 Update an article without permission", async () => {
     // Testing logic for unauthorized access requires a different user token or invalid session
-    const res = await request(app)
+    const res = await request(app.server)
         .put(`/api/v1/articles/${articleId}`)
         .set('Authorization', 'Bearer invalid_or_unauthorized_token')
         .send({ title: 'Hacked Title' });
@@ -109,7 +113,7 @@ test("ST-ARTICLE-007 Update an article without permission", async () => {
 });
 
 test("ST-ARTICLE-008 Delete an article successfully", async () => {
-    const res = await request(app)
+    const res = await request(app.server)
         .delete(`/api/v1/articles/${articleId}`)
         .set('Authorization', `Bearer ${authToken}`);
     
@@ -117,7 +121,7 @@ test("ST-ARTICLE-008 Delete an article successfully", async () => {
 });
 
 test("ST-ARTICLE-009 Restore a deleted article successfully", async () => {
-    const res = await request(app)
+    const res = await request(app.server)
         .patch(`/api/v1/articles/${articleId}/restore`)
         .set('Authorization', `Bearer ${authToken}`);
     
@@ -125,7 +129,7 @@ test("ST-ARTICLE-009 Restore a deleted article successfully", async () => {
 });
 
 test("ST-ARTICLE-010 Restore an active article", async () => {
-    const res = await request(app)
+    const res = await request(app.server)
         .patch(`/api/v1/articles/${articleId}/restore`)
         .set('Authorization', `Bearer ${authToken}`);
     
@@ -133,13 +137,13 @@ test("ST-ARTICLE-010 Restore an active article", async () => {
 });
 
 test("ST-ARTICLE-011 Search articles using a keyword", async () => {
-    const res = await request(app).get('/api/v1/articles?search=Updated');
+    const res = await request(app.server).get('/api/v1/articles?search=Updated');
     expect(res.status).toBe(200);
     expect(res.body.data.articles.length).toBeGreaterThan(0);
 });
 
 test("ST-ARTICLE-012 Create an article without authentication", async () => {
-    const res = await request(app)
+    const res = await request(app.server)
         .post('/api/v1/articles')
         .send(TEST_ARTICLE);
     

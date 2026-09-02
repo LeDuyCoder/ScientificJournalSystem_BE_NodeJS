@@ -1,6 +1,7 @@
 import { jest, test, expect, beforeAll, afterAll } from '@jest/globals';
 import request from 'supertest';
-import app from '../../src/app.js';
+import { buildApp } from '../../src/app.js';
+let app;
 import pool from '../../src/config/database.js';
 
 const ADMIN_USER = {
@@ -24,6 +25,8 @@ let userToken = '';
 let normalUserId = '';
 
 beforeAll(async () => {
+    app = await buildApp();
+    await app.ready();
     // Cleanup
     await pool.query('DELETE FROM "user" WHERE email IN ($1, $2)', [ADMIN_USER.email, NORMAL_USER.email]);
 
@@ -47,13 +50,13 @@ beforeAll(async () => {
     normalUserId = userId;
 
     // Login to get tokens
-    const adminLogin = await request(app).post('/api/v1/auth/login').send({
+    const adminLogin = await request(app.server).post('/api/v1/auth/login').send({
         email: ADMIN_USER.email,
         password: ADMIN_USER.password
     });
     adminToken = adminLogin.body.data.token;
 
-    const userLogin = await request(app).post('/api/v1/auth/login').send({
+    const userLogin = await request(app.server).post('/api/v1/auth/login').send({
         email: NORMAL_USER.email,
         password: NORMAL_USER.password
     });
@@ -61,13 +64,14 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+    if (app) await app.close();
     await pool.query('DELETE FROM "user" WHERE email IN ($1, $2)', [ADMIN_USER.email, NORMAL_USER.email]);
     await pool.end();
 });
 
 // ST-USER-001: Admin lấy danh sách người dùng thành công
 test("ST-USER-001 Admin fetches user list successfully", async () => {
-    const res = await request(app)
+    const res = await request(app.server)
         .get('/api/v1/admin/users')
         .set('Authorization', `Bearer ${adminToken}`);
 
@@ -78,7 +82,7 @@ test("ST-USER-001 Admin fetches user list successfully", async () => {
 
 // ST-USER-002: Người dùng thường không thể lấy danh sách người dùng
 test("ST-USER-002 Normal user cannot fetch user list", async () => {
-    const res = await request(app)
+    const res = await request(app.server)
         .get('/api/v1/admin/users')
         .set('Authorization', `Bearer ${userToken}`);
 
@@ -88,7 +92,7 @@ test("ST-USER-002 Normal user cannot fetch user list", async () => {
 
 // ST-USER-003: Admin lấy chi tiết người dùng qua ID
 test("ST-USER-003 Admin fetches user detail by ID", async () => {
-    const res = await request(app)
+    const res = await request(app.server)
         .get(`/api/v1/admin/users/${normalUserId}`)
         .set('Authorization', `Bearer ${adminToken}`);
 
@@ -99,7 +103,7 @@ test("ST-USER-003 Admin fetches user detail by ID", async () => {
 // ST-USER-004: Admin tạo người dùng mới qua API
 test("ST-USER-004 Admin creates a new user via API", async () => {
     const newUserEmail = 'created_by_admin@example.com';
-    const res = await request(app)
+    const res = await request(app.server)
         .post('/api/v1/admin/users')
         .set('Authorization', `Bearer ${adminToken}`)
         .send({
@@ -121,7 +125,7 @@ test("ST-USER-004 Admin creates a new user via API", async () => {
 // ST-USER-005: Cập nhật thông tin cá nhân (updateMe)
 test("ST-USER-005 User updates their own profile (updateMe)", async () => {
     const updateData = { first_name: 'UpdatedName' };
-    const res = await request(app)
+    const res = await request(app.server)
         .put('/api/v1/users/me')
         .set('Authorization', `Bearer ${userToken}`)
         .send(updateData);
@@ -132,7 +136,7 @@ test("ST-USER-005 User updates their own profile (updateMe)", async () => {
 
 // ST-USER-006: Lấy thông tin cá nhân (getMe)
 test("ST-USER-006 User fetches their own profile (getMe)", async () => {
-    const res = await request(app)
+    const res = await request(app.server)
         .get('/api/v1/users/me')
         .set('Authorization', `Bearer ${userToken}`);
 
@@ -145,15 +149,15 @@ test("ST-USER-007 User deletes their own account (deleteMe)", async () => {
     const tempUser = { email: 'delete_me@example.com', password: 'Password123!' };
 
     // 1. Register & Verify
-    await request(app).post('/api/v1/auth/register').send(tempUser);
+    await request(app.server).post('/api/v1/auth/register').send(tempUser);
     await pool.query('UPDATE "user" SET status = \'ACTIVE\' WHERE email = $1', [tempUser.email]);
 
     // 2. Login
-    const loginRes = await request(app).post('/api/v1/auth/login').send(tempUser);
+    const loginRes = await request(app.server).post('/api/v1/auth/login').send(tempUser);
     const tempToken = loginRes.body.data.token;
 
     // 3. Delete
-    const res = await request(app)
+    const res = await request(app.server)
         .delete('/api/v1/users/me')
         .set('Authorization', `Bearer ${tempToken}`);
 
@@ -163,7 +167,7 @@ test("ST-USER-007 User deletes their own account (deleteMe)", async () => {
 
 // ST-USER-008: Admin cập nhật thông tin người dùng khác
 test("ST-USER-008 Admin updates another user profile", async () => {
-    const res = await request(app)
+    const res = await request(app.server)
         .put(`/api/v1/users/${normalUserId}`)
         .set('Authorization', `Bearer ${adminToken}`)
         .send({ first_name: 'AdminUpdated' });
@@ -179,7 +183,7 @@ test("ST-USER-008 Admin updates another user profile", async () => {
     // Checking admin.route.js again: router.put('/users/:id', verifyToken, verifyAdmin, adminUpdateUser);
     // The previous prompt mentioned /api/v1/users/:id but the actual admin update is likely under /api/v1/admin/users/:id
 
-    const adminRes = await request(app)
+    const adminRes = await request(app.server)
         .put(`/api/v1/admin/users/${normalUserId}`) // Assuming this is the correct admin path
         .set('Authorization', `Bearer ${adminToken}`)
         .send({ first_name: 'AdminUpdated' });
@@ -195,7 +199,7 @@ test("ST-USER-008 Admin updates another user profile", async () => {
 
 // ST-USER-009: Truy cập endpoint Admin mà không có quyền
 test("ST-USER-009 Access Admin endpoint without permission", async () => {
-    const res = await request(app)
+    const res = await request(app.server)
         .get('/api/v1/admin/users')
         .set('Authorization', `Bearer ${userToken}`);
 
@@ -204,7 +208,7 @@ test("ST-USER-009 Access Admin endpoint without permission", async () => {
 
 // ST-USER-010: Cập nhật profile với dữ liệu không hợp lệ (ngày sinh sai định dạng)
 test("ST-USER-010 Update profile with invalid data (date)", async () => {
-    const res = await request(app)
+    const res = await request(app.server)
         .put('/api/v1/users/me')
         .set('Authorization', `Bearer ${userToken}`)
         .send({ date_of_birth: 'invalid-date' });
@@ -215,7 +219,7 @@ test("ST-USER-010 Update profile with invalid data (date)", async () => {
 // ST-USER-011: Lấy chi tiết user không tồn tại (Admin)
 test("ST-USER-011 Admin fetches non-existent user detail", async () => {
     const fakeId = '00000000-0000-0000-0000-000000000000';
-    const res = await request(app)
+    const res = await request(app.server)
         .get(`/api/v1/admin/users/${fakeId}`)
         .set('Authorization', `Bearer ${adminToken}`);
 
@@ -227,7 +231,7 @@ test("ST-USER-012 Normal user tries to update another's profile", async () => {
     const adminUser = await pool.query('SELECT user_id FROM "user" WHERE email = $1', [ADMIN_USER.email]);
     const adminId = adminUser.rows[0].user_id;
 
-    const res = await request(app)
+    const res = await request(app.server)
         .put(`/api/v1/users/${adminId}`)
         .set('Authorization', `Bearer ${userToken}`)
         .send({ first_name: 'Hacker' });

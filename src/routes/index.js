@@ -1,6 +1,5 @@
 import express from "express";
 import projectRouter from "./project.route.js";
-import articleRouter from "./article.route.js";
 import zoneRouter from "./zone.route.js";
 import keywordRouter from "./keyword.route.js";
 import catalogRouter from "./catalog.route.js";
@@ -23,6 +22,7 @@ import projectMemberRouter from "./projectMember.route.js";
 
 import authRoutes from "../modules/auth/auth.routes.js";
 import usersRoutes from "../modules/users/users.routes.js";
+import articlesRoutes from "../modules/articles/articles.routes.js";
 
 /**
  * Fastify root router
@@ -32,6 +32,7 @@ export default async function rootRoutes(fastify, options) {
   // 1. Đăng ký các module Fastify mới
   fastify.register(authRoutes, { prefix: '/auth' });
   fastify.register(usersRoutes, { prefix: '/users' });
+  fastify.register(articlesRoutes, { prefix: '/articles' });
 
   // 2. Wrap các route Express cũ
   const expressRouter = express.Router();
@@ -39,7 +40,6 @@ export default async function rootRoutes(fastify, options) {
   expressRouter.use("/projects", projectRouter);
   expressRouter.use("/zones", zoneRouter);
   expressRouter.use("/catalog", catalogRouter);
-  expressRouter.use("/articles", articleRouter);
   expressRouter.use("/projects", keywordRouter);
   expressRouter.use("/author", authorRouter);
   expressRouter.use("/topics", topicRouter);
