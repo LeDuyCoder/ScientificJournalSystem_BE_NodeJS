@@ -1,1 +1,0 @@
-// File moved to src/modules/articles/articles.repository.js
