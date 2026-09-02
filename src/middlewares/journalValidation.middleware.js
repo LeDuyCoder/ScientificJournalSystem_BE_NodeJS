@@ -1,5 +1,5 @@
-import { journalExist } from '../services/journal.service.js';
-import { publisherExist } from '../services/publisher.service.js';
+import { journalExist } from '../modules/journals/journals.service.js';
+import { publisherExist } from '../modules/publishers/publishers.service.js';
 import { zoneExist } from '../services/zone.service.js';
 
 /**
