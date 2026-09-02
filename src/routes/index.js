@@ -1,24 +1,7 @@
-import express from "express";
-import projectRouter from "./project.route.js";
-import zoneRouter from "./zone.route.js";
-import keywordRouter from "./keyword.route.js";
-import catalogRouter from "./catalog.route.js";
-// import authorRouter from "./author.route.js";
-// import topicRouter from "./topic.route.js";
-// import volumeRouter from "./volume.route.js";
-// import issueRouter from "./issue.route.js";
-// import subjectAreaRouter from "./subjectArea.route.js";
-// import subjectCategoryRouter from "./subjectCategory.route.js";
-import searchRotuer from "./search.route.js";
-import adminRouter from "./admin.route.js";
-// import publisherRouter from "./publisher.route.js";
-import statisticsRouter from "./statistics.route.js";
-import dashboardRouter from "./dashboard.route.js";
-import walletRouter from "./wallet.route.js";
-import coinPackageRouter from "./coinPackage.route.js";
-import paymentRouter from "./payment.route.js";
-import projectMemberRouter from "./projectMember.route.js";
 
+import projectsRoutes from "../modules/projects/projects.routes.js";
+import projectMembersRoutes from "../modules/project-members/project-members.routes.js";
+import projectKeywordsRoutes from "../modules/project-keywords/project-keywords.routes.js";
 import authRoutes from "../modules/auth/auth.routes.js";
 import usersRoutes from "../modules/users/users.routes.js";
 import articlesRoutes from "../modules/articles/articles.routes.js";
@@ -31,11 +14,26 @@ import subjectCategoriesRoutes from "../modules/subject-categories/subject-categ
 import topicsRoutes from "../modules/topics/topics.routes.js";
 import volumesRoutes from "../modules/volumes/volumes.routes.js";
 import issuesRoutes from "../modules/issues/issues.routes.js";
+
+import searchRoutes from "../modules/search/search.routes.js";
+import catalogRoutes from "../modules/catalog/catalog.routes.js";
+import zonesRoutes from "../modules/zones/zones.routes.js";
+import walletRoutes from "../modules/wallet/wallet.routes.js";
+import coinPackagesRoutes from "../modules/coin-packages/coin-packages.routes.js";
+import paymentsRoutes from "../modules/payments/payments.routes.js";
+import adminRoutes from "../modules/admin/admin.routes.js";
+import dashboardRoutes from "../modules/dashboard/dashboard.routes.js";
+import statisticsRoutes from "../modules/statistics/statistics.routes.js";
+import authPlugin from "../modules/auth/auth.plugin.js";
+
 /**
  * Fastify root router
  * @param {import('fastify').FastifyInstance} fastify 
  */
 export default async function rootRoutes(fastify, options) {
+  // Đăng ký auth plugin toàn cục cho các router
+  await fastify.register(authPlugin);
+
   // 1. Đăng ký các module Fastify mới
   fastify.register(authRoutes, { prefix: '/auth' });
   fastify.register(usersRoutes, { prefix: '/users' });
@@ -49,31 +47,19 @@ export default async function rootRoutes(fastify, options) {
   fastify.register(topicsRoutes, { prefix: '/topics' });
   fastify.register(volumesRoutes, { prefix: '/volumes' });
   fastify.register(issuesRoutes, { prefix: '/issues' });
-
-  // 2. Wrap các route Express cũ
-  const expressRouter = express.Router();
+  fastify.register(projectsRoutes, { prefix: '/projects' });
+  fastify.register(projectMembersRoutes, { prefix: '/projects' }); // /projects/:projectId/members
+  fastify.register(projectKeywordsRoutes, { prefix: '/projects' }); // /projects/:projectId/keywords
   
-  expressRouter.use("/projects", projectRouter);
-  expressRouter.use("/zones", zoneRouter);
-  expressRouter.use("/catalog", catalogRouter);
-  expressRouter.use("/projects", keywordRouter);
-  // expressRouter.use("/author", authorRouter); // Moved to Fastify
-  // expressRouter.use("/topics", topicRouter); // Moved to Fastify
-  // expressRouter.use("/keywords", keywordRouter); // Moved to Fastify
-  // expressRouter.use("/journal", journalRouter); // Moved to Fastify
-  // expressRouter.use("/volumes", volumeRouter); // Moved to Fastify
-  // expressRouter.use("/subject-areas", subjectAreaRouter); // Moved to Fastify
-  // expressRouter.use("/subject-categories", subjectCategoryRouter); // Moved to Fastify
-  // expressRouter.use("/issues", issueRouter); // Moved to Fastify
-  expressRouter.use("/search", searchRotuer);
-  expressRouter.use("/admin", adminRouter);
-  // expressRouter.use("/publishers", publisherRouter); // Moved to Fastify
-  expressRouter.use("/statistics", statisticsRouter);
-  expressRouter.use("/dashboard", dashboardRouter);
-  expressRouter.use("/wallet", walletRouter);
-  expressRouter.use("/coin-packages", coinPackageRouter);
-  expressRouter.use("/payments", paymentRouter);
-  expressRouter.use("/projects", projectMemberRouter);
+  fastify.register(searchRoutes, { prefix: '/search' });
+  fastify.register(catalogRoutes, { prefix: '/catalog' });
+  fastify.register(zonesRoutes, { prefix: '/zones' });
+  fastify.register(walletRoutes, { prefix: '/wallet' });
+  fastify.register(coinPackagesRoutes, { prefix: '/coin-packages' });
+  fastify.register(paymentsRoutes, { prefix: '/payments' });
+  fastify.register(adminRoutes, { prefix: '/admin' });
 
-  fastify.use(expressRouter);
+  fastify.register(dashboardRoutes, { prefix: '/dashboard' });
+
+  fastify.register(statisticsRoutes, { prefix: '/statistics' });
 }

@@ -58,3 +58,4 @@ export default async function keywordsRoutes(fastify, options) {
     protectedRoutes.patch("/:id/restore", restoreKeywordSchema, restoreKeywordController);
   });
 }
+

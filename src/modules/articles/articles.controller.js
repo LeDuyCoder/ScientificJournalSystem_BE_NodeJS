@@ -7,8 +7,8 @@ import {
 import {
   addKeywordsToArticle,
   updateKeywordsToArticle,
-} from "../../services/keyword.service.js";
-import { createSubTopicArticleRelationships } from "../../services/topic.service.js";
+} from "../keywords/keywords.service.js";
+import { createSubTopicArticleRelationships } from "../topics/topics.service.js";
 import logger from "../../utils/logger.js";
 import { createLog } from '../../services/log.service.js';
 
