@@ -1,23 +1,62 @@
+import Fastify from 'fastify';
+import cors from '@fastify/cors';
+import cookie from '@fastify/cookie';
+import fastifyExpress from '@fastify/express';
 import express from 'express';
-import cors from 'cors';
-import rootRouter from './routes/index.js';
-import cookieParser from 'cookie-parser';
+import rootRoutes from './routes/index.js';
+import fastifySwagger from '@fastify/swagger';
+import fastifySwaggerUi from '@fastify/swagger-ui';
 
-const app = express();
+export const buildApp = async () => {
+  const app = Fastify({ logger: true });
 
-// Cấu hình Middleware hệ thống
-app.use(cors({
-  origin: [process.env.FRONTEND_URL, process.env.FRONTEND_URL_TRENDING], // Ghi đích danh tên miền/port của Frontend, KHÔNG được dùng dấu '*'
-  credentials: true                // Cho phép nhận và xử lý Cookie gửi lên
-}));
+  await app.register(cors, {
+    origin: [process.env.FRONTEND_URL, process.env.FRONTEND_URL_TRENDING],
+    credentials: true
+  });
 
+  await app.register(cookie);
+  
+  // Kích hoạt Swagger Fastify
+  await app.register(fastifySwagger, {
+    openapi: {
+      info: {
+        title: "Tuyển Tập API Hệ Thống",
+        version: "1.0.0",
+        description: "Tài liệu hướng dẫn sử dụng các API hệ thống (Fastify)",
+      },
+      servers: [
+        {
+          url: process.env.BASE_URL || `http://localhost:${process.env.PORT || 8000}`,
+          description: "API Server",
+        },
+      ],
+      components: {
+        securitySchemes: {
+          bearerAuth: {
+            type: 'http',
+            scheme: 'bearer',
+            bearerFormat: 'JWT'
+          }
+        }
+      },
+    }
+  });
 
-app.use(cookieParser());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+  await app.register(fastifySwaggerUi, {
+    routePrefix: '/api-docs',
+    uiConfig: {
+      docExpansion: 'list',
+      deepLinking: false
+    }
+  });
 
+  await app.register(fastifyExpress);
 
-// Định tuyến gốc: Tất cả API sẽ bắt đầu bằng /api/v1
-app.use('/api/v1', rootRouter);
+  app.use(express.json());
+  app.use(express.urlencoded({ extended: true }));
 
-export default app;
+  await app.register(rootRoutes, { prefix: '/api/v1' });
+
+  return app;
+};
