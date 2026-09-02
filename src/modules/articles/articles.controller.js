@@ -3,7 +3,7 @@ import {
   createAuthorArticleRelationships,
   updateAuthorArticleRelationships,
   checkAuthorsExistence
-} from "../../services/author.service.js";
+} from "../authors/authors.service.js";
 import {
   addKeywordsToArticle,
   updateKeywordsToArticle,

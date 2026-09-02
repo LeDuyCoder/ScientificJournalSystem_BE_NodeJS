@@ -1,4 +1,4 @@
-import * as journalService from '../services/journal.service.js';
+import * as journalService from '../modules/journals/journals.service.js';
 import * as adminService from '../services/admin.service.js';
 import * as logService from '../services/log.service.js';
 import logger from '../utils/logger.js';
