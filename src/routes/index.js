@@ -1,10 +1,6 @@
 import express from "express";
-import userRouter from "./user.route.js";
-import loginRouter from "./login.route.js";
-import registerRouter from "./register.route.js";
 import projectRouter from "./project.route.js";
 import articleRouter from "./article.route.js";
-import googleRouter from "./google.route.js";
 import zoneRouter from "./zone.route.js";
 import keywordRouter from "./keyword.route.js";
 import catalogRouter from "./catalog.route.js";
@@ -13,55 +9,55 @@ import topicRouter from "./topic.route.js";
 import journalRouter from "./journal.route.js";
 import volumeRouter from "./volume.route.js";
 import issueRouter from "./issue.route.js";
-import authRouter from "./auth.route.js";
 import subjectAreaRouter from "./subjectArea.route.js";
 import subjectCategoryRouter from "./subjectCategory.route.js";
 import searchRotuer from "./search.route.js";
 import adminRouter from "./admin.route.js";
-import publisherRouter from "./publisher.route.js"
-import statisticsRouter from "./statistics.route.js"
-import dashboardRouter from "./dashboard.route.js"
+import publisherRouter from "./publisher.route.js";
+import statisticsRouter from "./statistics.route.js";
+import dashboardRouter from "./dashboard.route.js";
 import walletRouter from "./wallet.route.js";
 import coinPackageRouter from "./coinPackage.route.js";
 import paymentRouter from "./payment.route.js";
 import projectMemberRouter from "./projectMember.route.js";
 
+import authRoutes from "../modules/auth/auth.routes.js";
+import usersRoutes from "../modules/users/users.routes.js";
 
-const router = express.Router();
+/**
+ * Fastify root router
+ * @param {import('fastify').FastifyInstance} fastify 
+ */
+export default async function rootRoutes(fastify, options) {
+  // 1. Đăng ký các module Fastify mới
+  fastify.register(authRoutes, { prefix: '/auth' });
+  fastify.register(usersRoutes, { prefix: '/users' });
 
+  // 2. Wrap các route Express cũ
+  const expressRouter = express.Router();
+  
+  expressRouter.use("/projects", projectRouter);
+  expressRouter.use("/zones", zoneRouter);
+  expressRouter.use("/catalog", catalogRouter);
+  expressRouter.use("/articles", articleRouter);
+  expressRouter.use("/projects", keywordRouter);
+  expressRouter.use("/author", authorRouter);
+  expressRouter.use("/topics", topicRouter);
+  expressRouter.use("/keywords", keywordRouter);
+  expressRouter.use("/journal", journalRouter);
+  expressRouter.use("/volumes", volumeRouter);
+  expressRouter.use("/subject-areas", subjectAreaRouter);
+  expressRouter.use("/subject-categories", subjectCategoryRouter);
+  expressRouter.use("/issues", issueRouter);
+  expressRouter.use("/search", searchRotuer);
+  expressRouter.use("/admin", adminRouter);
+  expressRouter.use("/publishers", publisherRouter);
+  expressRouter.use("/statistics", statisticsRouter);
+  expressRouter.use("/dashboard", dashboardRouter);
+  expressRouter.use("/wallet", walletRouter);
+  expressRouter.use("/coin-packages", coinPackageRouter);
+  expressRouter.use("/payments", paymentRouter);
+  expressRouter.use("/projects", projectMemberRouter);
 
-router.use("/users", userRouter);
-router.use("/projects", projectRouter);
-router.use("/zones", zoneRouter);
-router.use("/catalog", catalogRouter);
-
-router.use("/auth", loginRouter);
-router.use("/auth", registerRouter);
-router.use("/auth", googleRouter);
-router.use("/auth", authRouter);
-
-router.use("/articles", articleRouter);
-router.use("/projects", keywordRouter);
-
-router.use("/author", authorRouter);
-router.use("/topics", topicRouter);
-
-router.use("/keywords", keywordRouter);
-router.use("/journal", journalRouter);
-router.use("/volumes", volumeRouter);
-router.use("/subject-areas", subjectAreaRouter);
-router.use("/subject-categories", subjectCategoryRouter);
-router.use("/issues", issueRouter);
-
-router.use("/search", searchRotuer);
-router.use("/admin", adminRouter);
-router.use("/publishers", publisherRouter);
-router.use("/statistics", statisticsRouter);
-router.use("/dashboard", dashboardRouter);
-router.use("/wallet", walletRouter);
-router.use("/coin-packages", coinPackageRouter);
-router.use("/payments", paymentRouter);
-router.use("/projects", projectMemberRouter);
-
-export default router;
-
+  fastify.use(expressRouter);
+}
