@@ -4,7 +4,8 @@ import { mock } from 'node:test';
 import request from 'supertest';
 import jwt from 'jsonwebtoken';
 
-import app from '../../../src/app.js';
+import { buildApp } from '../../../src/app.js';
+let app;
 import pool from '../../../src/config/database.js';
 import * as articleService from '../../../src/services/article.service.js';
 import cacheService from '../../../src/services/cache.service.js';
@@ -13,7 +14,13 @@ const JWT_SECRET = process.env.JWT_SECRET;
 const userId = '11111111-1111-1111-1111-111111111111';
 const testToken = jwt.sign({ user_id: userId, role: 'STUDENT', email: 'test@example.com' }, JWT_SECRET);
 
+test.before(async () => {
+  app = await buildApp();
+  await app.ready();
+});
+
 test.after(async () => {
+  if (app) await app.close();
   await pool.end();
   process.exit(0);
 });
@@ -34,7 +41,7 @@ test.describe('Article Controller - GET /api/v1/articles Unit Test Suite', () =>
   // ==========================================
   test.describe('Authentication', () => {
     test('Lỗi 401 - Không truyền Token xác thực', async () => {
-      const res = await request(app)
+      const res = await request(app.server)
         .get('/api/v1/articles?keywords=Machine Learning');
 
       assert.strictEqual(res.status, 401);
@@ -42,7 +49,7 @@ test.describe('Article Controller - GET /api/v1/articles Unit Test Suite', () =>
     });
 
     test('Lỗi 401 - Token không hợp lệ', async () => {
-      const res = await request(app)
+      const res = await request(app.server)
         .get('/api/v1/articles?keywords=Machine Learning')
         .set('Authorization', 'Bearer invalid_token_here');
 
@@ -51,7 +58,7 @@ test.describe('Article Controller - GET /api/v1/articles Unit Test Suite', () =>
     });
 
     test('Lỗi 401 - Sai định dạng Authorization header (không có Bearer)', async () => {
-      const res = await request(app)
+      const res = await request(app.server)
         .get('/api/v1/articles?keywords=Machine Learning')
         .set('Authorization', testToken);
 
@@ -66,7 +73,7 @@ test.describe('Article Controller - GET /api/v1/articles Unit Test Suite', () =>
   test.describe('Validation', () => {
 
     test('Lỗi 400 - keywords là chuỗi rỗng', async () => {
-      const res = await request(app)
+      const res = await request(app.server)
         .get('/api/v1/articles?keywords=')
         .set('Authorization', `Bearer ${testToken}`);
 
@@ -75,7 +82,7 @@ test.describe('Article Controller - GET /api/v1/articles Unit Test Suite', () =>
     });
 
     test('Lỗi 400 - keywords chỉ chứa khoảng trắng', async () => {
-      const res = await request(app)
+      const res = await request(app.server)
         .get('/api/v1/articles?keywords=%20%20%20')
         .set('Authorization', `Bearer ${testToken}`);
 
@@ -84,7 +91,7 @@ test.describe('Article Controller - GET /api/v1/articles Unit Test Suite', () =>
     });
 
     test('Lỗi 400 - keywords chỉ chứa dấu phẩy (tách ra thành mảng rỗng)', async () => {
-      const res = await request(app)
+      const res = await request(app.server)
         .get('/api/v1/articles?keywords=,,,')
         .set('Authorization', `Bearer ${testToken}`);
 
@@ -117,7 +124,7 @@ test.describe('Article Controller - GET /api/v1/articles Unit Test Suite', () =>
         return { rows: mockArticles };
       });
 
-      const res = await request(app)
+      const res = await request(app.server)
         .get('/api/v1/articles?keywords=Deep Learning')
         .set('Authorization', `Bearer ${testToken}`);
 
@@ -143,7 +150,7 @@ test.describe('Article Controller - GET /api/v1/articles Unit Test Suite', () =>
         return { rows: mockArticles };
       });
 
-      const res = await request(app)
+      const res = await request(app.server)
         .get('/api/v1/articles?keywords=Machine Learning,Deep Learning,Neural Network')
         .set('Authorization', `Bearer ${testToken}`);
 
@@ -161,7 +168,7 @@ test.describe('Article Controller - GET /api/v1/articles Unit Test Suite', () =>
         return { rows: [] };
       });
 
-      const res = await request(app)
+      const res = await request(app.server)
         .get('/api/v1/articles?keywords=xyznonexistentkeyword')
         .set('Authorization', `Bearer ${testToken}`);
 
@@ -185,7 +192,7 @@ test.describe('Article Controller - GET /api/v1/articles Unit Test Suite', () =>
         return { rows: [] };
       });
 
-      const res = await request(app)
+      const res = await request(app.server)
         .get('/api/v1/articles?keywords=AI')
         .set('Authorization', `Bearer ${testToken}`);
 
@@ -207,7 +214,7 @@ test.describe('Article Controller - GET /api/v1/articles Unit Test Suite', () =>
         return { rows: [] };
       });
 
-      const res = await request(app)
+      const res = await request(app.server)
         .get('/api/v1/articles?keywords=AI&limit=10&page=3')
         .set('Authorization', `Bearer ${testToken}`);
 
@@ -232,7 +239,7 @@ test.describe('Article Controller - GET /api/v1/articles Unit Test Suite', () =>
         throw new Error('Database connection lost');
       });
 
-      const res = await request(app)
+      const res = await request(app.server)
         .get('/api/v1/articles?keywords=AI')
         .set('Authorization', `Bearer ${testToken}`);
 
@@ -266,7 +273,7 @@ test.describe('Article Controller - GET /api/v1/articles Unit Test Suite', () =>
         return { rows: mockArticles };
       });
 
-      const res = await request(app)
+      const res = await request(app.server)
         .get('/api/v1/articles?search=test');
 
       assert.strictEqual(res.status, 200);
@@ -285,7 +292,7 @@ test.describe('Article Controller - GET /api/v1/articles Unit Test Suite', () =>
         return { rows: mockArticles };
       });
 
-      const res = await request(app)
+      const res = await request(app.server)
         .get('/api/v1/articles');
 
       assert.strictEqual(res.status, 200);
@@ -302,7 +309,7 @@ test.describe('Article Controller - GET /api/v1/articles Unit Test Suite', () =>
         return { rows: [] };
       });
 
-      const res = await request(app)
+      const res = await request(app.server)
         .get('/api/v1/articles?search=NON_EXISTENT');
 
       assert.strictEqual(res.status, 200);
@@ -321,7 +328,7 @@ test.describe('Article Controller - GET /api/v1/articles Unit Test Suite', () =>
         return { rows: [] };
       });
 
-      const res = await request(app)
+      const res = await request(app.server)
         .get('/api/v1/articles?page=abc&limit=-5&search=test');
 
       assert.strictEqual(res.status, 200);
