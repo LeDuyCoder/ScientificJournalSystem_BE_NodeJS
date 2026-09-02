@@ -26,7 +26,7 @@ export const getPublicationTrendsByUserProjects = async ({ userId, projectId, fr
         WITH scoped_projects AS (
             SELECT p.project_id, p.subject_area
             FROM "Project" p
-            WHERE p.user_id = ${userId}
+            WHERE p.user_id = ${userId}::uuid
             ${projectCondition}
         ),
         matched_articles AS (

@@ -44,23 +44,8 @@ export const getJournals = async (paramsInput = {}) => {
     const cachedSearchData = await cacheService.get(cacheKeySearch);
     if (cachedSearchData) return cachedSearchData;
 
-    try {
-      const searchResults = await meiliClient.index('journals').search(search.trim(), {
-        limit: 1000,
-      });
-      const matchingIds = searchResults.hits
-        .map(h => Number(h.id || h.journal_id || h.entity_id))
-        .filter(id => !isNaN(id));
-      if (matchingIds.length === 0) {
-        return { items: [], total: 0 };
-      }
-      values.push(matchingIds);
-      whereClauses.push(`j.journal_id = ANY($${values.length}::bigint[])`);
-    } catch (err) {
-      logger.error('Meilisearch getJournals error, falling back to database ILIKE search:', err);
-      values.push(`%${search.trim()}%`);
-      whereClauses.push(`j.display_name ILIKE $${values.length}`);
-    }
+    values.push(`%${search.trim()}%`);
+    whereClauses.push(`j.display_name ILIKE $${values.length}`);
   }
 
   const areaIds = pushCsvFilter(subjectAreaIds || subject_area_id);
@@ -141,31 +126,24 @@ export const getJournals = async (paramsInput = {}) => {
 
   if (sort === 'metric') {
     finalQuery = `
-      WITH FilteredJournals AS (
+      WITH LatestSJR AS (
+        SELECT DISTINCT ON (jr.journal_id)
+          jr.journal_id, jr.value_float AS metric_value, jr.year AS metric_year
+        FROM "Journal_Ranking" jr
+        INNER JOIN "Ranking_Metric" rm ON rm.metric_id = jr.metric_id
+        WHERE UPPER(rm.code) = 'SJR'
+          ${yearNum ? `AND jr.year = ${yearNum}` : ''}
+        ORDER BY jr.journal_id, jr.year DESC NULLS LAST
+      ),
+      FilteredJournals AS (
         SELECT 
           j.journal_id,
           j.display_name,
-          (
-            SELECT jr.value_float
-            FROM "Journal_Ranking" jr
-            INNER JOIN "Ranking_Metric" rm ON rm.metric_id = jr.metric_id
-            WHERE jr.journal_id = j.journal_id
-              AND UPPER(rm.code) = 'SJR'
-              ${yearNum ? `AND jr.year = ${yearNum}` : ''}
-            ORDER BY jr.year DESC NULLS LAST
-            LIMIT 1
-          ) AS metric_value,
-          (
-            SELECT jr.year
-            FROM "Journal_Ranking" jr
-            INNER JOIN "Ranking_Metric" rm ON rm.metric_id = jr.metric_id
-            WHERE jr.journal_id = j.journal_id
-              AND UPPER(rm.code) = 'SJR'
-              ${yearNum ? `AND jr.year = ${yearNum}` : ''}
-            ORDER BY jr.year DESC NULLS LAST
-            LIMIT 1
-          ) AS metric_year
-        ${baseQuery}
+          ls.metric_value,
+          ls.metric_year
+        FROM "Journal" j
+        LEFT JOIN LatestSJR ls ON ls.journal_id = j.journal_id
+        ${whereSql}
       ),
       PagedJournals AS (
         SELECT *

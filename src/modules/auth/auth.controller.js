@@ -35,9 +35,14 @@ export const login = async (request, reply) => {
 };
 
 export const register = async (request, reply) => {
+  console.log('[Register API] Started');
   try {
-    const { email, password, fullname, role } = request.body;
-    const user = await registerUser(email, password, fullname, role);
+    const { email, password, first_name, last_name, date_of_birth, gender, role } = request.body;
+    console.log('[Register API] Extracted body:', { email, first_name, last_name, role });
+    
+    console.log('[Register API] Calling registerUser...');
+    const user = await registerUser(email, password, first_name, last_name, date_of_birth, gender, role);
+    console.log('[Register API] registerUser returned:', user?.user_id);
 
     return reply.code(201).send({
       success: true,
@@ -45,10 +50,12 @@ export const register = async (request, reply) => {
       data: {
         user_id: user.user_id,
         email: user.email,
-        fullname: user.fullname
+        first_name: user.first_name,
+        last_name: user.last_name
       }
     });
   } catch (error) {
+    console.error('[Register API] Error:', error);
     return reply.code(400).send({
       success: false,
       message: error.message

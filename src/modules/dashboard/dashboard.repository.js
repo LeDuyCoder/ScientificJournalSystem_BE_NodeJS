@@ -22,7 +22,7 @@ export const getTrendingKeywords = async ({ userId, projectId, fromYear, toYear,
         WITH scoped_projects AS (
             SELECT p.project_id, p.subject_area
             FROM "Project" p
-            WHERE p.user_id = ${userId}
+            WHERE p.user_id = ${userId}::uuid
             ${projectCondition}
         ), matched_articles AS (
             SELECT a.article_id, a.publication_year, a.citation_count, a.is_deleted

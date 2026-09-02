@@ -39,7 +39,7 @@ export default async function rootRoutes(fastify, options) {
   fastify.register(usersRoutes, { prefix: '/users' });
   fastify.register(articlesRoutes, { prefix: '/articles' });
   fastify.register(publishersRoutes, { prefix: '/publishers' });
-  fastify.register(authorsRoutes, { prefix: '/authors' });
+  fastify.register(authorsRoutes, { prefix: '/author' });
   fastify.register(journalsRoutes, { prefix: '/journal' }); // or /journals
   fastify.register(keywordsRoutes, { prefix: '/keywords' });
   fastify.register(subjectAreasRoutes, { prefix: '/subject-areas' });
