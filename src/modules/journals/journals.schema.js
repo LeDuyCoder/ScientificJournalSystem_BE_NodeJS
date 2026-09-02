@@ -50,7 +50,7 @@ export const createJournalSchema = {
       type: "object",
       required: ["display_name", "publisher_id", "country", "region"],
       properties: {
-        source_id: { type: "string", nullable: true },
+        source_id: { type: ["string", "null"] },
         publisher_id: { type: "integer", minimum: 1 },
         country: { type: "integer", minimum: 1 },
         region: { type: "integer", minimum: 1 },
@@ -58,7 +58,7 @@ export const createJournalSchema = {
         type: { type: "string", default: "Journal" },
         is_open_access: { type: "boolean", default: false },
         is_oa_diamond: { type: "boolean", default: false },
-        coverage: { type: "string", nullable: true },
+        coverage: { type: ["string", "null"] },
         issn: { 
           anyOf: [
             { type: "string" },
@@ -66,8 +66,8 @@ export const createJournalSchema = {
             { type: "null" }
           ]
         },
-        scope_detail: { type: "string", nullable: true },
-        description: { type: "string", nullable: true },
+        scope_detail: { type: ["string", "null"] },
+        description: { type: ["string", "null"] },
       },
     },
   },
@@ -88,7 +88,7 @@ export const updateJournalSchema = {
     body: {
       type: "object",
       properties: {
-        source_id: { type: "string", nullable: true },
+        source_id: { type: ["string", "null"] },
         publisher_id: { type: "integer", minimum: 1 },
         country: { type: "integer", minimum: 1 },
         region: { type: "integer", minimum: 1 },
@@ -96,7 +96,7 @@ export const updateJournalSchema = {
         type: { type: "string", default: "Journal" },
         is_open_access: { type: "boolean", default: false },
         is_oa_diamond: { type: "boolean", default: false },
-        coverage: { type: "string", nullable: true },
+        coverage: { type: ["string", "null"] },
         issn: { 
           anyOf: [
             { type: "string" },
@@ -104,8 +104,8 @@ export const updateJournalSchema = {
             { type: "null" }
           ]
         },
-        scope_detail: { type: "string", nullable: true },
-        description: { type: "string", nullable: true },
+        scope_detail: { type: ["string", "null"] },
+        description: { type: ["string", "null"] },
       },
     },
   },
