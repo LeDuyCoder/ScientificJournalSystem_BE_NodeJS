@@ -141,6 +141,7 @@ model Journal {
   Project_Journal            Project_Journal[]
   Volume                     Volume[]
 
+  @@index([display_name(ops: raw("gin_trgm_ops"))], type: Gin, map: "idx_journal_name_trgm")
   @@schema("public")
 }
 

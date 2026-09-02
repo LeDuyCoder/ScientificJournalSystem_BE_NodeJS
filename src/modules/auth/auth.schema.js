@@ -38,11 +38,14 @@ export const registerSchema = {
   tags: ['Auth'],
   body: {
     type: 'object',
-    required: ['email', 'password', 'fullname'],
+    required: ['email', 'password', 'first_name', 'last_name'],
     properties: {
       email: { type: 'string', format: 'email' },
       password: { type: 'string', minLength: 6 },
-      fullname: { type: 'string' },
+      first_name: { type: 'string' },
+      last_name: { type: 'string' },
+      date_of_birth: { type: 'string', format: 'date' },
+      gender: { type: 'boolean' },
       role: { type: 'string' }
     }
   }

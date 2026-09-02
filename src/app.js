@@ -12,7 +12,8 @@ export const buildApp = async () => {
 
   await app.register(cors, {
     origin: [process.env.FRONTEND_URL, process.env.FRONTEND_URL_TRENDING],
-    credentials: true
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS']
   });
 
   await app.register(cookie);
@@ -53,8 +54,7 @@ export const buildApp = async () => {
 
   await app.register(fastifyExpress);
 
-  app.use(express.json());
-  app.use(express.urlencoded({ extended: true }));
+  // Removed express.json() and express.urlencoded() to prevent Fastify body parser from hanging
 
   await app.register(rootRoutes, { prefix: '/api/v1' });
 
