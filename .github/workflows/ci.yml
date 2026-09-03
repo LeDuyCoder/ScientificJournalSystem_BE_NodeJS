@@ -14,48 +14,19 @@ on:
       - feat/CI_CD-action
 
 jobs:
-
-  # ========================================
-  # JOB 1 - Setup & Install
-  # ========================================
-  setup:
-    name: 1. Setup & Install
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-
-  # ========================================
-  # JOB 2 - Prisma & Database
-  # ========================================
-  database:
-    name: 2. Prisma & Database
-    needs: setup
+  build-and-test:
+    name: Build and Test
     runs-on: ubuntu-latest
 
     services:
       postgres:
         image: postgres:17
-
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: scientificjournalsystem_test
-
         ports:
           - 5432:5432
-
         options: >-
           --health-cmd "pg_isready -U postgres -d scientificjournalsystem_test"
           --health-interval 10s
@@ -64,56 +35,8 @@ jobs:
 
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/scientificjournalsystem_test
-      NODE_ENV: test
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Generate Prisma Client
-        run: npx prisma generate
-
-      - name: Run database migrations
-        run: npx prisma migrate deploy
-
-
-  # ========================================
-  # JOB 3 - Test
-  # ========================================
-  test:
-    name: 3. Run Tests
-    needs: database
-    runs-on: ubuntu-latest
-
-    services:
-      postgres:
-        image: postgres:17
-
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: scientificjournalsystem_test
-
-        ports:
-          - 5432:5432
-
-        options: >-
-          --health-cmd "pg_isready -U postgres -d scientificjournalsystem_test"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
-    env:
-      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/scientificjournalsystem_test
+      POSTGRES_URL: postgresql://postgres:postgres@localhost:5432/scientificjournalsystem_test
+      JWT_SECRET: "test-dummy-jwt-secret"
       NODE_ENV: test
 
     steps:
