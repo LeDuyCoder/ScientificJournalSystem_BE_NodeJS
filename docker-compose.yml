@@ -1,62 +1,20 @@
 version: '3.8'
 
 services:
-  db:
-    # Sử dụng image đã được tích hợp sẵn pgvector thay vì postgres gốc
-    image: pgvector/pgvector:pg16
-    container_name: researchpulse_db
-    restart: always
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres123
-      POSTGRES_DB: researchpulse
-    ports:
-      - "5432:5432"
-    volumes:
-      - pgdata:/var/lib/postgresql/data
+  backend:
+    image: ghcr.io/leduycoder/scientificjournalsystem-be:latest
+    container_name: researchpulse_backend
+    restart: unless-stopped
 
-  pgadmin:
-    image: dpage/pgadmin4
-    container_name: researchpulse_pgadmin
-    restart: always
-    environment:
-      PGADMIN_DEFAULT_EMAIL: admin@admin.com
-      PGADMIN_DEFAULT_PASSWORD: admin
     ports:
-      - "5050:80"
-    depends_on:
-      - db
+      - "8000:8000"
 
-  redis:
-    image: redis:7-alpine
-    container_name: researchpulse_redis
-    restart: always
-    ports:
-      - "6379:6379"
+    env_file:
+      - .env
 
-  neo4j:
-    image: neo4j:5
-    container_name: researchpulse_neo4j
-    restart: always
-    environment:
-      NEO4J_AUTH: neo4j/neo4j123 # Tài khoản mặc định: neo4j, Mật khẩu: neo4j123
-    ports:
-      - "7474:7474" # UI trình duyệt Neo4j Browser
-      - "7687:7687" # Giao thức Bolt cho BE kết nối
-    volumes:
-      - neo4j_data:/data
+    networks:
+      - app-network
 
-  redis-commander:
-    image: rediscommander/redis-commander:latest
-    container_name: researchpulse_redis_commander
-    restart: always
-    environment:
-      - REDIS_HOSTS=local:redis:6379
-    ports:
-      - "8081:8081" # Giao diện UI của Redis Commander
-    depends_on:
-      - redis
-
-volumes:
-  pgdata:
-  neo4j_data:
+networks:
+  app-network:
+    external: true
