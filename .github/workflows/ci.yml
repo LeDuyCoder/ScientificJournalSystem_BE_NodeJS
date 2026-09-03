@@ -33,6 +33,11 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/scientificjournalsystem_test
       POSTGRES_URL: postgresql://postgres:postgres@localhost:5432/scientificjournalsystem_test
