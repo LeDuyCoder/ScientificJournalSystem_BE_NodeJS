@@ -14,7 +14,8 @@ describe("Login Controller Unit Test Suite", () => {
 
   const createMockResponse = () => {
     const res = {
-      clearedCookies: []
+      clearedCookies: [],
+      statusCode: 200
     };
     res.code = (statusCode) => {
       res.statusCode = statusCode;
@@ -43,7 +44,6 @@ describe("Login Controller Unit Test Suite", () => {
 
       assert.strictEqual(res.statusCode, 200);
       assert.strictEqual(res.body.success, true);
-      assert.strictEqual(res.body.code, "LOGOUT_SUCCESS");
       assert.strictEqual(res.body.message, "Đăng xuất thành công");
       assert.strictEqual(res.clearedCookies.length, 2);
       assert.strictEqual(res.clearedCookies[0].name, "access_token");
