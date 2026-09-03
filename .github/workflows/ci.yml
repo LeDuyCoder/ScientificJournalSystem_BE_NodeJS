@@ -16,42 +16,10 @@ on:
 jobs:
 
   # ========================================
-  # JOB 1 - Checkout
+  # JOB 1 - Setup & Install
   # ========================================
-  checkout:
-    name: 1. Checkout
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-
-  # ========================================
-  # JOB 2 - Setup Node.js
-  # ========================================
-  setup-node:
-    name: 2. Setup Node.js
-    needs: checkout
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-
-
-  # ========================================
-  # JOB 3 - Install Dependencies
-  # ========================================
-  install:
-    name: 3. Install Dependencies
-    needs: setup-node
+  setup:
+    name: 1. Setup & Install
     runs-on: ubuntu-latest
 
     steps:
@@ -69,36 +37,11 @@ jobs:
 
 
   # ========================================
-  # JOB 4 - Prisma Generate
+  # JOB 2 - Prisma & Database
   # ========================================
-  prisma-generate:
-    name: 4. Prisma Generate
-    needs: install
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Generate Prisma Client
-        run: npx prisma generate
-
-
-  # ========================================
-  # JOB 5 - Database Migration
-  # ========================================
-  database-migration:
-    name: 5. Database Migration
-    needs: prisma-generate
+  database:
+    name: 2. Prisma & Database
+    needs: setup
     runs-on: ubuntu-latest
 
     services:
@@ -121,6 +64,7 @@ jobs:
 
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/scientificjournalsystem_test
+      NODE_ENV: test
 
     steps:
       - name: Checkout repository
@@ -143,11 +87,11 @@ jobs:
 
 
   # ========================================
-  # JOB 6 - Run Tests
+  # JOB 3 - Test
   # ========================================
   test:
-    name: 6. Run Tests
-    needs: database-migration
+    name: 3. Run Tests
+    needs: database
     runs-on: ubuntu-latest
 
     services:
@@ -170,6 +114,7 @@ jobs:
 
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/scientificjournalsystem_test
+      NODE_ENV: test
 
     steps:
       - name: Checkout repository
