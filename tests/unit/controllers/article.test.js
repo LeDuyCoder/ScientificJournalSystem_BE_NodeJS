@@ -33,7 +33,7 @@ test.describe('Article Controller - GET /api/v1/articles Unit Test Suite', () =>
   });
 
   test.afterEach(() => {
-    mock.reset();
+    mock.restoreAll();
   });
 
   // ==========================================
@@ -73,6 +73,7 @@ test.describe('Article Controller - GET /api/v1/articles Unit Test Suite', () =>
   test.describe('Validation', () => {
 
     test('Thành công (fallback getArticles) - keywords là chuỗi rỗng', async () => {
+      mock.method(pool, 'query', async () => ({ rows: [] }));
       const res = await request(app.server)
         .get('/api/v1/articles?keywords=')
         .set('Authorization', `Bearer ${testToken}`);
@@ -82,6 +83,7 @@ test.describe('Article Controller - GET /api/v1/articles Unit Test Suite', () =>
     });
 
     test('Thành công (fallback getArticles) - keywords chỉ chứa khoảng trắng', async () => {
+      mock.method(pool, 'query', async () => ({ rows: [] }));
       const res = await request(app.server)
         .get('/api/v1/articles?keywords=%20%20%20')
         .set('Authorization', `Bearer ${testToken}`);
