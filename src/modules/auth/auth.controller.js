@@ -7,6 +7,7 @@ export const login = async (request, reply) => {
 
     reply.setCookie('access_token', token, {
       path: '/',
+      domain: process.env.COOKIE_DOMAIN || undefined,
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'none',
@@ -69,8 +70,8 @@ export const refreshToken = async (request, reply) => {
 };
 
 export const logout = async (request, reply) => {
-  reply.clearCookie('access_token');
-  reply.clearCookie('refresh_token');
+  reply.clearCookie('access_token', { domain: process.env.COOKIE_DOMAIN || undefined, path: '/' });
+  reply.clearCookie('refresh_token', { domain: process.env.COOKIE_DOMAIN || undefined, path: '/' });
   return reply.send({
     success: true,
     message: 'Đăng xuất thành công'
