@@ -34,5 +34,29 @@ services:
     ports:
       - "6379:6379"
 
+  neo4j:
+    image: neo4j:5
+    container_name: researchpulse_neo4j
+    restart: always
+    environment:
+      NEO4J_AUTH: neo4j/neo4j123 # Tài khoản mặc định: neo4j, Mật khẩu: neo4j123
+    ports:
+      - "7474:7474" # UI trình duyệt Neo4j Browser
+      - "7687:7687" # Giao thức Bolt cho BE kết nối
+    volumes:
+      - neo4j_data:/data
+
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: researchpulse_redis_commander
+    restart: always
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+    ports:
+      - "8081:8081" # Giao diện UI của Redis Commander
+    depends_on:
+      - redis
+
 volumes:
   pgdata:
+  neo4j_data:
