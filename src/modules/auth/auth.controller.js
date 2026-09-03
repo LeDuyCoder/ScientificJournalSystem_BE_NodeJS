@@ -2,8 +2,8 @@ import { loginUser, registerUser } from './auth.service.js';
 
 export const login = async (request, reply) => {
   try {
-    const { email, password } = request.body;
-    const { token, user } = await loginUser(email, password);
+    const { email, password, remember } = request.body;
+    const { token, refreshToken, user } = await loginUser(email, password);
 
     reply.setCookie('access_token', token, {
       path: '/',
@@ -11,14 +11,35 @@ export const login = async (request, reply) => {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'none',
-      maxAge: 24 * 60 * 60 // 1 day
+      maxAge: parseInt(process.env.COOKIE_ACCESS_MAX_AGE || 3600000, 10) / 1000 // 1 hour default
     });
+
+    if (remember) {
+      reply.setCookie('refresh_token', refreshToken, {
+        path: '/',
+        domain: process.env.COOKIE_DOMAIN || undefined,
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'none',
+        maxAge: parseInt(process.env.COOKIE_REFRESH_MAX_AGE || 2592000000, 10) / 1000 // 30 days default
+      });
+    } else {
+      reply.setCookie('refresh_token', refreshToken, {
+        path: '/',
+        domain: process.env.COOKIE_DOMAIN || undefined,
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'none'
+        // no maxAge = session cookie
+      });
+    }
 
     return reply.send({
       success: true,
       message: 'Đăng nhập thành công',
       data: {
         token,
+        refresh_token: refreshToken,
         user: {
           user_id: user.user_id,
           email: user.email,

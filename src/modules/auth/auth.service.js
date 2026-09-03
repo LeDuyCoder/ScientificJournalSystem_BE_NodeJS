@@ -22,10 +22,16 @@ export const loginUser = async (email, password) => {
   const token = jwt.sign(
     { user_id: user.user_id, role: user.role, email: user.email },
     process.env.JWT_SECRET || 'secret',
-    { expiresIn: '24h' }
+    { expiresIn: process.env.JWT_EXPIRES_IN || '1h' }
   );
 
-  return { token, user };
+  const refreshToken = jwt.sign(
+    { user_id: user.user_id },
+    process.env.JWT_REFRESH_SECRET || 'secret_refresh',
+    { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '30d' }
+  );
+
+  return { token, refreshToken, user };
 };
 
 export const registerUser = async (email, password, first_name, last_name, date_of_birth, gender, role = 'STUDENT') => {
