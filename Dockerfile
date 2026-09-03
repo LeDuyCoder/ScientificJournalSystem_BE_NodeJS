@@ -19,7 +19,7 @@ COPY . .
 # Bắt buộc: Khởi tạo Prisma Client để map với Database
 RUN npx prisma generate
 
-# Expose port mà Fastify server đang lắng nghe (bạn có thể đổi theo cấu hình thực tế)
+# Expose port mà Fastify server đang lắng nghe (được cấu hình qua env PORT=8000)
 EXPOSE 8000
 
 # Khởi chạy ứng dụng (chạy lệnh "node server.js" đã được định nghĩa trong package.json)

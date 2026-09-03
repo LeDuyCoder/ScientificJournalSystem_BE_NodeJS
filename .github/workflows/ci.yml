@@ -107,6 +107,12 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
             cd ~/apps/researchpulse-be
-            docker-compose pull
-            docker-compose up -d
+
+            echo "Pull latest Docker image..."
+            docker-compose pull backend
+
+            echo "Recreate backend container..."
+            docker-compose up -d --force-recreate backend
+
+            echo "Remove unused images..."
             docker image prune -f
