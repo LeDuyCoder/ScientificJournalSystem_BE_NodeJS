@@ -5,11 +5,13 @@ on:
     branches:
       - main
       - dev
+      - feat/CI_CD-action
 
   pull_request:
     branches:
       - main
       - dev
+      - feat/CI_CD-action
 
 jobs:
 
