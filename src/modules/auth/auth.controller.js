@@ -9,8 +9,8 @@ export const login = async (request, reply) => {
       path: '/',
       domain: process.env.COOKIE_DOMAIN || undefined,
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'none',
+      secure: false, // Tạm thời tắt vì chỉ có HTTP
+      sameSite: 'lax', // sameSite 'none' bắt buộc phải có secure: true
       maxAge: parseInt(process.env.COOKIE_ACCESS_MAX_AGE || 3600000, 10) / 1000 // 1 hour default
     });
 
@@ -19,8 +19,8 @@ export const login = async (request, reply) => {
         path: '/',
         domain: process.env.COOKIE_DOMAIN || undefined,
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'none',
+        secure: false,
+        sameSite: 'lax',
         maxAge: parseInt(process.env.COOKIE_REFRESH_MAX_AGE || 2592000000, 10) / 1000 // 30 days default
       });
     } else {
@@ -28,8 +28,8 @@ export const login = async (request, reply) => {
         path: '/',
         domain: process.env.COOKIE_DOMAIN || undefined,
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'none'
+        secure: false,
+        sameSite: 'lax'
         // no maxAge = session cookie
       });
     }
