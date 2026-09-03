@@ -10,7 +10,7 @@ import pool from '../../../src/config/database.js';
 import * as articleService from '../../../src/modules/articles/articles.service.js';
 import cacheService from '../../../src/services/cache.service.js';
 
-const JWT_SECRET = process.env.JWT_SECRET;
+const JWT_SECRET = process.env.JWT_SECRET || 'test-dummy-jwt-secret';
 const userId = '11111111-1111-1111-1111-111111111111';
 const testToken = jwt.sign({ user_id: userId, role: 'STUDENT', email: 'test@example.com' }, JWT_SECRET);
 
