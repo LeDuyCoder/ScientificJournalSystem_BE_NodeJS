@@ -72,6 +72,15 @@ test.describe('Article Controller - GET /api/v1/articles Unit Test Suite', () =>
   // ==========================================
   test.describe('Validation', () => {
 
+    test.beforeEach(() => {
+      mock.method(pool, 'query', async (sql, params) => {
+        if (typeof sql === 'string' && sql.includes('COUNT')) {
+          return { rows: [{ total: '0' }] };
+        }
+        return { rows: [] };
+      });
+    });
+
     test('Thành công (fallback getArticles) - keywords là chuỗi rỗng', async () => {
       const res = await request(app.server)
         .get('/api/v1/articles?keywords=')
