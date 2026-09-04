@@ -65,6 +65,7 @@ jobs:
   docker:
     name: Build & Push Docker Image
     needs: build-and-test
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
 
     permissions:
@@ -97,6 +98,7 @@ jobs:
   deploy:
     name: Deploy to VPS
     needs: docker
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
 
     steps:
