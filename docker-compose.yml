@@ -1,38 +1,21 @@
 version: '3.8'
 
 services:
-  db:
-    # Sử dụng image đã được tích hợp sẵn pgvector thay vì postgres gốc
-    image: pgvector/pgvector:pg16
-    container_name: researchpulse_db
-    restart: always
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres123
-      POSTGRES_DB: researchpulse
-    ports:
-      - "5432:5432"
-    volumes:
-      - pgdata:/var/lib/postgresql/data
+  backend:
+    image: ghcr.io/leduycoder/scientificjournalsystem-be:latest
+    container_name: researchpulse_backend
+    restart: unless-stopped
 
-  pgadmin:
-    image: dpage/pgadmin4
-    container_name: researchpulse_pgadmin
-    restart: always
-    environment:
-      PGADMIN_DEFAULT_EMAIL: admin@admin.com
-      PGADMIN_DEFAULT_PASSWORD: admin
     ports:
-      - "5050:80"
-    depends_on:
-      - db
+      - "8000:8000"
 
-  redis:
-    image: redis:7-alpine
-    container_name: researchpulse_redis
-    restart: always
-    ports:
-      - "6379:6379"
+    env_file:
+      - .env
 
-volumes:
-  pgdata:
+    networks:
+      - researchpulse_network
+
+networks:
+  researchpulse_network:
+    external: true
+    name: researchpulse_network

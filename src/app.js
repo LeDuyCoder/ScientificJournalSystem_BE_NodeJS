@@ -7,8 +7,8 @@ import rootRoutes from './routes/index.js';
 import fastifySwagger from '@fastify/swagger';
 import fastifySwaggerUi from '@fastify/swagger-ui';
 
-export const buildApp = async () => {
-  const app = Fastify({ logger: true });
+export const buildApp = async (opts = {}) => {
+  const app = Fastify({ logger: opts.logger ?? true });
 
   await app.register(cors, {
     origin: [process.env.FRONTEND_URL, process.env.FRONTEND_URL_TRENDING],

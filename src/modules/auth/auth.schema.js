@@ -5,7 +5,8 @@ export const loginSchema = {
     required: ['email', 'password'],
     properties: {
       email: { type: 'string', format: 'email' },
-      password: { type: 'string' }
+      password: { type: 'string' },
+      remember: { type: 'boolean' }
     }
   },
   response: {
@@ -18,6 +19,7 @@ export const loginSchema = {
           type: 'object',
           properties: {
             token: { type: 'string' },
+            refresh_token: { type: 'string' },
             user: {
               type: 'object',
               properties: {
