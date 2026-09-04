@@ -4,12 +4,10 @@ on:
   push:
     branches:
       - dev
-      - feat/CI_CD-action
 
   pull_request:
     branches:
       - dev
-      - feat/CI_CD-action
 
 jobs:
   build-and-test:
