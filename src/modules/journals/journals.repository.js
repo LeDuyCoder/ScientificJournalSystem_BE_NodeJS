@@ -3,6 +3,7 @@ import logger from "../../utils/logger.js";
 import meiliClient from "../../config/meilisearch.js";
 import cacheService from "../../services/cache.service.js"; // or move cache to a core module later
 import crypto from "crypto";
+import { syncEntityToMeiliGlobal, removeEntityFromMeiliGlobal } from "../../services/meilisearch.service.js";
 
 export const getJournals = async (paramsInput = {}) => {
   const {
@@ -428,7 +429,11 @@ export const createJournal = async (data) => {
     // invalidateCacheByPattern is not imported here, doing cacheService.delByPattern
     cacheService.delByPattern('journals:list:*').catch(() => { });
 
-    return result.rows[0];
+    const createdJournal = result.rows[0];
+    if (createdJournal) {
+      syncEntityToMeiliGlobal(createdJournal.journal_id, createdJournal.display_name, 'JOURNAL');
+    }
+    return createdJournal;
   } catch (error) {
     throw error;
   }
@@ -482,7 +487,9 @@ export const updateJournal = async (id, data) => {
     const result = await pool.query(query, values);
     if (result.rows.length) {
       await cacheService.delByPattern('journals:list:*');
-      return result.rows[0];
+      const updatedJournal = result.rows[0];
+      syncEntityToMeiliGlobal(updatedJournal.journal_id, updatedJournal.display_name, 'JOURNAL');
+      return updatedJournal;
     }
     return null;
   } catch (error) {
@@ -503,7 +510,9 @@ export const deleteJournal = async (id) => {
 
     if (result.rows.length) {
       await cacheService.delByPattern('journals:list:*');
-      return result.rows[0];
+      const deletedJournal = result.rows[0];
+      removeEntityFromMeiliGlobal(deletedJournal.journal_id, 'JOURNAL');
+      return deletedJournal;
     }
     return null;
   } catch (error) {
@@ -523,7 +532,9 @@ export const restoreJournal = async (id) => {
     const result = await pool.query(query, [BigInt(id)]);
     if (result.rows.length) {
       await cacheService.delByPattern('journals:list:*');
-      return result.rows[0];
+      const restoredJournal = result.rows[0];
+      syncEntityToMeiliGlobal(restoredJournal.journal_id, restoredJournal.display_name, 'JOURNAL');
+      return restoredJournal;
     }
     return null;
   } catch (error) {

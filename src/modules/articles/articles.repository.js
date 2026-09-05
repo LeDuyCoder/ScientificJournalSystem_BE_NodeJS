@@ -2,7 +2,7 @@ import pool from '../../config/database.js';
 import logger from '../../utils/logger.js';
 import cacheService from '../../services/cache.service.js';
 import crypto from 'crypto';
-import { syncArticleToMeili, removeArticleFromMeili } from '../../services/meilisearch.service.js';
+import { syncArticleToMeili, removeArticleFromMeili, searchArticlesFromMeili } from '../../services/meilisearch.service.js';
 import meiliClient from '../../config/meilisearch.js';
 
 const ARTICLE_CACHE_TTL = parseInt(process.env.ARTICLE_CACHE_TTL, 10) || 900;
@@ -124,8 +124,27 @@ export const countAllArticles = async ({
     let needsJournal = false;
 
     if (search && search.trim()) {
-        values.push(`%${search.trim()}%`);
-        where.push(`(a."title" ILIKE $${values.length} OR a."doi" ILIKE $${values.length} OR a."abstract" ILIKE $${values.length})`);
+        let meiliSuccess = false;
+        try {
+            const meiliRes = await searchArticlesFromMeili(search.trim(), {
+                limit: 500,
+                publication_year: toOptionalNumber(publicationYear),
+                primary_topic: toOptionalNumber(topicId),
+            });
+
+            if (meiliRes && meiliRes.articleIds && meiliRes.articleIds.length > 0) {
+                values.push(meiliRes.articleIds);
+                where.push(`a."article_id" = ANY($${values.length}::bigint[])`);
+                meiliSuccess = true;
+            }
+        } catch (err) {
+            logger.info(`Meilisearch countAllArticles search failed for "${search}", falling back to ILIKE: ${err.message}`);
+        }
+
+        if (!meiliSuccess) {
+            values.push(`%${search.trim()}%`);
+            where.push(`(a."title" ILIKE $${values.length} OR a."doi" ILIKE $${values.length})`);
+        }
     }
 
     const publicationYearNum = toOptionalNumber(publicationYear);
@@ -331,8 +350,27 @@ export const getAllArticles = async (firstParam = {}, offsetParam = 0, sortByPar
         let needsJournal = false;
 
         if (search && search.trim()) {
-            values.push(`%${search.trim()}%`);
-            where.push(`(a."title" ILIKE $${values.length} OR a."doi" ILIKE $${values.length} OR a."abstract" ILIKE $${values.length})`);
+            let meiliSuccess = false;
+            try {
+                const meiliRes = await searchArticlesFromMeili(search.trim(), {
+                    limit: 500,
+                    publication_year: toOptionalNumber(publicationYear),
+                    primary_topic: toOptionalNumber(topicId),
+                });
+
+                if (meiliRes && meiliRes.articleIds && meiliRes.articleIds.length > 0) {
+                    values.push(meiliRes.articleIds);
+                    where.push(`a."article_id" = ANY($${values.length}::bigint[])`);
+                    meiliSuccess = true;
+                }
+            } catch (err) {
+                logger.info(`Meilisearch getAllArticles search failed for "${search}", falling back to ILIKE: ${err.message}`);
+            }
+
+            if (!meiliSuccess) {
+                values.push(`%${search.trim()}%`);
+                where.push(`(a."title" ILIKE $${values.length} OR a."doi" ILIKE $${values.length})`);
+            }
         }
 
         const publicationYearNum = toOptionalNumber(publicationYear);

@@ -1,5 +1,6 @@
 import pool from "../../config/database.js";
 import logger from "../../utils/logger.js";
+import { syncEntityToMeiliGlobal, removeEntityFromMeiliGlobal } from "../../services/meilisearch.service.js";
 
 /**
  * Lấy thông tin tác giả theo ID
@@ -331,7 +332,11 @@ export const createAuthor = async (data) => {
     ],
   );
 
-  return rows[0];
+  const createdAuthor = rows[0];
+  if (createdAuthor) {
+    syncEntityToMeiliGlobal(createdAuthor.author_id, createdAuthor.display_name, 'AUTHOR');
+  }
+  return createdAuthor;
 };
 
 export const updateAuthor = async (id, data) => {
@@ -372,7 +377,11 @@ export const updateAuthor = async (id, data) => {
     values,
   );
 
-  return rows[0];
+  const updatedAuthor = rows[0];
+  if (updatedAuthor) {
+    syncEntityToMeiliGlobal(updatedAuthor.author_id, updatedAuthor.display_name, 'AUTHOR');
+  }
+  return updatedAuthor;
 };
 
 export const deleteAuthor = async (id) => {
@@ -402,7 +411,11 @@ export const deleteAuthor = async (id) => {
     [id],
   );
 
-  return rows[0];
+  const deletedAuthor = rows[0];
+  if (deletedAuthor) {
+    removeEntityFromMeiliGlobal(deletedAuthor.author_id, 'AUTHOR');
+  }
+  return deletedAuthor;
 };
 
 export const restoreAuthor = async (id) => {
@@ -432,5 +445,9 @@ export const restoreAuthor = async (id) => {
     [id],
   );
 
-  return rows[0];
+  const restoredAuthor = rows[0];
+  if (restoredAuthor) {
+    syncEntityToMeiliGlobal(restoredAuthor.author_id, restoredAuthor.display_name, 'AUTHOR');
+  }
+  return restoredAuthor;
 };

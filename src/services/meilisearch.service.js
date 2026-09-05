@@ -1,4 +1,4 @@
-import meiliClient from '../config/meilisearch.js';
+import meiliClient, { getMeiliAvailability } from '../config/meilisearch.js';
 import pool from '../config/database.js';
 import logger from '../utils/logger.js';
 
@@ -6,6 +6,9 @@ const ARTICLE_INDEX = 'articles';
 const GLOBAL_SEARCH_INDEX = 'global_search';
 
 export const initMeiliSearch = async () => {
+  if (!getMeiliAvailability()) {
+    return;
+  }
   try {
     // We will use a single index 'global_search' for the global search autocomplete
     // and 'articles' for detailed article searching if needed.
@@ -42,6 +45,7 @@ export const initMeiliSearch = async () => {
  * Sync a single article to Meilisearch
  */
 export const syncArticleToMeili = async (article) => {
+  if (!getMeiliAvailability()) return;
   try {
     const articleIndex = meiliClient.index(ARTICLE_INDEX);
     await articleIndex.addDocuments([{
@@ -73,11 +77,99 @@ export const syncArticleToMeili = async (article) => {
  * Remove article from Meilisearch
  */
 export const removeArticleFromMeili = async (articleId) => {
+  if (!getMeiliAvailability()) return;
   try {
     await meiliClient.index(ARTICLE_INDEX).deleteDocument(articleId);
     await meiliClient.index(GLOBAL_SEARCH_INDEX).deleteDocument(`article_${articleId}`);
   } catch (error) {
     logger.error(`Error removing article ${articleId} from Meilisearch:`, error);
+  }
+};
+
+/**
+ * Sync single entity (Journal, Author, Keyword, Area, Category) to global_search index
+ */
+export const syncEntityToMeiliGlobal = async (id, name, type) => {
+  if (!getMeiliAvailability()) return;
+  try {
+    const globalSearchIndex = meiliClient.index(GLOBAL_SEARCH_INDEX);
+    await globalSearchIndex.addDocuments([{
+      uid: `${type.toLowerCase()}_${id}`,
+      id: String(id),
+      name: name,
+      type: type,
+    }]);
+  } catch (error) {
+    logger.warn(`Error syncing ${type} ${id} to Meilisearch: ${error.message}`);
+  }
+};
+
+/**
+ * Remove entity from global_search index
+ */
+export const removeEntityFromMeiliGlobal = async (id, type) => {
+  if (!getMeiliAvailability()) return;
+  try {
+    const globalSearchIndex = meiliClient.index(GLOBAL_SEARCH_INDEX);
+    await globalSearchIndex.deleteDocument(`${type.toLowerCase()}_${id}`);
+  } catch (error) {
+    logger.warn(`Error removing ${type} ${id} from Meilisearch: ${error.message}`);
+  }
+};
+
+export const searchGlobalFromMeili = async (keyword, limit = 10) => {
+  if (!getMeiliAvailability()) {
+    throw new Error('Meilisearch is offline');
+  }
+  try {
+    const globalSearchIndex = meiliClient.index(GLOBAL_SEARCH_INDEX);
+    const searchResult = await globalSearchIndex.search(keyword, {
+      limit: Number(limit) || 10,
+    });
+    return searchResult.hits.map(hit => ({
+      id: hit.id,
+      name: hit.name,
+      type: hit.type,
+    }));
+  } catch (error) {
+    logger.warn(`Meilisearch searchGlobal failed for "${keyword}": ${error.message}`);
+    throw error;
+  }
+};
+
+/**
+ * Search articles in Meilisearch
+ */
+export const searchArticlesFromMeili = async (keyword, options = {}) => {
+  if (!getMeiliAvailability()) {
+    throw new Error('Meilisearch is offline');
+  }
+  try {
+    const { limit = 100, offset = 0, publication_year, primary_topic } = options;
+    const articleIndex = meiliClient.index(ARTICLE_INDEX);
+
+    const filterConditions = ['is_deleted = false'];
+    if (publication_year) filterConditions.push(`publication_year = ${publication_year}`);
+    if (primary_topic) filterConditions.push(`primary_topic = ${primary_topic}`);
+
+    const searchResult = await articleIndex.search(keyword, {
+      limit: Number(limit),
+      offset: Number(offset),
+      filter: filterConditions.length > 0 ? filterConditions.join(' AND ') : undefined,
+    });
+
+    const articleIds = searchResult.hits
+      .map(hit => Number(hit.article_id || hit.id))
+      .filter(id => Boolean(id) && !isNaN(id));
+
+    return {
+      hits: searchResult.hits,
+      estimatedTotalHits: searchResult.estimatedTotalHits || searchResult.hits.length,
+      articleIds,
+    };
+  } catch (error) {
+    logger.warn(`Meilisearch searchArticles failed for "${keyword}": ${error.message}`);
+    throw error;
   }
 };
 
@@ -144,7 +236,35 @@ export const indexAllGlobalData = async () => {
       logger.info(`Indexed batch ${i / batchSize + 1} of global search data.`);
     }
 
-    logger.info('Successfully indexed all global search data.');
+    // Also index articles detailed metadata into articles index
+    const articleQuery = `
+      SELECT article_id, title, abstract, doi, publication_year, primary_topic, created_at, is_deleted
+      FROM "Article"
+      WHERE is_deleted = false
+    `;
+    const articleRes = await pool.query(articleQuery);
+    const articleDocs = articleRes.rows.map(a => ({
+      id: String(a.article_id),
+      article_id: a.article_id,
+      title: a.title,
+      abstract: a.abstract,
+      doi: a.doi,
+      publication_year: a.publication_year,
+      primary_topic: a.primary_topic,
+      is_deleted: a.is_deleted || false,
+      created_at: a.created_at ? new Date(a.created_at).getTime() : Date.now()
+    }));
+
+    if (articleDocs.length > 0) {
+      const articleIndex = meiliClient.index(ARTICLE_INDEX);
+      for (let i = 0; i < articleDocs.length; i += batchSize) {
+        const batch = articleDocs.slice(i, i + batchSize);
+        await articleIndex.addDocuments(batch);
+      }
+      logger.info(`Indexed ${articleDocs.length} articles into articles index.`);
+    }
+
+    logger.info('Successfully indexed all global search and article data.');
   } catch (error) {
     logger.error('Error in indexAllGlobalData:', error);
   }

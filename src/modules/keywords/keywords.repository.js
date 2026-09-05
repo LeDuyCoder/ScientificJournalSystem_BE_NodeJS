@@ -1,5 +1,6 @@
 import pool from "../../config/database.js";
 import logger from "../../utils/logger.js";
+import { syncEntityToMeiliGlobal, removeEntityFromMeiliGlobal } from "../../services/meilisearch.service.js";
 
 export const getTrendingKeywords = async (projectId, queryParams) => {
   const limit = Math.min(parseInt(queryParams.limit) || 20, 100);
@@ -583,7 +584,11 @@ export const createKeyword = async (display_name) => {
      VALUES ($1) RETURNING keyword_id, display_name`,
     [display_name],
   );
-  return rows[0];
+  const createdKeyword = rows[0];
+  if (createdKeyword) {
+    syncEntityToMeiliGlobal(createdKeyword.keyword_id, createdKeyword.display_name, 'KEYWORD');
+  }
+  return createdKeyword;
 };
 
 export const updateKeyword = async (id, display_name) => {
@@ -618,7 +623,11 @@ export const updateKeyword = async (id, display_name) => {
      RETURNING keyword_id, display_name`,
     [display_name, id],
   );
-  return rows[0];
+  const updatedKeyword = rows[0];
+  if (updatedKeyword) {
+    syncEntityToMeiliGlobal(updatedKeyword.keyword_id, updatedKeyword.display_name, 'KEYWORD');
+  }
+  return updatedKeyword;
 };
 
 export const deleteKeyword = async (id) => {
@@ -646,7 +655,11 @@ export const deleteKeyword = async (id) => {
      RETURNING keyword_id, display_name, is_deleted`,
     [id],
   );
-  return rows[0];
+  const deletedKeyword = rows[0];
+  if (deletedKeyword) {
+    removeEntityFromMeiliGlobal(deletedKeyword.keyword_id, 'KEYWORD');
+  }
+  return deletedKeyword;
 };
 
 export const restoreKeyword = async (id) => {
@@ -674,5 +687,9 @@ export const restoreKeyword = async (id) => {
      RETURNING keyword_id, display_name, is_deleted`,
     [id],
   );
-  return rows[0];
+  const restoredKeyword = rows[0];
+  if (restoredKeyword) {
+    syncEntityToMeiliGlobal(restoredKeyword.keyword_id, restoredKeyword.display_name, 'KEYWORD');
+  }
+  return restoredKeyword;
 };
