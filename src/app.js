@@ -6,10 +6,6 @@ import express from 'express';
 import rootRoutes from './routes/index.js';
 import fastifySwagger from '@fastify/swagger';
 import fastifySwaggerUi from '@fastify/swagger-ui';
-import { initMeiliSearch } from './services/meilisearch.service.js';
-
-// Initialize Meilisearch index settings asynchronously if service is available
-initMeiliSearch().catch(() => {});
 
 export const buildApp = async (opts = {}) => {
   const app = Fastify({ logger: opts.logger ?? true });
