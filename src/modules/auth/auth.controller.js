@@ -1,4 +1,4 @@
-import { loginUser, registerUser } from './auth.service.js';
+import { loginUser, registerUser, verifyUserEmail } from './auth.service.js';
 
 export const login = async (request, reply) => {
   try {
@@ -85,6 +85,22 @@ export const register = async (request, reply) => {
   }
 };
 
+export const verifyAccount = async (request, reply) => {
+  try {
+    const { token } = request.query || {};
+    const result = await verifyUserEmail(token);
+    return reply.send({
+      success: true,
+      message: result.message || 'Kích hoạt tài khoản thành công'
+    });
+  } catch (error) {
+    return reply.code(400).send({
+      success: false,
+      message: error.message || 'Kích hoạt tài khoản thất bại'
+    });
+  }
+};
+
 export const refreshToken = async (request, reply) => {
   // Logic refresh token placeholder
   return reply.send({ success: false, message: 'Chưa implement' });
@@ -106,3 +122,4 @@ export const checkAuth = async (request, reply) => {
     user: request.user
   });
 };
+
