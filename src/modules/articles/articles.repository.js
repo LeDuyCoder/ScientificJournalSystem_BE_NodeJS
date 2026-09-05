@@ -2,8 +2,6 @@ import pool from '../../config/database.js';
 import logger from '../../utils/logger.js';
 import cacheService from '../../services/cache.service.js';
 import crypto from 'crypto';
-import { syncArticleToMeili, removeArticleFromMeili } from '../../services/meilisearch.service.js';
-import meiliClient from '../../config/meilisearch.js';
 
 const ARTICLE_CACHE_TTL = parseInt(process.env.ARTICLE_CACHE_TTL, 10) || 900;
 
@@ -125,7 +123,7 @@ export const countAllArticles = async ({
 
     if (search && search.trim()) {
         values.push(`%${search.trim()}%`);
-        where.push(`(a."title" ILIKE $${values.length} OR a."doi" ILIKE $${values.length} OR a."abstract" ILIKE $${values.length})`);
+        where.push(`(a."title" ILIKE $${values.length} OR a."doi" ILIKE $${values.length})`);
     }
 
     const publicationYearNum = toOptionalNumber(publicationYear);
@@ -223,7 +221,7 @@ export const getArticleListStats = async () => {
         if (cachedData) return cachedData;
 
         const totalArticlesPromise = pool.query(`SELECT COUNT(*) AS total FROM "Article" WHERE "is_deleted" = false;`);
-        
+
         const openAccessCountPromise = pool.query(`
             SELECT COUNT(a."article_id") AS total
             FROM "Article" a
@@ -234,7 +232,7 @@ export const getArticleListStats = async () => {
         `);
 
         const authorsCountPromise = pool.query(`SELECT COUNT(DISTINCT "author_id") AS total FROM "Author_Article";`);
-        
+
         const topicsCountPromise = pool.query(`SELECT COUNT(DISTINCT "primary_topic") AS total FROM "Article" WHERE "is_deleted" = false AND "primary_topic" IS NOT NULL;`);
 
         const [totalRes, openAccessRes, authorsRes, topicsRes] = await Promise.all([
@@ -332,7 +330,7 @@ export const getAllArticles = async (firstParam = {}, offsetParam = 0, sortByPar
 
         if (search && search.trim()) {
             values.push(`%${search.trim()}%`);
-            where.push(`(a."title" ILIKE $${values.length} OR a."doi" ILIKE $${values.length} OR a."abstract" ILIKE $${values.length})`);
+            where.push(`(a."title" ILIKE $${values.length} OR a."doi" ILIKE $${values.length})`);
         }
 
         const publicationYearNum = toOptionalNumber(publicationYear);
@@ -609,9 +607,9 @@ export const createArticle = async (articleData) => {
         const {
             version = null,
             issue_id = null,
-            title,            
+            title,
             abstract = null,
-            publication_year, 
+            publication_year,
             doi = null,
             primary_topic = null
         } = articleData;
@@ -669,16 +667,12 @@ export const createArticle = async (articleData) => {
         ];
 
         const result = await pool.query(query, values);
-        
+
         await cacheService.delByPattern('article:list:*');
         await cacheService.delByPattern('article:count:*');
         await cacheService.del('article:stats:all');
-        
-        const createdArticle = result.rows[0];
-        if (createdArticle) {
-            syncArticleToMeili(createdArticle).catch(err => logger.error('Error syncing new article to Meilisearch:', err));
-        }
 
+        const createdArticle = result.rows[0];
         return createdArticle;
     } catch (error) {
         logger.error('Error creating article:', error);
@@ -753,7 +747,7 @@ export const updateArticle = async ({ article_id, ...updateData }) => {
             if (String(currentArticle.issue_id) === String(issue_id)) {
                 throw new Error('VALIDATION_ERROR: Không thể cập nhật cùng một mã issue.');
             }
-            
+
             const issueExistsResult = await issueExists(issue_id);
             if (!issueExistsResult) {
                 throw new Error('VALIDATION_ERROR: Mã Issue ID không tồn tại trên hệ thống.');
@@ -810,17 +804,13 @@ export const updateArticle = async ({ article_id, ...updateData }) => {
         `;
 
         const result = await pool.query(query, values);
-        
+
         await cacheService.delByPattern('article:list:*');
         await cacheService.delByPattern('article:count:*');
         await cacheService.del('article:stats:all');
         await cacheService.del(`article:detail:${article_id}`);
-        
-        const updatedArticle = result.rows[0] || null;
-        if (updatedArticle) {
-            syncArticleToMeili(updatedArticle).catch(err => logger.error('Error syncing updated article to Meilisearch:', err));
-        }
 
+        const updatedArticle = result.rows[0] || null;
         return updatedArticle;
     } catch (error) {
         throw error; // Quăng lỗi lên để Controller bắt lấy và trả về res.status
@@ -856,12 +846,6 @@ export const deleteArticle = async (articleId) => {
         await cacheService.del('article:stats:all');
         await cacheService.del(`article:detail:${articleId}`);
 
-        if (result.rows[0]) {
-            removeArticleFromMeili(articleId).catch(err => logger.error('Error removing article from Meilisearch:', err));
-        }
-
-        // Nếu cập nhật thành công, result.rows[0] sẽ chứa thông tin bài báo kèm theo is_deleted = true
-        // Nếu bài báo đã bị xóa mềm từ trước hoặc không tồn tại, result.rows[0] sẽ là undefined
         return result.rows[0] || null;
 
     } catch (error) {
@@ -900,12 +884,6 @@ export const restoreArticle = async (articleId) => {
         await cacheService.del(`article:detail:${articleId}`);
 
         const restoredArticle = result.rows[0] || null;
-        if (restoredArticle) {
-            syncArticleToMeili(restoredArticle).catch(err => logger.error('Error syncing restored article to Meilisearch:', err));
-        }
-
-        // Nếu cập nhật thành công, result.rows[0] sẽ chứa thông tin bài báo kèm theo is_deleted = false
-        // Nếu bài báo không bị xóa hoặc không tồn tại, result.rows[0] sẽ là undefined
         return restoredArticle;
 
     } catch (error) {

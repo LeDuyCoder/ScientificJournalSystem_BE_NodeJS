@@ -11,6 +11,8 @@ import {
 import { createSubTopicArticleRelationships } from "../topics/topics.service.js";
 import logger from "../../utils/logger.js";
 import { createLog } from '../../services/log.service.js';
+import cacheService from '../../services/cache.service.js';
+import crypto from 'crypto';
 
 /**
  * Tìm kiếm bài báo theo danh sách từ khóa chuyên biệt.
@@ -111,6 +113,12 @@ export const getArticles = async (request, reply) => {
       serviceParams.isOpenAccess = true;
     }
 
+    const cacheKey = `api:articles:get:${crypto.createHash('md5').update(JSON.stringify({ ...serviceParams, page })).digest('hex')}`;
+    const cachedResponse = await cacheService.get(cacheKey);
+    if (cachedResponse) {
+      return reply.code(200).send(cachedResponse);
+    }
+
     const [articles, total] = await Promise.all([
       articleService.getAllArticles(serviceParams),
       articleService.countAllArticles(serviceParams)
@@ -123,7 +131,7 @@ export const getArticles = async (request, reply) => {
       logger.error("Lỗi riêng lẻ khi lấy stats:", statsError);
     }
 
-    return reply.code(200).send({
+    const responsePayload = {
       success: true,
       code: "ARTICLES_GET_SUCCESS",
       message: "Lấy danh sách bài báo thành công!",
@@ -138,7 +146,11 @@ export const getArticles = async (request, reply) => {
         },
         stats,
       },
-    });
+    };
+
+    await cacheService.set(cacheKey, responsePayload, 300);
+
+    return reply.code(200).send(responsePayload);
   } catch (error) {
     logger.error("Lỗi khi lấy danh sách bài báo:", error);
     return reply.code(500).send({

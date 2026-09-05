@@ -1,5 +1,6 @@
 import pool from "../../config/database.js";
 import logger from "../../utils/logger.js";
+import cacheService from "../../services/cache.service.js";
 
 export const getTrendingKeywords = async (projectId, queryParams) => {
   const limit = Math.min(parseInt(queryParams.limit) || 20, 100);
@@ -499,16 +500,23 @@ export const getAllKeywords = async ({ page = 1, limit = 10, search = "" }) => {
     LIMIT $3 OFFSET $4
   `;
 
+  const cacheKey = `keywords:all:${page}:${limit}:${normalizedSearch}`;
+  const cachedData = await cacheService.get(cacheKey);
+  if (cachedData) return cachedData;
+
   const [countResult, dataResult] = await Promise.all([
     pool.query(countQuery, [normalizedSearch, searchPattern]),
     pool.query(dataQuery, [normalizedSearch, searchPattern, limit, offset]),
   ]);
 
   const total = parseInt(countResult.rows[0].total);
-  return {
+  const result = {
     data: dataResult.rows,
     pagination: { page, limit, total, total_pages: Math.ceil(total / limit) },
   };
+
+  await cacheService.set(cacheKey, result, 300);
+  return result;
 };
 
 export const getArticlesByKeyword = async (keywordId, { page = 1, limit = 10, sortBy = 'publication_year', sortOrder = 'desc' } = {}) => {
@@ -544,16 +552,23 @@ export const getArticlesByKeyword = async (keywordId, { page = 1, limit = 10, so
     LIMIT $2 OFFSET $3
   `;
 
+  const cacheKey = `keywords:articles:${keywordId}:${page}:${limit}:${safeSort}:${safeOrder}`;
+  const cachedData = await cacheService.get(cacheKey);
+  if (cachedData) return cachedData;
+
   const [countResult, dataResult] = await Promise.all([
     pool.query(countQuery, [keywordId]),
     pool.query(dataQuery, [keywordId, limit, offset]),
   ]);
 
   const total = parseInt(countResult.rows[0].total);
-  return {
+  const result = {
     data: dataResult.rows,
     pagination: { page, limit, total, total_pages: Math.max(1, Math.ceil(total / limit)) },
   };
+
+  await cacheService.set(cacheKey, result, 300);
+  return result;
 };
 
 export const createKeyword = async (display_name) => {

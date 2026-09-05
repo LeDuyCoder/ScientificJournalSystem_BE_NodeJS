@@ -9,9 +9,12 @@ const meiliClient = new Meilisearch({
   apiKey: process.env.MEILI_MASTER_KEY || '',
 });
 
+let meiliAvailable = false;
+
 // Since Meilisearch client doesn't connect/listen like Redis or Postgres, we can do a ping to verify connection at startup.
 meiliClient.isHealthy()
   .then((healthy) => {
+    meiliAvailable = healthy;
     if (healthy) {
       logger.info('Connected to Meilisearch');
     } else {
@@ -19,8 +22,11 @@ meiliClient.isHealthy()
     }
   })
   .catch((err) => {
+    meiliAvailable = false;
     logger.error('Failed to connect to Meilisearch:', err.message);
   });
+
+export const getMeiliAvailability = () => meiliAvailable;
 
 meiliClient.searchWithRetry = async (indexUid, query, options, retries = 3, delay = 200) => {
   for (let attempt = 1; attempt <= retries; attempt++) {
