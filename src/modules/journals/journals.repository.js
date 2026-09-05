@@ -274,6 +274,10 @@ export const getJournals = async (paramsInput = {}) => {
 
 export const getJournalsById = async (id) => {
   try {
+    const cacheKey = `journal:detail:${id}`;
+    const cachedData = await cacheService.get(cacheKey);
+    if (cachedData) return cachedData;
+
     const query = `
       SELECT
         j.journal_id::text AS journal_id,
@@ -351,7 +355,7 @@ export const getJournalsById = async (id) => {
     const citeScoreMetric = findMetric('CITE_SCORE', 'CITESCORE', 'CITE SCORE');
     const quartileMetric = metrics.find(metric => metric.metric_type === 'QUARTILE' && metric.value_txt);
 
-    return {
+    const result = {
       ...journal,
       description: journal.description,
       subject_categories: categoriesRes.rows,
@@ -369,6 +373,9 @@ export const getJournalsById = async (id) => {
         quartile: quartileMetric?.value_txt || null,
       }
     };
+
+    await cacheService.set(cacheKey, result, 900);
+    return result;
   } catch (error) {
     logger.error('Lỗi khi lấy chi tiết journal:', error);
     throw error;

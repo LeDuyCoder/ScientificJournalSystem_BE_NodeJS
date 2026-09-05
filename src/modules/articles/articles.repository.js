@@ -221,7 +221,7 @@ export const getArticleListStats = async () => {
         if (cachedData) return cachedData;
 
         const totalArticlesPromise = pool.query(`SELECT COUNT(*) AS total FROM "Article" WHERE "is_deleted" = false;`);
-        
+
         const openAccessCountPromise = pool.query(`
             SELECT COUNT(a."article_id") AS total
             FROM "Article" a
@@ -232,7 +232,7 @@ export const getArticleListStats = async () => {
         `);
 
         const authorsCountPromise = pool.query(`SELECT COUNT(DISTINCT "author_id") AS total FROM "Author_Article";`);
-        
+
         const topicsCountPromise = pool.query(`SELECT COUNT(DISTINCT "primary_topic") AS total FROM "Article" WHERE "is_deleted" = false AND "primary_topic" IS NOT NULL;`);
 
         const [totalRes, openAccessRes, authorsRes, topicsRes] = await Promise.all([
@@ -607,9 +607,9 @@ export const createArticle = async (articleData) => {
         const {
             version = null,
             issue_id = null,
-            title,            
+            title,
             abstract = null,
-            publication_year, 
+            publication_year,
             doi = null,
             primary_topic = null
         } = articleData;
@@ -667,11 +667,11 @@ export const createArticle = async (articleData) => {
         ];
 
         const result = await pool.query(query, values);
-        
+
         await cacheService.delByPattern('article:list:*');
         await cacheService.delByPattern('article:count:*');
         await cacheService.del('article:stats:all');
-        
+
         const createdArticle = result.rows[0];
         return createdArticle;
     } catch (error) {
@@ -747,7 +747,7 @@ export const updateArticle = async ({ article_id, ...updateData }) => {
             if (String(currentArticle.issue_id) === String(issue_id)) {
                 throw new Error('VALIDATION_ERROR: Không thể cập nhật cùng một mã issue.');
             }
-            
+
             const issueExistsResult = await issueExists(issue_id);
             if (!issueExistsResult) {
                 throw new Error('VALIDATION_ERROR: Mã Issue ID không tồn tại trên hệ thống.');
@@ -804,12 +804,12 @@ export const updateArticle = async ({ article_id, ...updateData }) => {
         `;
 
         const result = await pool.query(query, values);
-        
+
         await cacheService.delByPattern('article:list:*');
         await cacheService.delByPattern('article:count:*');
         await cacheService.del('article:stats:all');
         await cacheService.del(`article:detail:${article_id}`);
-        
+
         const updatedArticle = result.rows[0] || null;
         return updatedArticle;
     } catch (error) {
