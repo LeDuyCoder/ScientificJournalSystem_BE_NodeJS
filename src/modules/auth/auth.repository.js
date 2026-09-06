@@ -11,3 +11,17 @@ export const createUser = async (userData) => {
     data: userData
   });
 };
+
+export const findUserById = async (userId) => {
+  return await prisma.user.findUnique({
+    where: { user_id: userId }
+  });
+};
+
+export const updateUserStatus = async (userId, status) => {
+  return await prisma.user.update({
+    where: { user_id: userId },
+    data: { status }
+  });
+};
+

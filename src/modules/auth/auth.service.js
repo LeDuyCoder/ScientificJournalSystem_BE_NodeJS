@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { findUserByEmail, createUser } from './auth.repository.js';
-
+import { findUserByEmail, createUser, findUserById, updateUserStatus } from './auth.repository.js';
+import { emailHelper } from '../../utils/email.js';
 import crypto from 'crypto';
 
 export const loginUser = async (email, password) => {
@@ -46,7 +46,7 @@ export const registerUser = async (email, password, first_name, last_name, date_
   console.log('[auth.service] Hashing password with bcryptjs...');
   const password_hash = await bcrypt.hash(password, salt);
 
-  console.log('[auth.service] Creating user in DB...');
+  console.log('[auth.service] Creating user in DB with status INACTIVE...');
   const newUser = await createUser({
     user_id: crypto.randomUUID(),
     email: email.toLowerCase(),
@@ -56,9 +56,50 @@ export const registerUser = async (email, password, first_name, last_name, date_
     date_of_birth: date_of_birth ? new Date(date_of_birth) : null,
     gender: gender !== undefined ? gender : null,
     role,
-    status: 'ACTIVE'
+    status: 'INACTIVE'
   });
   console.log('[auth.service] User created successfully');
 
+  // Generating activation token
+  const activationToken = jwt.sign(
+    { user_id: newUser.user_id, email: newUser.email },
+    process.env.JWT_SECRET || 'secret',
+    { expiresIn: '24h' }
+  );
+
+  // Sending activation email
+  try {
+    console.log('[auth.service] Sending activation email to:', newUser.email);
+    await emailHelper.sendActivationEmail(newUser.email, newUser.first_name || '', activationToken);
+  } catch (mailError) {
+    console.error('[auth.service] Lỗi gửi email xác nhận:', mailError.message || mailError);
+  }
+
   return newUser;
 };
+
+export const verifyUserEmail = async (token) => {
+  if (!token) {
+    throw new Error('Mã xác thực không hợp lệ');
+  }
+
+  let decoded;
+  try {
+    decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret');
+  } catch (err) {
+    throw new Error('Liên kết kích hoạt không hợp lệ hoặc đã hết hạn');
+  }
+
+  const user = await findUserById(decoded.user_id);
+  if (!user) {
+    throw new Error('Tài khoản không tồn tại');
+  }
+
+  if (user.status === 'ACTIVE') {
+    return { message: 'Tài khoản đã được kích hoạt từ trước' };
+  }
+
+  await updateUserStatus(user.user_id, 'ACTIVE');
+  return { message: 'Kích hoạt tài khoản thành công' };
+};
+

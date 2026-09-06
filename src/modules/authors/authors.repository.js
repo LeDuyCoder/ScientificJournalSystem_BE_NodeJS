@@ -1,5 +1,6 @@
 import pool from "../../config/database.js";
 import logger from "../../utils/logger.js";
+import cacheService from "../../services/cache.service.js";
 
 /**
  * Lấy thông tin tác giả theo ID
@@ -89,6 +90,10 @@ export const getAuthorArticlesService = async (authorId, limit, page) => {
       LIMIT $2 OFFSET $3
     `;
 
+    const cacheKey = `author:articles:${authorId}:${safeLimit}:${safePage}`;
+    const cachedData = await cacheService.get(cacheKey);
+    if (cachedData) return cachedData;
+
     const [countResult, dataResult] = await Promise.all([
       pool.query(countQuery, [authorId]),
       pool.query(dataQuery, [authorId, safeLimit, safeOffset]),
@@ -96,7 +101,7 @@ export const getAuthorArticlesService = async (authorId, limit, page) => {
 
     const total = countResult.rows[0]?.total || 0;
 
-    return {
+    const result = {
       items: dataResult.rows,
       pagination: {
         page: safePage,
@@ -105,6 +110,9 @@ export const getAuthorArticlesService = async (authorId, limit, page) => {
         total_pages: Math.max(1, Math.ceil(total / safeLimit)),
       },
     };
+
+    await cacheService.set(cacheKey, result, 900);
+    return result;
   } catch (error) {
     logger.error("Lỗi khi lấy bài viết của tác giả:", error);
     throw error;
@@ -119,6 +127,10 @@ export const getAuthorLeaderboardService = async (limit, page) => {
     const safeLimit = Math.max(1, parseInt(limit) || 10);
     const safePage = Math.max(1, parseInt(page) || 1);
     const safeOffset = (safePage - 1) * safeLimit;
+
+    const cacheKey = `author:leaderboard:${safeLimit}:${safePage}`;
+    const cachedData = await cacheService.get(cacheKey);
+    if (cachedData) return cachedData;
 
     const countQuery = `
       SELECT COUNT(*)::integer AS total
@@ -156,7 +168,7 @@ export const getAuthorLeaderboardService = async (limit, page) => {
 
     const total = countResult.rows[0]?.total || 0;
 
-    return {
+    const response = {
       items: dataResult.rows,
       pagination: {
         page: safePage,
@@ -165,6 +177,9 @@ export const getAuthorLeaderboardService = async (limit, page) => {
         total_pages: Math.max(1, Math.ceil(total / safeLimit)),
       },
     };
+
+    await cacheService.set(cacheKey, response, 3600);
+    return response;
   } catch (error) {
     logger.error("Lỗi khi lấy bảng xếp hạng tác giả:", error);
     throw error;
@@ -287,6 +302,10 @@ export const getAllAuthors = async ({ page = 1, limit = 10, search = "", sort = 
     LIMIT $2 OFFSET $3
   `;
 
+  const cacheKey = `authors:all:${page}:${limit}:${search.trim()}:${sortKey}`;
+  const cachedData = await cacheService.get(cacheKey);
+  if (cachedData) return cachedData;
+
   const [countResult, dataResult] = await Promise.all([
     pool.query(countQuery, [searchPattern]),
     pool.query(dataQuery, [searchPattern, limit, offset]),
@@ -294,7 +313,7 @@ export const getAllAuthors = async ({ page = 1, limit = 10, search = "", sort = 
 
   const total = parseInt(countResult.rows[0].total);
 
-  return {
+  const result = {
     data: dataResult.rows,
     pagination: {
       page,
@@ -303,6 +322,9 @@ export const getAllAuthors = async ({ page = 1, limit = 10, search = "", sort = 
       total_pages: Math.ceil(total / limit),
     },
   };
+
+  await cacheService.set(cacheKey, result, 300);
+  return result;
 };
 
 export const createAuthor = async (data) => {
