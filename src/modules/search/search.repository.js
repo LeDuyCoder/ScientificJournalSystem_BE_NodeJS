@@ -1,8 +1,17 @@
 import prisma from '../../lib/prisma.js';
+import cacheService from '../../services/cache.service.js';
 
-export const globalSearch = async (keyword, limit) => {
+export const globalSearch = async (keyword, limit = 10) => {
+    const normalizedKeyword = String(keyword || '').trim().toLowerCase();
+    const cacheKey = `search:global:${normalizedKeyword}:${limit}`;
+
+    const cachedData = await cacheService.get(cacheKey);
+    if (cachedData) {
+        return cachedData;
+    }
+
     const searchPattern = `%${keyword}%`;
-    return prisma.$queryRaw`
+    const results = await prisma.$queryRaw`
       SELECT
         id,
         name,
@@ -48,4 +57,10 @@ export const globalSearch = async (keyword, limit) => {
     ORDER BY name
     LIMIT ${Number(limit)};
     `;
+
+    if (results) {
+        await cacheService.set(cacheKey, results, 300);
+    }
+
+    return results;
 };

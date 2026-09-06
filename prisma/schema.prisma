@@ -38,9 +38,14 @@ model Article {
   Project_Article_Bookmark            Project_Article_Bookmark[]
   Sub_Topic                           Sub_Topic[]
 
+  @@index([title], map: "idx_article_title_btree")
   @@index([title(ops: raw("gin_trgm_ops"))], type: Gin, map: "idx_article_title_trgm")
   @@index([abstract(ops: raw("gin_trgm_ops"))], type: Gin, map: "idx_article_abstract_trgm")
+  @@index([doi], map: "idx_article_doi_btree")
+  @@index([doi(ops: raw("gin_trgm_ops"))], type: Gin, map: "idx_article_doi_trgm")
   @@index([publication_year], map: "idx_article_pub_year")
+  @@index([citation_count(sort: Desc)], map: "idx_article_citation_count_btree")
+  @@index([is_deleted], map: "idx_article_is_deleted_btree")
   @@schema("public")
 }
 
@@ -62,6 +67,9 @@ model Author {
   Author_Article            Author_Article[]
   Institution_Author        Institution_Author[]
 
+  @@index([display_name], map: "idx_author_name_btree")
+  @@index([display_name(ops: raw("gin_trgm_ops"))], type: Gin, map: "idx_author_name_trgm")
+  @@index([is_deleted], map: "idx_author_is_deleted_btree")
   @@schema("public")
 }
 
@@ -141,7 +149,10 @@ model Journal {
   Project_Journal            Project_Journal[]
   Volume                     Volume[]
 
+  @@index([display_name], map: "idx_journal_name_btree")
   @@index([display_name(ops: raw("gin_trgm_ops"))], type: Gin, map: "idx_journal_name_trgm")
+  @@index([issn], map: "idx_journal_issn_btree")
+  @@index([is_deleted], map: "idx_journal_is_deleted_btree")
   @@schema("public")
 }
 
@@ -194,6 +205,8 @@ model Keyword {
   Keyword_Article Keyword_Article[]
   Project_Keyword Project_Keyword[]
 
+  @@index([display_name], map: "idx_keyword_name_btree")
+  @@index([display_name(ops: raw("gin_trgm_ops"))], type: Gin, map: "idx_keyword_name_trgm")
   @@schema("public")
 }
 
@@ -365,6 +378,8 @@ model Subject_Area {
   Subject_Category Subject_Category[]
   Topic            Topic[]
 
+  @@index([display_name], map: "idx_subject_area_name_btree")
+  @@index([is_deleted], map: "idx_subject_area_is_deleted_btree")
   @@schema("public")
 }
 
@@ -383,6 +398,8 @@ model Subject_Category {
   Topic                            Topic[]
 
   @@unique([subject_area_id, display_name], map: "uq_subject_category_area_name")
+  @@index([display_name], map: "idx_subject_category_name_btree")
+  @@index([is_deleted], map: "idx_subject_category_is_deleted_btree")
   @@schema("public")
 }
 
