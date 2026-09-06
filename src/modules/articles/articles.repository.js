@@ -110,6 +110,11 @@ export const countAllArticles = async ({
     isOpenAccess,
     countryId,
 } = {}) => {
+    if (!search && !publicationYear && !journalId && !topicId && !volumeId && !issueId && isOpenAccess === undefined && !countryId) {
+        const stats = await getArticleListStats();
+        return stats.totalArticles;
+    }
+
     const cacheKey = `article:count:${crypto.createHash('md5').update(JSON.stringify({
         search, publicationYear, journalId, topicId, volumeId, issueId, isOpenAccess, countryId
     })).digest('hex')}`;

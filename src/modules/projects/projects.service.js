@@ -335,23 +335,21 @@ export const createProject = async ({ userId, title, subject_area, subject_categ
     // Thêm các liên kết vào bảng trung gian Subject_Category_Project
     if (subject_category_ids.length > 0) {
       const uniqueCategoryIds = [...new Set(subject_category_ids)];
-      for (const catId of uniqueCategoryIds) {
-        await client.query(
-          `INSERT INTO "Subject_Category_Project" (project_id, subject_category_id) VALUES ($1, $2)`,
-          [projectId, catId]
-        );
-      }
+      await client.query(
+        `INSERT INTO "Subject_Category_Project" (project_id, subject_category_id) 
+         SELECT $1, unnest($2::bigint[])`,
+        [projectId, uniqueCategoryIds]
+      );
     }
 
     // Thêm các liên kết vào bảng trung gian Project_Journal
     if (journal_ids.length > 0) {
       const uniqueJournalIds = [...new Set(journal_ids)];
-      for (const journalId of uniqueJournalIds) {
-        await client.query(
-          `INSERT INTO "Project_Journal" (project_id, journal_id) VALUES ($1, $2)`,
-          [projectId, journalId]
-        );
-      }
+      await client.query(
+        `INSERT INTO "Project_Journal" (project_id, journal_id) 
+         SELECT $1, unnest($2::bigint[])`,
+        [projectId, uniqueJournalIds]
+      );
     }
 
     await client.query('COMMIT');
@@ -436,12 +434,11 @@ export const updateProject = async (projectId, userId, { title, subject_area, su
       // Thêm các quan hệ mới
       if (subject_category_ids.length > 0) {
         const uniqueCategoryIds = [...new Set(subject_category_ids)];
-        for (const catId of uniqueCategoryIds) {
-          await client.query(
-            `INSERT INTO "Subject_Category_Project" (project_id, subject_category_id) VALUES ($1, $2)`,
-            [projectId, catId]
-          );
-        }
+        await client.query(
+          `INSERT INTO "Subject_Category_Project" (project_id, subject_category_id) 
+           SELECT $1, unnest($2::bigint[])`,
+          [projectId, uniqueCategoryIds]
+        );
       }
     }
 
@@ -453,12 +450,11 @@ export const updateProject = async (projectId, userId, { title, subject_area, su
       // Thêm các quan hệ mới
       if (journal_ids.length > 0) {
         const uniqueJournalIds = [...new Set(journal_ids)];
-        for (const journalId of uniqueJournalIds) {
-          await client.query(
-            `INSERT INTO "Project_Journal" (project_id, journal_id) VALUES ($1, $2)`,
-            [projectId, journalId]
-          );
-        }
+        await client.query(
+          `INSERT INTO "Project_Journal" (project_id, journal_id) 
+           SELECT $1, unnest($2::bigint[])`,
+          [projectId, uniqueJournalIds]
+        );
       }
     }
 
