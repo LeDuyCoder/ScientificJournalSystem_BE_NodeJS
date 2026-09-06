@@ -213,12 +213,11 @@ export const syncWatchedKeywords = async (projectId, keywordIds) => {
     const idsToInsert = newKeywordIds.filter((id) => validIds.has(id));
 
     if (idsToInsert.length > 0) {
-      for (const kwId of idsToInsert) {
-        await client.query(
-          `INSERT INTO "Project_Keyword" (project_id, keyword_id) VALUES ($1, $2)`,
-          [projectId, kwId],
-        );
-      }
+      await client.query(
+        `INSERT INTO "Project_Keyword" (project_id, keyword_id) 
+         SELECT $1, unnest($2::bigint[])`,
+        [projectId, idsToInsert]
+      );
     }
 
     await client.query("COMMIT");
@@ -257,12 +256,11 @@ export const replaceWatchedKeywords = async (projectId, keywordIds) => {
     const idsToInsert = uniqueIds.filter(id => validIds.has(id));
 
     if (idsToInsert.length > 0) {
-      for (const kwId of idsToInsert) {
-        await client.query(
-          `INSERT INTO "Project_Keyword" (project_id, keyword_id) VALUES ($1, $2)`,
-          [projectId, kwId]
-        );
-      }
+      await client.query(
+        `INSERT INTO "Project_Keyword" (project_id, keyword_id) 
+         SELECT $1, unnest($2::bigint[])`,
+        [projectId, idsToInsert]
+      );
     }
 
     await client.query('COMMIT');
@@ -292,13 +290,13 @@ export const addWatchedKeywords = async (projectId, keywordIds) => {
   try {
     await client.query('BEGIN');
     let insertedCount = 0;
-    for (const kwId of keywordIds) {
-      const result = await client.query(
-        `INSERT INTO "Project_Keyword" (project_id, keyword_id) VALUES ($1, $2)`,
-        [projectId, kwId]
-      );
-      insertedCount += result.rowCount;
-    }
+    const result = await client.query(
+      `INSERT INTO "Project_Keyword" (project_id, keyword_id) 
+       SELECT $1, unnest($2::bigint[]) 
+       ON CONFLICT DO NOTHING`,
+      [projectId, keywordIds]
+    );
+    insertedCount = result.rowCount || 0;
     await client.query('COMMIT');
     return { success: true, insertedCount };
   } catch (error) {
