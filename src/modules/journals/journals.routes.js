@@ -25,13 +25,12 @@ import { verifyTokenFastify } from "../auth/auth.middleware.js";
 export default async function journalsRoutes(fastify, options) {
   // Public routes or routes that might need cache
   fastify.get("/", getJournalsSchema, getJournalsController);
-  
+  fastify.get("/:id", getJournalsByIdSchema, getJournalsByIdController);
+
   // Protected routes
   fastify.register(async (protectedRoutes) => {
     protectedRoutes.addHook("preHandler", verifyTokenFastify);
 
-    protectedRoutes.get("/:id", getJournalsByIdSchema, getJournalsByIdController);
-    
     protectedRoutes.post("/", createJournalSchema, createJournalController);
     protectedRoutes.put("/:id", updateJournalSchema, updateJournalController);
     protectedRoutes.delete("/:id", deleteJournalSchema, deleteJournalController);
