@@ -23,13 +23,13 @@ import { verifyTokenFastify } from "../auth/auth.middleware.js";
  * @param {import('fastify').FastifyInstance} fastify
  */
 export default async function volumesRoutes(fastify, options) {
-  // Public routes (if any, although volumes GET requires verifyToken per legacy routes)
-  // But wait, the legacy routes had `verifyToken` for all. Let's keep them protected.
+  // Public routes
+  fastify.get("/", getVolumesSchema, getVolumes);
+  fastify.get("/:id", getVolumeByIdSchema, getVolumeById);
+
+  // Protected routes
   fastify.register(async (protectedRoutes) => {
     protectedRoutes.addHook("preHandler", verifyTokenFastify);
-
-    protectedRoutes.get("/", getVolumesSchema, getVolumes);
-    protectedRoutes.get("/:id", getVolumeByIdSchema, getVolumeById);
     
     protectedRoutes.post("/", createVolumeSchema, createVolume);
     protectedRoutes.put("/:id", updateVolumeSchema, updateVolume);

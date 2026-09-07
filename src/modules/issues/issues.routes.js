@@ -23,15 +23,14 @@ import { verifyTokenFastify } from "../auth/auth.middleware.js";
  * @param {import('fastify').FastifyInstance} fastify
  */
 export default async function issuesRoutes(fastify, options) {
-  // Public routes (if any)
+  // Public routes
   fastify.get("/", getIssuesSchema, getIssues);
+  fastify.get("/:id", getIssueByIdSchema, getIssueById);
 
   // Protected routes
   fastify.register(async (protectedRoutes) => {
     protectedRoutes.addHook("preHandler", verifyTokenFastify);
 
-    protectedRoutes.get("/:id", getIssueByIdSchema, getIssueById);
-    
     protectedRoutes.post("/", createIssueSchema, createIssue);
     protectedRoutes.put("/:id", updateIssueSchema, updateIssue);
     protectedRoutes.delete("/:id", deleteIssueSchema, deleteIssue);

@@ -6,8 +6,20 @@ export const getArticlesSchema = {
     type: 'object',
     properties: {
       keywords: { type: 'string', description: 'Danh sách từ khóa cách nhau bởi dấu phẩy.' },
-      page: { type: 'integer', minimum: 1, default: 1 },
-      limit: { type: 'integer', minimum: 1, default: 10, maximum: 100 },
+      page: { 
+        anyOf: [
+          { type: 'integer' },
+          { type: 'string' }
+        ], 
+        default: 1 
+      },
+      limit: { 
+        anyOf: [
+          { type: 'integer' },
+          { type: 'string' }
+        ], 
+        default: 10 
+      },
       search: { type: 'string' },
       sortBy: { type: 'string', enum: ['article_id', 'title', 'publication_year', 'created_at', 'doi'], default: 'created_at' },
       sortOrder: { type: 'string', enum: ['asc', 'desc', 'ASC', 'DESC'], default: 'DESC' },
