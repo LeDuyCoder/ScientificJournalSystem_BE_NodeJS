@@ -7,6 +7,8 @@ import jwt from 'jsonwebtoken';
 import { buildApp } from '../../../src/app.js';
 let app;
 import pool from '../../../src/config/database.js';
+import redis from '../../../src/config/redis.js';
+import prisma from '../../../src/lib/prisma.js';
 import * as articleService from '../../../src/modules/articles/articles.service.js';
 import cacheService from '../../../src/services/cache.service.js';
 
@@ -22,7 +24,8 @@ test.before(async () => {
 test.after(async () => {
   if (app) await app.close();
   await pool.end();
-  process.exit(0);
+  redis.disconnect();
+  await prisma.$disconnect();
 });
 
 test.describe('Article Controller - GET /api/v1/articles Unit Test Suite', () => {

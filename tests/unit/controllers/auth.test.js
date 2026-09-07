@@ -1,6 +1,8 @@
 import { test, describe, mock, afterEach } from "node:test";
 import assert from "node:assert";
 import pool from "../../../src/config/database.js";
+import redis from "../../../src/config/redis.js";
+import prisma from "../../../src/lib/prisma.js";
 // import {
 //   forgotPassword,
 //   resetPassword,
@@ -10,6 +12,8 @@ import logger from "../../../src/utils/logger.js";
 
 test.after(async () => {
   await pool.end();
+  redis.disconnect();
+  await prisma.$disconnect();
 });
 
 describe("Auth Controller Unit Test Suite", () => {
