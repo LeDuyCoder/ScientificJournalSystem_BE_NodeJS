@@ -117,9 +117,9 @@ export const getVolumes = async ({ journalId, page = 1, limit = 10 }) => {
     const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 10));
     const offset = (pageNum - 1) * limitNum;
     
-    let journalCondition = Prisma.empty;
+    let journalCondition = Prisma.sql`WHERE COALESCE(v.is_deleted, false) = false`;
     if (journalId) {
-        journalCondition = Prisma.sql`WHERE v.journal_id = ${BigInt(journalId)}`;
+        journalCondition = Prisma.sql`WHERE v.journal_id = ${BigInt(journalId)} AND COALESCE(v.is_deleted, false) = false`;
     }
 
     const query = Prisma.sql`
@@ -135,8 +135,8 @@ export const getVolumes = async ({ journalId, page = 1, limit = 10 }) => {
             COUNT(DISTINCT a.article_id)::integer AS article_count
         FROM "Volume" v
         LEFT JOIN "Journal" j ON j.journal_id = v.journal_id
-        LEFT JOIN "Issue" i ON i.volume_id = v.volume_id
-        LEFT JOIN "Article" a ON a.issue_id = i.issue_id
+        LEFT JOIN "Issue" i ON i.volume_id = v.volume_id AND COALESCE(i.is_deleted, false) = false
+        LEFT JOIN "Article" a ON a.issue_id = i.issue_id AND COALESCE(a.is_deleted, false) = false
         ${journalCondition}
         GROUP BY v.volume_id, v.journal_id, j.display_name, v.volume_number, v.publication_year
         ORDER BY v.publication_year DESC NULLS LAST, v.volume_number DESC NULLS LAST
@@ -171,9 +171,9 @@ export const getIssues = async ({ volumeId, page = 1, limit = 10 }) => {
     const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 10));
     const offset = (pageNum - 1) * limitNum;
     
-    let volumeCondition = Prisma.empty;
+    let volumeCondition = Prisma.sql`WHERE COALESCE(i.is_deleted, false) = false`;
     if (volumeId) {
-        volumeCondition = Prisma.sql`WHERE i.volume_id = ${BigInt(volumeId)}`;
+        volumeCondition = Prisma.sql`WHERE i.volume_id = ${BigInt(volumeId)} AND COALESCE(i.is_deleted, false) = false`;
     }
 
     const query = Prisma.sql`

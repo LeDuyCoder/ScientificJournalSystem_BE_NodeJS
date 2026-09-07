@@ -26,7 +26,11 @@ export default async function journalsRoutes(fastify, options) {
   // Public routes or routes that might need cache
   fastify.get("/", getJournalsSchema, getJournalsController);
   fastify.get("/:id", getJournalsByIdSchema, getJournalsByIdController);
+<<<<<<< Updated upstream
 
+=======
+  
+>>>>>>> Stashed changes
   // Protected routes
   fastify.register(async (protectedRoutes) => {
     protectedRoutes.addHook("preHandler", verifyTokenFastify);

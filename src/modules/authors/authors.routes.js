@@ -32,14 +32,13 @@ export default async function authorsRoutes(fastify, options) {
   // Public routes
   fastify.get("/", getAllAuthorsSchema, getAllAuthorsController);
   fastify.get("/leaderboard", getAuthorLeaderboardSchema, getAuthorLeaderboard);
+  fastify.get("/:id", getAuthorByIdSchema, getAuthorByIdController);
+  fastify.get("/:id/areas-breakdown", getAuthorAreasBreakdownSchema, getAuthorAreasBreakdown);
+  fastify.get("/:id/articles", getAuthorArticlesSchema, getAuthorArticles);
 
   // Protected routes
   fastify.register(async (protectedRoutes) => {
     protectedRoutes.addHook("preHandler", verifyTokenFastify);
-
-    protectedRoutes.get("/:id", getAuthorByIdSchema, getAuthorByIdController);
-    protectedRoutes.get("/:id/areas-breakdown", getAuthorAreasBreakdownSchema, getAuthorAreasBreakdown);
-    protectedRoutes.get("/:id/articles", getAuthorArticlesSchema, getAuthorArticles);
 
     protectedRoutes.post("/", createAuthorSchema, createAuthorController);
     protectedRoutes.put("/:id", updateAuthorSchema, updateAuthorController);

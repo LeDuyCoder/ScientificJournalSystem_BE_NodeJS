@@ -48,7 +48,9 @@ model Article {
   Article_Reference_Article_Reference_referenced_article_idToArticle Article_Reference[]        @relation("Article_Reference_referenced_article_idToArticle")
   Author_Article                                                     Author_Article[]
   Keyword_Article                                                    Keyword_Article[]
+  Orcid_Scan_Job_Item                                                Orcid_Scan_Job_Item[]
   Project_Article_Bookmark                                           Project_Article_Bookmark[]
+  Project_Article_Scope                                              Project_Article_Scope[]
   Sub_Topic                                                          Sub_Topic[]
 
   @@index([title(ops: raw("gin_trgm_ops"))], map: "idx_article_title_trgm", type: Gin)
@@ -80,8 +82,10 @@ model Author {
   is_deleted                Boolean?             @default(false)
   Author_Article            Author_Article[]
   Institution_Author        Institution_Author[]
+  Orcid_Scan_Job            Orcid_Scan_Job[]
 
   @@index([display_name(ops: raw("gin_trgm_ops"))], map: "idx_author_name_trgm", type: Gin)
+  @@index([last_known_institution(ops: raw("gin_trgm_ops"))], map: "idx_author_institution_trgm", type: Gin)
   @@schema("public")
 }
 
@@ -140,6 +144,7 @@ model Issue {
   Article          Article[]
   Volume           Volume?   @relation(fields: [volume_id], references: [volume_id], onDelete: NoAction, onUpdate: NoAction)
 
+  @@index([volume_id], map: "idx_issue_volume_id")
   @@schema("public")
 }
 
@@ -164,6 +169,7 @@ model Journal {
   Zone_Journal_countryToZone Zone?                      @relation("Journal_countryToZone", fields: [country], references: [zone_id], onDelete: NoAction, onUpdate: NoAction)
   Publisher                  Publisher?                 @relation(fields: [publisher_id], references: [publisher_id], onDelete: NoAction, onUpdate: NoAction)
   Zone_Journal_regionToZone  Zone?                      @relation("Journal_regionToZone", fields: [region], references: [zone_id], onDelete: NoAction, onUpdate: NoAction)
+  Journal_ISSN               Journal_ISSN[]
   Journal_Ranking            Journal_Ranking[]
   Journal_Subject_Category   Journal_Subject_Category[]
   Project_Journal            Project_Journal[]
@@ -228,6 +234,7 @@ model Keyword {
   analytics_keyword_year analytics_keyword_year[]
 
   @@index([display_name], map: "idx_keyword_name_btree")
+  @@index([display_name(ops: raw("gin_trgm_ops"))], map: "idx_keyword_name_trgm", type: Gin)
   @@schema("public")
 }
 
@@ -272,6 +279,7 @@ model Project {
   Subject_Area             Subject_Area?              @relation(fields: [subject_area], references: [subject_area_id], onDelete: NoAction, onUpdate: NoAction)
   user                     user?                      @relation(fields: [user_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction)
   Project_Article_Bookmark Project_Article_Bookmark[]
+  Project_Article_Scope    Project_Article_Scope[]
   Project_Chat_Message     Project_Chat_Message[]
   Project_Journal          Project_Journal[]
   Project_Keyword          Project_Keyword[]
@@ -365,6 +373,7 @@ model Publisher {
   is_deleted   Boolean   @default(false)
   Journal      Journal[]
 
+  @@index([display_name(ops: raw("gin_trgm_ops"))], map: "idx_publisher_name_trgm", type: Gin)
   @@schema("public")
 }
 
@@ -388,6 +397,7 @@ model Sub_Topic {
   Topic      Topic   @relation(fields: [topic_id], references: [topic_id], onDelete: NoAction, onUpdate: NoAction)
 
   @@id([article_id, topic_id])
+  @@index([topic_id], map: "idx_sub_topic_topic_id")
   @@schema("public")
 }
 
@@ -450,6 +460,7 @@ model Topic {
   Subject_Category     Subject_Category?      @relation(fields: [subject_category_id], references: [subject_category_id], onDelete: NoAction, onUpdate: NoAction)
   analytics_topic_year analytics_topic_year[]
 
+  @@index([display_name(ops: raw("gin_trgm_ops"))], map: "idx_topic_name_trgm", type: Gin)
   @@schema("public")
 }
 
@@ -735,6 +746,69 @@ model analytics_job {
 
   @@index([project_id], map: "idx_analytics_job_project")
   @@index([status], map: "idx_analytics_job_status")
+  @@schema("public")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model Journal_ISSN {
+  issn       String  @id @db.VarChar(8)
+  journal_id BigInt
+  Journal    Journal @relation(fields: [journal_id], references: [journal_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([journal_id], map: "idx_journal_issn_journal_id")
+  @@schema("public")
+}
+
+model Orcid_Scan_Job {
+  job_id              String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orcid               String                @db.VarChar(50)
+  requested_by        String                @db.Uuid
+  status              String                @default("queued") @db.VarChar(32)
+  stage               String                @default("queued") @db.VarChar(64)
+  progress            Int                   @default(0)
+  source_progress     Json                  @default("{}")
+  source_status       Json                  @default("{}")
+  summary             Json                  @default("{}")
+  author_id           BigInt?
+  error_code          String?               @db.VarChar(64)
+  error_message       String?
+  attempt_count       Int                   @default(0)
+  started_at          DateTime?             @db.Timestamptz(6)
+  heartbeat_at        DateTime?             @db.Timestamptz(6)
+  completed_at        DateTime?             @db.Timestamptz(6)
+  created_at          DateTime              @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime              @default(now()) @db.Timestamptz(6)
+  Author              Author?               @relation(fields: [author_id], references: [author_id], onUpdate: NoAction)
+  Orcid_Scan_Job_Item Orcid_Scan_Job_Item[]
+
+  @@index([status, requested_by, orcid, created_at(sort: Desc)], map: "idx_orcid_scan_job_active_lookup")
+  @@index([status, completed_at], map: "idx_orcid_scan_job_status_completed")
+  @@schema("public")
+}
+
+model Orcid_Scan_Job_Item {
+  item_id        BigInt         @id @default(autoincrement())
+  job_id         String         @db.Uuid
+  article_id     BigInt
+  created_at     DateTime       @default(now()) @db.Timestamptz(6)
+  Article        Article        @relation(fields: [article_id], references: [article_id], onDelete: Cascade, onUpdate: NoAction)
+  Orcid_Scan_Job Orcid_Scan_Job @relation(fields: [job_id], references: [job_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([job_id, article_id], map: "uq_orcid_scan_job_item")
+  @@index([job_id, item_id], map: "idx_orcid_scan_job_items_job_item")
+  @@schema("public")
+}
+
+model Project_Article_Scope {
+  project_id       BigInt
+  article_id       BigInt
+  publication_year Int?
+  Article          Article @relation(fields: [article_id], references: [article_id], onDelete: Cascade, onUpdate: NoAction, map: "fk_pas_article")
+  Project          Project @relation(fields: [project_id], references: [project_id], onDelete: Cascade, onUpdate: NoAction, map: "fk_pas_project")
+
+  @@id([project_id, article_id])
+  @@index([project_id], map: "idx_pas_project")
+  @@index([project_id, publication_year], map: "idx_pas_project_year")
   @@schema("public")
 }
 
