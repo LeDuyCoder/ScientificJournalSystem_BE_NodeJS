@@ -945,3 +945,58 @@ export const getProjectOverview = async (projectId, userId) => {
   }
 };
 
+
+
+/**
+ * Automatically sync Project_Article_Scope after a project is created or updated
+ * This materialized view is required by the Analytics service
+ */
+export const syncProjectScope = async (projectId) => {
+  try {
+    // 1. Clear existing scope
+    await pool.query('DELETE FROM "Project_Article_Scope" WHERE project_id = $1', [projectId]);
+
+    // 2. Get project categories
+    const catsRes = await pool.query('SELECT subject_category_id FROM "Subject_Category_Project" WHERE project_id = $1', [projectId]);
+    const catIds = catsRes.rows.map(r => r.subject_category_id);
+
+    if (catIds.length > 0) {
+      await pool.query(`
+        INSERT INTO "Project_Article_Scope" (project_id, article_id, publication_year)
+        SELECT DISTINCT $1, a.article_id, a.publication_year
+        FROM "Article" a
+        WHERE a.primary_topic IN (
+          SELECT topic_id FROM "Topic" WHERE subject_category_id = ANY($2::bigint[])
+        )
+        ON CONFLICT DO NOTHING;
+      `, [projectId, catIds]);
+
+      await pool.query(`
+        INSERT INTO "Project_Article_Scope" (project_id, article_id, publication_year)
+        SELECT DISTINCT $1, a.article_id, a.publication_year
+        FROM "Sub_Topic" st
+        JOIN "Topic" sub_topic ON st.topic_id = sub_topic.topic_id
+        JOIN "Article" a ON st.article_id = a.article_id
+        WHERE sub_topic.subject_category_id = ANY($2::bigint[])
+        ON CONFLICT DO NOTHING;
+      `, [projectId, catIds]);
+    }
+
+    // 3. Get project keywords
+    const kwsRes = await pool.query('SELECT keyword_id FROM "Project_Keyword" WHERE project_id = $1', [projectId]);
+    const kwIds = kwsRes.rows.map(r => r.keyword_id);
+
+    if (kwIds.length > 0) {
+      await pool.query(`
+        INSERT INTO "Project_Article_Scope" (project_id, article_id, publication_year)
+        SELECT DISTINCT $1, a.article_id, a.publication_year
+        FROM "Keyword_Article" ka
+        JOIN "Article" a ON ka.article_id = a.article_id
+        WHERE ka.keyword_id = ANY($2::bigint[])
+        ON CONFLICT DO NOTHING;
+      `, [projectId, kwIds]);
+    }
+  } catch (error) {
+    logger.error('Error syncing Project_Article_Scope:', error);
+  }
+};

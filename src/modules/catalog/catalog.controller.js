@@ -82,7 +82,7 @@ export const getVolumes = async (req, reply) => {
 
         if (journal_id !== undefined) {
             const idNum = Number(journal_id);
-            if (isNaN(idNum) || idNum <= 0 || !/^\\d+$/.test(String(journal_id).trim())) {
+            if (isNaN(idNum) || idNum <= 0 || !/^\d+$/.test(String(journal_id).trim())) {
                 return reply.status(400).send({
                     success: false,
                     code: 'CATALOG_JOURNAL_ID_INVALID',
@@ -114,7 +114,7 @@ export const getIssues = async (req, reply) => {
 
         if (volume_id !== undefined) {
             const idNum = Number(volume_id);
-            if (isNaN(idNum) || idNum <= 0 || !/^\\d+$/.test(String(volume_id).trim())) {
+            if (isNaN(idNum) || idNum <= 0 || !/^\d+$/.test(String(volume_id).trim())) {
                 return reply.status(400).send({
                     success: false,
                     code: 'CATALOG_VOLUME_ID_INVALID',
