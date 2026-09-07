@@ -10,8 +10,20 @@ import fastifySwaggerUi from '@fastify/swagger-ui';
 export const buildApp = async (opts = {}) => {
   const app = Fastify({ logger: opts.logger ?? true });
 
+  const parseCorsOrigins = (envVar) => {
+    if (!envVar) return [];
+    let cleaned = envVar.trim();
+    if (cleaned.startsWith('[') && cleaned.endsWith(']')) {
+      cleaned = cleaned.slice(1, -1);
+    }
+    return cleaned.split(',').map(url => url.trim()).filter(Boolean);
+  };
+
+  const frontendUrls = parseCorsOrigins(process.env.FRONTEND_URL);
+  const frontendTrendingUrls = parseCorsOrigins(process.env.FRONTEND_URL_TRENDING);
+
   await app.register(cors, {
-    origin: [process.env.FRONTEND_URL, process.env.FRONTEND_URL_TRENDING],
+    origin: [...frontendUrls, ...frontendTrendingUrls],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS']
   });

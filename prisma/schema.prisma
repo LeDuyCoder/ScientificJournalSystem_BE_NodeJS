@@ -58,15 +58,7 @@ model Article {
   @@index([doi], map: "idx_article_doi_btree")
   @@index([doi(ops: raw("gin_trgm_ops"))], map: "idx_article_doi_trgm", type: Gin)
   @@index([openalex_id], map: "idx_article_openalex_id")
-  // Xóa các index trùng lặp và low cardinality (boolean)
-  // Xóa idx_article_pub_year_btree (trùng lặp với idx_article_pub_year)
-  // Xóa idx_article_title_btree (dư thừa khi đã có gin_trgm cho search)
-  // Xóa idx_article_is_deleted_btree và idx_article_vn_flag (low cardinality)
-  
-  // Thêm composite index tối ưu cho filter Analytics
   @@index([primary_topic, publication_year], map: "idx_article_topic_year")
-  // Thêm index tối ưu sắp xếp bài báo theo thời gian (Tối ưu API /articles)
-  @@index([created_at(sort: Desc), article_id(sort: Desc)], map: "idx_article_created_id_desc")
   @@schema("public")
 }
 
@@ -134,6 +126,7 @@ model Institution_Author {
   @@index([institution_id], map: "idx_institution_author_institution")
   @@index([year], map: "idx_institution_author_year")
   @@index([author_id, year, institution_id], map: "idx_institution_author_composite")
+  @@index([institution_id], map: "idx_institution_author_inst_id")
   @@schema("public")
 }
 
@@ -228,10 +221,10 @@ model Journal_Subject_Category {
 
 /// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
 model Keyword {
-  keyword_id      BigInt            @id @default(autoincrement())
-  display_name    String?           @unique @db.VarChar
-  Keyword_Article Keyword_Article[]
-  Project_Keyword Project_Keyword[]
+  keyword_id             BigInt                   @id @default(autoincrement())
+  display_name           String?                  @unique @db.VarChar
+  Keyword_Article        Keyword_Article[]
+  Project_Keyword        Project_Keyword[]
   analytics_keyword_year analytics_keyword_year[]
 
   @@index([display_name], map: "idx_keyword_name_btree")
@@ -445,16 +438,16 @@ model Subject_Category_Project {
 
 /// This model has constraints using non-default deferring rules and requires additional setup for migrations. Visit https://pris.ly/d/constraint-deferring for more info.
 model Topic {
-  topic_id            BigInt            @id @default(autoincrement())
-  display_name        String?           @unique @db.VarChar
-  score               Float?
-  subject_area_id     BigInt?
-  subject_category_id BigInt?
-  is_deleted          Boolean?          @default(false)
-  Article             Article[]
-  Sub_Topic           Sub_Topic[]
-  Subject_Area        Subject_Area?     @relation(fields: [subject_area_id], references: [subject_area_id], onDelete: NoAction, onUpdate: NoAction)
-  Subject_Category    Subject_Category? @relation(fields: [subject_category_id], references: [subject_category_id], onDelete: NoAction, onUpdate: NoAction)
+  topic_id             BigInt                 @id @default(autoincrement())
+  display_name         String?                @unique @db.VarChar
+  score                Float?
+  subject_area_id      BigInt?
+  subject_category_id  BigInt?
+  is_deleted           Boolean?               @default(false)
+  Article              Article[]
+  Sub_Topic            Sub_Topic[]
+  Subject_Area         Subject_Area?          @relation(fields: [subject_area_id], references: [subject_area_id], onDelete: NoAction, onUpdate: NoAction)
+  Subject_Category     Subject_Category?      @relation(fields: [subject_category_id], references: [subject_category_id], onDelete: NoAction, onUpdate: NoAction)
   analytics_topic_year analytics_topic_year[]
 
   @@schema("public")
@@ -676,67 +669,6 @@ model Bookmark {
   @@schema("public")
 }
 
-enum auth_provider {
-  LOCAL
-  GOOGLE
-
-  @@schema("public")
-}
-
-enum log_action {
-  CREATE
-  UPDATE
-  DELETE
-  LOGIN
-  LOGOUT
-  VIEW
-  EXPORT
-  IMPORT
-  ERROR
-  SYSTEM
-  ACTIVATE
-
-  @@schema("public")
-}
-
-enum log_level {
-  INFO
-  WARNING
-  ERROR
-  CRITICAL
-
-  @@schema("public")
-}
-
-enum log_source {
-  API
-  ADMIN_PANEL
-  SYSTEM
-  CRON
-
-  @@schema("public")
-}
-
-enum message_role {
-  USER
-  ASSISTANT
-  SYSTEM
-
-  @@schema("public")
-}
-
-enum message_status {
-  PENDING
-  COMPLETED
-  ERROR
-
-  @@schema("public")
-}
-
-// -------------------------------------------------------------
-// ANALYTICS & BACKGROUND JOBS LAYER
-// -------------------------------------------------------------
-
 model analytics_topic_year {
   topic_id       BigInt
   year           Int
@@ -803,6 +735,63 @@ model analytics_job {
 
   @@index([project_id], map: "idx_analytics_job_project")
   @@index([status], map: "idx_analytics_job_status")
+  @@schema("public")
+}
+
+enum auth_provider {
+  LOCAL
+  GOOGLE
+
+  @@schema("public")
+}
+
+enum log_action {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  VIEW
+  EXPORT
+  IMPORT
+  ERROR
+  SYSTEM
+  ACTIVATE
+
+  @@schema("public")
+}
+
+enum log_level {
+  INFO
+  WARNING
+  ERROR
+  CRITICAL
+
+  @@schema("public")
+}
+
+enum log_source {
+  API
+  ADMIN_PANEL
+  SYSTEM
+  CRON
+
+  @@schema("public")
+}
+
+enum message_role {
+  USER
+  ASSISTANT
+  SYSTEM
+
+  @@schema("public")
+}
+
+enum message_status {
+  PENDING
+  COMPLETED
+  ERROR
+
   @@schema("public")
 }
 
