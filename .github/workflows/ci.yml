@@ -92,8 +92,8 @@ jobs:
           context: .
           push: true
           tags: |
-            ghcr.io/leduycoder/scientificjournalsystem-be:latest
-            ghcr.io/leduycoder/scientificjournalsystem-be:${{ github.sha }}
+            ghcr.io/researchpulse/scientificjournalsystem-be:latest
+            ghcr.io/researchpulse/scientificjournalsystem-be:${{ github.sha }}
 
   deploy:
     name: Deploy to VPS
