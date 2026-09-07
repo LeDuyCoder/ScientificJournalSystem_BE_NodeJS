@@ -8,6 +8,7 @@ import { buildApp } from '../../../src/app.js';
 let app;
 import pool from '../../../src/config/database.js';
 import redis from '../../../src/config/redis.js';
+import redisClient from '../../../src/config/redis.config.js';
 import prisma from '../../../src/lib/prisma.js';
 import * as articleService from '../../../src/modules/articles/articles.service.js';
 import cacheService from '../../../src/services/cache.service.js';
@@ -25,6 +26,7 @@ test.after(async () => {
   if (app) await app.close();
   await pool.end();
   redis.disconnect();
+  redisClient.disconnect();
   await prisma.$disconnect();
 });
 
