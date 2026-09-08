@@ -52,3 +52,45 @@ export const registerSchema = {
     }
   }
 };
+
+export const forgotPasswordSchema = {
+  tags: ['Auth'],
+  body: {
+    type: 'object',
+    required: ['email'],
+    properties: {
+      email: { type: 'string', format: 'email' }
+    }
+  },
+  response: {
+    200: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean' },
+        message: { type: 'string' }
+      }
+    }
+  }
+};
+
+export const resetPasswordSchema = {
+  tags: ['Auth'],
+  body: {
+    type: 'object',
+    required: ['token', 'new_password'],
+    properties: {
+      token: { type: 'string', minLength: 1 },
+      new_password: { type: 'string', minLength: 6 }
+    }
+  },
+  response: {
+    200: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean' },
+        message: { type: 'string' }
+      }
+    }
+  }
+};
+

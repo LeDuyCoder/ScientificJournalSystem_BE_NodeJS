@@ -1,8 +1,17 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { findUserByEmail, createUser, findUserById, updateUserStatus } from './auth.repository.js';
+import {
+  findUserByEmail,
+  createUser,
+  findUserById,
+  updateUserStatus,
+  createPasswordResetToken,
+  findPasswordResetToken,
+  resetUserPasswordWithToken
+} from './auth.repository.js';
 import { emailHelper } from '../../utils/email.js';
 import crypto from 'crypto';
+
 
 export const loginUser = async (email, password) => {
   const user = await findUserByEmail(email);
@@ -102,4 +111,107 @@ export const verifyUserEmail = async (token) => {
   await updateUserStatus(user.user_id, 'ACTIVE');
   return { message: 'Kích hoạt tài khoản thành công' };
 };
+
+export const hashToken = (token) => {
+  return crypto.createHash('sha256').update(token).digest('hex');
+};
+
+export const requestPasswordReset = async (email) => {
+  if (!email) {
+    throw new Error('Email không được để trống');
+  }
+
+  const normalizedEmail = email.trim().toLowerCase();
+  const user = await findUserByEmail(normalizedEmail);
+
+  // Tránh email enumeration attack
+  if (!user) {
+    return {
+      success: true,
+      message: 'Nếu email tồn tại trong hệ thống, link đặt lại mật khẩu sẽ được gửi đến email của bạn'
+    };
+  }
+
+  if (user.type && user.type !== 'LOCAL') {
+    const error = new Error('Tài khoản không hỗ trợ đặt lại mật khẩu bằng email');
+    error.statusCode = 403;
+    throw error;
+  }
+
+  const resetToken = crypto.randomBytes(32).toString('hex');
+  const tokenHash = hashToken(resetToken);
+  const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 phút
+
+  await createPasswordResetToken({
+    userId: user.user_id,
+    tokenHash,
+    expiresAt
+  });
+
+  try {
+    await emailHelper.sendResetPasswordEmail(
+      normalizedEmail,
+      user.first_name || '',
+      resetToken
+    );
+  } catch (error) {
+    console.error('[auth.service] Lỗi gửi email đặt lại mật khẩu:', error);
+    throw new Error('Không thể gửi email đặt lại mật khẩu. Vui lòng thử lại sau.');
+  }
+
+  return {
+    success: true,
+    message: 'Nếu email tồn tại trong hệ thống, link đặt lại mật khẩu sẽ được gửi đến email của bạn'
+  };
+};
+
+export const resetPassword = async (token, newPassword) => {
+  if (!token) {
+    const error = new Error('Mã khôi phục không hợp lệ');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (!newPassword || newPassword.length < 6) {
+    const error = new Error('Mật khẩu mới phải có tối thiểu 6 ký tự');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const tokenHash = hashToken(token);
+  const tokenData = await findPasswordResetToken(tokenHash);
+
+  if (!tokenData) {
+    const error = new Error('Token không hợp lệ hoặc đã hết hạn');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (tokenData.used_at) {
+    const error = new Error('Token này đã được sử dụng');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (new Date(tokenData.expires_at) <= new Date()) {
+    const error = new Error('Token đã hết hạn');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const salt = await bcrypt.genSalt(10);
+  const passwordHash = await bcrypt.hash(newPassword, salt);
+
+  await resetUserPasswordWithToken({
+    userId: tokenData.user_id,
+    tokenId: tokenData.token_id,
+    newPasswordHash: passwordHash
+  });
+
+  return {
+    success: true,
+    message: 'Đặt lại mật khẩu thành công'
+  };
+};
+
 

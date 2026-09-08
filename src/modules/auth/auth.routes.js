@@ -1,6 +1,6 @@
-import { login, register, refreshToken, logout, checkAuth, verifyAccount } from './auth.controller.js';
+import { login, register, refreshToken, logout, checkAuth, verifyAccount, forgotPassword, resetPassword } from './auth.controller.js';
 import { verifyTokenFastify } from './auth.middleware.js';
-import { loginSchema, registerSchema } from './auth.schema.js';
+import { loginSchema, registerSchema, forgotPasswordSchema, resetPasswordSchema } from './auth.schema.js';
 
 /**
  * Auth plugin for Fastify
@@ -12,6 +12,10 @@ export default async function authRoutes(fastify, options) {
   
   fastify.post('/register', { schema: registerSchema }, register);
   
+  fastify.post('/forgot-password', { schema: forgotPasswordSchema }, forgotPassword);
+
+  fastify.post('/reset-password', { schema: resetPasswordSchema }, resetPassword);
+
   fastify.get('/verify', { schema: { tags: ['Auth'] } }, verifyAccount);
   
   fastify.get('/refresh', { schema: { tags: ['Auth'] } }, refreshToken);
@@ -20,4 +24,5 @@ export default async function authRoutes(fastify, options) {
   
   fastify.post('/logout', { schema: { tags: ['Auth'] } }, logout);
 }
+
 
