@@ -1,5 +1,4 @@
 import pool from "../../config/database.js";
-import logger from "../../utils/logger.js";
 
 export const getIssues = async ({ page = 1, limit = 10, volume_id, journal_id }) => {
     const offset = (page - 1) * limit;

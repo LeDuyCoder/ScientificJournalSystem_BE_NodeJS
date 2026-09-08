@@ -1,7 +1,6 @@
 import pool from '../../config/database.js';
 import logger from '../../utils/logger.js';
 import cacheService from '../../services/cache.service.js';
-import crypto from 'crypto';
 
 /**
  * Lấy số lượng journal và article của một project, có sử dụng cache Redis để tối ưu hiệu năng
