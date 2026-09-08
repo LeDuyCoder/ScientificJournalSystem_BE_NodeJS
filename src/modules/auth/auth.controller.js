@@ -1,4 +1,5 @@
-import { loginUser, registerUser, verifyUserEmail } from './auth.service.js';
+import { loginUser, registerUser, verifyUserEmail, requestPasswordReset, resetPassword as resetPasswordService } from './auth.service.js';
+
 
 export const login = async (request, reply) => {
   try {
@@ -122,4 +123,31 @@ export const checkAuth = async (request, reply) => {
     user: request.user
   });
 };
+
+export const forgotPassword = async (request, reply) => {
+  try {
+    const { email } = request.body || {};
+    const result = await requestPasswordReset(email);
+    return reply.send(result);
+  } catch (error) {
+    return reply.code(error.statusCode || 400).send({
+      success: false,
+      message: error.message || 'Có lỗi xảy ra khi xử lý yêu cầu quên mật khẩu'
+    });
+  }
+};
+
+export const resetPassword = async (request, reply) => {
+  try {
+    const { token, new_password } = request.body || {};
+    const result = await resetPasswordService(token, new_password);
+    return reply.send(result);
+  } catch (error) {
+    return reply.code(error.statusCode || 400).send({
+      success: false,
+      message: error.message || 'Đặt lại mật khẩu thất bại'
+    });
+  }
+};
+
 
