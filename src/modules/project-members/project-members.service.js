@@ -25,7 +25,10 @@ const getProjectMembers = async (projectId) => {
            u.first_name, u.last_name, u.email
     FROM "Project_Member" pm
     JOIN "user" u ON pm.user_id = u.user_id
-    WHERE pm.project_id = $1
+    WHERE pm.project_id = $1 
+      AND (pm.status IS NULL OR pm.status != 'REMOVED')
+      AND pm.user_id NOT IN (SELECT user_id FROM "Project" WHERE project_id = $1)
+    ORDER BY invited_at ASC
   `;
   const { rows } = await pool.query(query, [projectId]);
   return rows;
@@ -40,22 +43,29 @@ const inviteMember = async (projectId, email, role, inviterId) => {
     await client.query('BEGIN');
 
     // 1. Check if user exists
-    const userRes = await client.query('SELECT user_id, first_name, last_name FROM "user" WHERE email = $1', [email]);
+    const userRes = await client.query('SELECT user_id, first_name, last_name FROM "user" WHERE LOWER(email) = LOWER($1)', [email]);
     if (userRes.rows.length === 0) {
       throw new Error("Người dùng với email này không tồn tại trong hệ thống.");
     }
     const user = userRes.rows[0];
 
     // 2. Check if project exists
-    const projectRes = await client.query('SELECT title FROM "Project" WHERE project_id = $1', [projectId]);
+    const projectRes = await client.query('SELECT title, user_id FROM "Project" WHERE project_id = $1', [projectId]);
     if (projectRes.rows.length === 0) {
       throw new Error("Dự án không tồn tại.");
     }
     const project = projectRes.rows[0];
 
+    // Không cho phép mời chính chủ sở hữu của dự án
+    if (String(project.user_id) === String(user.user_id)) {
+      throw new Error("Người dùng này đã là chủ sở hữu của dự án.");
+    }
+
     // 3. Check inviter info
     const inviterRes = await client.query('SELECT first_name, last_name FROM "user" WHERE user_id = $1', [inviterId]);
-    const inviterName = inviterRes.rows.length > 0 ? `${inviterRes.rows[0].first_name} ${inviterRes.rows[0].last_name}` : "Admin";
+    const inviterName = inviterRes.rows.length > 0 
+      ? `${inviterRes.rows[0].first_name || ''} ${inviterRes.rows[0].last_name || ''}`.trim() || "Admin" 
+      : "Admin";
 
     // 4. Check if member already in project
     const memberRes = await client.query('SELECT * FROM "Project_Member" WHERE project_id = $1 AND user_id = $2', [projectId, user.user_id]);
@@ -71,25 +81,27 @@ const inviteMember = async (projectId, email, role, inviterId) => {
       // Update existing invite
       await client.query(`
         UPDATE "Project_Member" 
-        SET role = $1, status = 'INVITED', invited_by = $2, invited_at = NOW(), invited_email = $5 
+        SET role = $1, status = 'INVITED', invited_by = $2, invited_at = NOW() 
         WHERE project_id = $3 AND user_id = $4
-      `, [role, inviterId, projectId, user.user_id, email]);
+      `, [role, inviterId, projectId, user.user_id]);
     } else {
       // Insert new invite
       await client.query(`
-        INSERT INTO "Project_Member" (project_id, user_id, role, status, invited_by, invited_email) 
-        VALUES ($1, $2, $3, 'INVITED', $4, $5)
-      `, [projectId, user.user_id, role, inviterId, email]);
+        INSERT INTO "Project_Member" (project_id, user_id, role, status, invited_by) 
+        VALUES ($1, $2, $3, 'INVITED', $4)
+      `, [projectId, user.user_id, role, inviterId]);
     }
-
-    await client.query('COMMIT');
 
     // Send Email
     await emailHelper.sendProjectInviteEmail(email, project.title, inviterName, inviteToken);
 
+    await client.query('COMMIT');
+
     return { message: "Đã gửi lời mời thành công." };
   } catch (error) {
-    await client.query('ROLLBACK');
+    try {
+      await client.query('ROLLBACK');
+    } catch (_) {}
     throw error;
   } finally {
     client.release();
@@ -122,7 +134,7 @@ const acceptInvite = async (token) => {
 
     return { message: "Đã chấp nhận lời mời tham gia dự án." };
   } catch (error) {
-    if (error.message === "Lời mời không hợp lệ hoặc đã bị hủy.") {
+    if (error.message === "Lời mời không hợp lệ hoặc đã bị hủy." || error.message === "Bạn đã tham gia dự án này rồi.") {
       throw error;
     }
     throw new Error("Token không hợp lệ hoặc đã hết hạn.");
@@ -150,6 +162,12 @@ const updateMemberRole = async (projectId, userId, newRole) => {
  * Remove a member from a project
  */
 const removeMember = async (projectId, userId) => {
+  // Check if target is project owner
+  const projectRes = await pool.query('SELECT user_id FROM "Project" WHERE project_id = $1', [projectId]);
+  if (projectRes.rows.length > 0 && String(projectRes.rows[0].user_id) === String(userId)) {
+    throw new Error("Không thể xóa chủ sở hữu khỏi dự án.");
+  }
+
   const res = await pool.query(`
     DELETE FROM "Project_Member"
     WHERE project_id = $1 AND user_id = $2
