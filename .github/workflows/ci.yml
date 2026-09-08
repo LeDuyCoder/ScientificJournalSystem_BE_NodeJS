@@ -111,6 +111,11 @@ jobs:
           script: |
             cd ~/apps/researchpulse-be
 
+            if [ -d .git ]; then
+              echo "Pulling latest repository changes..."
+              git pull origin main || true
+            fi
+
             echo "Pull latest Docker image..."
             docker-compose pull backend
 
@@ -118,4 +123,4 @@ jobs:
             docker-compose up -d --force-recreate backend
 
             echo "Remove unused images..."
-            docker image prune -f
+            docker image prune -f
