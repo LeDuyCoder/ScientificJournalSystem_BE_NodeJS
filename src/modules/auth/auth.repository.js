@@ -25,3 +25,33 @@ export const updateUserStatus = async (userId, status) => {
   });
 };
 
+export const createPasswordResetToken = async ({ userId, tokenHash, expiresAt }) => {
+  return await prisma.password_Reset_Token.create({
+    data: {
+      user_id: userId,
+      token_hash: tokenHash,
+      expires_at: expiresAt
+    }
+  });
+};
+
+export const findPasswordResetToken = async (tokenHash) => {
+  return await prisma.password_Reset_Token.findFirst({
+    where: { token_hash: tokenHash }
+  });
+};
+
+export const resetUserPasswordWithToken = async ({ userId, tokenId, newPasswordHash }) => {
+  return await prisma.$transaction([
+    prisma.user.update({
+      where: { user_id: userId },
+      data: { password: newPasswordHash }
+    }),
+    prisma.password_Reset_Token.update({
+      where: { token_id: tokenId },
+      data: { used_at: new Date() }
+    })
+  ]);
+};
+
+
