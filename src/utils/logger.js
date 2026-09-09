@@ -4,24 +4,27 @@ const getTimestamp = () => {
   return now.toISOString().replace('T', ' ').substring(0, 19);
 };
 
+const isTest = process.env.npm_lifecycle_event === 'test' || process.env.NODE_ENV === 'test';
+
 const logger = {
   info: (message, ...args) => {
+    if (isTest) return;
     console.log(`[${getTimestamp()}] [INFO]: ${message}`, ...args);
   },
   
   warn: (message, ...args) => {
+    if (isTest) return;
     console.warn(`\x1b[33m[${getTimestamp()}] [WARN]: ${message}\x1b[0m`, ...args); 
-    // \x1b[33m và \x1b[0m là mã màu giúp chữ WARN có màu vàng trên terminal
   },
   
   error: (message, error = '') => {
+    if (isTest) return;
     console.error(`\x1b[31m[${getTimestamp()}] [ERROR]: ${message}\x1b[0m`, error.stack || error);
-    // Mã màu đỏ cho ERROR và in ra stack trace của lỗi nếu có
   },
   
   db: (message, ...args) => {
+    if (isTest) return;
     console.log(`\x1b[36m[${getTimestamp()}] [DATABASE]: ${message}\x1b[0m`, ...args);
-    // Mã màu xanh ngọc (Cyan) dành riêng cho các log liên quan đến DB
   }
 };
 

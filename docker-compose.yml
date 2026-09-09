@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  backend:
+    image: ghcr.io/researchpulse/scientificjournalsystem-be:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: researchpulse_backend
+    restart: unless-stopped
+    pull_policy: always
+
+    ports:
+      - "${PORT:-8000}:8000"
+
+    env_file:
+      - .env
+
+    networks:
+      - researchpulse_network
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "3"
+
+networks:
+  researchpulse_network:
+    external: true
+    name: researchpulse_network

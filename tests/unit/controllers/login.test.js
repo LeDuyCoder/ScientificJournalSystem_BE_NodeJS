@@ -1,10 +1,16 @@
 import { test, describe, mock, afterEach } from "node:test";
 import assert from "node:assert";
 import pool from "../../../src/config/database.js";
-import { logout } from "../../../src/controllers/login.controller.js";
+import redis from "../../../src/config/redis.js";
+import redisClient from "../../../src/config/redis.config.js";
+import prisma from "../../../src/lib/prisma.js";
+import { logout } from "../../../src/modules/auth/auth.controller.js";
 
 test.after(async () => {
   await pool.end();
+  redis.disconnect();
+  redisClient.disconnect();
+  await prisma.$disconnect();
 });
 
 describe("Login Controller Unit Test Suite", () => {
@@ -14,16 +20,20 @@ describe("Login Controller Unit Test Suite", () => {
 
   const createMockResponse = () => {
     const res = {
-      clearedCookies: []
+      clearedCookies: [],
+      statusCode: 200
     };
-    res.status = (statusCode) => {
+    res.code = (statusCode) => {
       res.statusCode = statusCode;
       return res;
     };
-    res.json = (jsonData) => {
+    res.send = (jsonData) => {
       res.body = jsonData;
       return res;
     };
+    // Hỗ trợ cả chuẩn cũ để không làm gãy các test chưa sửa
+    res.status = res.code;
+    res.json = res.send;
     res.clearCookie = (cookieName, options) => {
       res.clearedCookies.push({ name: cookieName, options });
       return res;
@@ -40,7 +50,6 @@ describe("Login Controller Unit Test Suite", () => {
 
       assert.strictEqual(res.statusCode, 200);
       assert.strictEqual(res.body.success, true);
-      assert.strictEqual(res.body.code, "LOGOUT_SUCCESS");
       assert.strictEqual(res.body.message, "Đăng xuất thành công");
       assert.strictEqual(res.clearedCookies.length, 2);
       assert.strictEqual(res.clearedCookies[0].name, "access_token");

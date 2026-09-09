@@ -1,44 +1,19 @@
-import app from "./src/app.js";
+import { buildApp } from "./src/app.js";
 import dotenv from "dotenv";
-import swaggerUi from "swagger-ui-express";
-import swaggerJsdoc from "swagger-jsdoc";
-import cors from 'cors';
 
 dotenv.config();
+
 const PORT = process.env.PORT || 5000;
 
-const swaggerOptions = {
-  definition: {
-    openapi: "3.0.0",
-    info: {
-      title: "Tuyển Tập API Express của Tôi",
-      version: "1.0.0",
-      description: "Tài liệu hướng dẫn sử dụng các API hệ thống",
-    },
-    servers: [
-      {
-        url: process.env.BASE_URL || `http://localhost:${PORT}`,
-        description: "API Server",
-      },
-    ],
-
-    components: {
-      securitySchemes: {
-        bearerAuth: {
-          type: 'http',
-          scheme: 'bearer',
-          bearerFormat: 'JWT'
-        }
-      }
-    },
-  },
-  apis: ["./src/routes/*.js"],
+const start = async () => {
+  try {
+    const app = await buildApp();
+    await app.listen({ port: PORT, host: '0.0.0.0' });
+    console.log(`🚀 Server đang trên: http://localhost:${PORT}`);
+  } catch (err) {
+    console.error(err);
+    process.exit(1);
+  }
 };
 
-const swaggerDocs = swaggerJsdoc(swaggerOptions);
-
-app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocs));
-
-app.listen(PORT, () => {
-  console.log(`🚀 Server đang trên: http://localhost:${PORT}`);
-});
+start();

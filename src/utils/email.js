@@ -250,7 +250,7 @@ export const emailHelper = {
         'http://localhost:8000';
 
       const resetUrl =
-        `${baseUrl}/reset-password?token=${token}`;
+        `${baseUrl.replace(/\/+$/, '')}/reset-password?token=${token}`;
 
       // English HTML template
       const html = `
