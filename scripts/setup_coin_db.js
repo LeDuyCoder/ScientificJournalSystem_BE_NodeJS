@@ -10,7 +10,7 @@ async function main() {
     await client.query(`
       DO $$
       BEGIN
-        CREATE TYPE payment_method AS ENUM ('vnpay', 'momo', 'bank_transfer', 'stripe', 'paypal');
+        CREATE TYPE payment_method AS ENUM ('payos', 'vnpay', 'momo', 'bank_transfer', 'stripe', 'paypal');
       EXCEPTION WHEN duplicate_object THEN
         NULL;
       END $$;
@@ -63,6 +63,7 @@ async function main() {
     await client.query(`
       CREATE TABLE IF NOT EXISTS payment_transaction (
         transaction_id UUID PRIMARY KEY,
+        order_code BIGINT UNIQUE,
         user_id UUID NOT NULL REFERENCES "user"(user_id) ON DELETE CASCADE,
         package_id UUID REFERENCES coin_package(package_id) ON DELETE SET NULL,
         amount DECIMAL(18,2) NOT NULL,

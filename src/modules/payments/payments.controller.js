@@ -34,6 +34,8 @@ export const createPayment = async (req, reply) => {
             data: {
                 transactionId: result.payment.transaction_id,
                 transaction_id: result.payment.transaction_id,
+                orderCode: result.payment.order_code,
+                order_code: result.payment.order_code,
                 paymentUrl: result.paymentUrl,
                 payment_url: result.paymentUrl,
                 payment: result.payment,
@@ -58,6 +60,21 @@ export const getPaymentById = async (req, reply) => {
                 message: 'Khong tim thay giao dich thanh toan',
             });
         }
+
+        return reply.send({
+            success: true,
+            code: 'GET_PAYMENT_SUCCESS',
+            message: 'Lay trang thai giao dich thanh toan thanh cong',
+            data: payment,
+        });
+    } catch (error) {
+        return handleControllerError(reply, error, 'Co loi xay ra khi lay giao dich thanh toan');
+    }
+};
+
+export const getPaymentByOrderCode = async (req, reply) => {
+    try {
+        const payment = await paymentService.getPaymentByOrderCode(req.params.orderCode);
 
         return reply.send({
             success: true,
@@ -112,33 +129,22 @@ export const getAdminPayments = async (req, reply) => {
     }
 };
 
-export const handleVnpayReturn = async (req, reply) => {
+export const handlePayosWebhook = async (req, reply) => {
     try {
-        const result = await paymentService.handleVnpayReturn(req.query);
+        const result = await paymentService.handlePayosWebhook(req.body);
 
         return reply.send({
-            success: true,
-            code: result.isValidSignature ? 'VNPAY_RETURN_RECEIVED' : 'VNPAY_RETURN_INVALID_SIGNATURE',
-            message: result.isValidSignature
-                ? 'Da nhan ket qua thanh toan VNPay, vui long cho IPN xac nhan'
-                : 'Chu ky VNPay return khong hop le',
+            error: 0,
+            message: result.message || 'Ok',
             data: result,
         });
     } catch (error) {
-        return handleControllerError(reply, error, 'Co loi xay ra khi xu ly VNPay return');
+        logger.error('[Payment Controller] Error in handlePayosWebhook:', error);
+        return reply.status(error.statusCode || 500).send({
+            error: -1,
+            message: error.message || 'Co loi xay ra khi xu ly PayOS webhook',
+        });
     }
-};
-
-export const handleVnpayIpn = async (req, reply) => {
-    const result = await paymentService.handleVnpayIpn({
-        ...req.query,
-        ...req.body,
-    });
-
-    return reply.send({
-        RspCode: result.rspCode,
-        Message: result.message,
-    });
 };
 
 export const handleMomoIpn = async (req, reply) => {
