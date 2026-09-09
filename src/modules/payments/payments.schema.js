@@ -3,7 +3,7 @@ export const createPaymentBodySchema = {
     required: ['packageId', 'paymentMethod'],
     properties: {
         packageId: { type: 'string', format: 'uuid' },
-        paymentMethod: { type: 'string', enum: ['vnpay', 'momo', 'bank_transfer', 'stripe', 'paypal'] }
+        paymentMethod: { type: 'string', enum: ['payos', 'vnpay', 'momo', 'bank_transfer', 'stripe', 'paypal'] }
     }
 };
 

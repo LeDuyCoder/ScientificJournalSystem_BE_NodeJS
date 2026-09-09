@@ -18,108 +18,40 @@ const normalizePagination = ({ page, limit }) => {
     };
 };
 
-const formatVnpayDate = (date) => {
-    const pad = (value) => String(value).padStart(2, '0');
-    return [
-        date.getFullYear(),
-        pad(date.getMonth() + 1),
-        pad(date.getDate()),
-        pad(date.getHours()),
-        pad(date.getMinutes()),
-        pad(date.getSeconds()),
-    ].join('');
-};
+import payOS from '../../config/payos.js';
 
 const getBaseUrl = () => {
-    const port = process.env.PORT || 5000;
+    const port = process.env.PORT || 8000;
     return process.env.BASE_URL || `http://localhost:${port}`;
 };
 
-const buildQueryString = (params) => Object.keys(params)
-    .filter((key) => params[key] !== undefined && params[key] !== null && params[key] !== '')
-    .sort()
-    .map((key) => `${encodeURIComponent(key)}=${encodeURIComponent(String(params[key])).replace(/%20/g, '+')}`)
-    .join('&');
-
-const signHmac = ({ algorithm, secret, data }) => crypto
-    .createHmac(algorithm, secret)
-    .update(Buffer.from(data, 'utf-8'))
-    .digest('hex');
-
-const getRequiredEnv = (key) => {
-    const value = process.env[key];
-    return typeof value === 'string' ? value.trim() : value;
+const getFrontendUrl = () => {
+    return process.env.FRONTEND_URL || 'http://localhost:5173';
 };
 
-const buildVnpayPaymentUrl = (payment, ipAddr) => {
-    const paymentUrl = getRequiredEnv('VNPAY_PAYMENT_URL');
-    const tmnCode = getRequiredEnv('VNPAY_TMN_CODE');
-    const hashSecret = getRequiredEnv('VNPAY_HASH_SECRET');
-    const returnUrl = getRequiredEnv('VNPAY_RETURN_URL') || `${getBaseUrl()}/api/v1/payments/vnpay/return`;
+const buildPayosPaymentUrl = async (payment, coinPackage) => {
+    const returnUrl = process.env.PAYOS_RETURN_URL || `${getFrontendUrl()}/wallet/payment/result`;
+    const cancelUrl = process.env.PAYOS_CANCEL_URL || `${getFrontendUrl()}/wallet/top-up?cancel=true`;
 
-    const missingConfig = [
-        ['VNPAY_PAYMENT_URL', paymentUrl],
-        ['VNPAY_TMN_CODE', tmnCode],
-        ['VNPAY_HASH_SECRET', hashSecret],
-    ].filter(([, value]) => !value).map(([key]) => key);
+    const description = `NAPCOIN ${payment.order_code}`.slice(0, 25);
 
-    if (missingConfig.length > 0) {
-        const error = new Error(`Thieu cau hinh VNPay: ${missingConfig.join(', ')}`);
-        error.statusCode = 500;
-        error.code = 'VNPAY_CONFIG_MISSING';
-        throw error;
-    }
-
-    const params = {
-        vnp_Version: '2.1.0',
-        vnp_Command: 'pay',
-        vnp_TmnCode: tmnCode,
-        vnp_Amount: Math.round(Number(payment.amount) * 100),
-        vnp_CurrCode: payment.currency || 'VND',
-        vnp_TxnRef: payment.transaction_id,
-        vnp_OrderInfo: `Nap coin ${payment.transaction_id}`,
-        vnp_OrderType: 'other',
-        vnp_Locale: 'vn',
-        vnp_ReturnUrl: returnUrl,
-        vnp_IpAddr: ipAddr || '127.0.0.1',
-        vnp_CreateDate: formatVnpayDate(new Date()),
+    const paymentLinkData = {
+        orderCode: Number(payment.order_code),
+        amount: Math.round(Number(payment.amount)),
+        description,
+        items: [
+            {
+                name: String(coinPackage.name || 'Goi Coin').slice(0, 50),
+                quantity: 1,
+                price: Math.round(Number(payment.amount)),
+            }
+        ],
+        returnUrl,
+        cancelUrl,
     };
 
-    const secureHash = signHmac({
-        algorithm: 'sha512',
-        secret: hashSecret,
-        data: buildQueryString(params),
-    });
-
-    return `${paymentUrl}?${buildQueryString({ ...params, vnp_SecureHash: secureHash })}`;
-};
-
-const buildPaymentUrl = (payment, ipAddr) => {
-    if (payment.payment_method === 'vnpay') {
-        return buildVnpayPaymentUrl(payment, ipAddr);
-    }
-    return `${getBaseUrl()}/api/v1/payments/${payment.transaction_id}`;
-};
-
-const verifyVnpaySignature = (params) => {
-    const hashSecret = process.env.VNPAY_HASH_SECRET;
-    const secureHash = params.vnp_SecureHash || params.vnp_securehash;
-
-    if (!hashSecret || !secureHash) return false;
-
-    const signParams = { ...params };
-    delete signParams.vnp_SecureHash;
-    delete signParams.vnp_securehash;
-    delete signParams.vnp_SecureHashType;
-    delete signParams.vnp_securehashtype;
-
-    const expectedHash = signHmac({
-        algorithm: 'sha512',
-        secret: hashSecret,
-        data: buildQueryString(signParams),
-    });
-
-    return expectedHash.toLowerCase() === String(secureHash).toLowerCase();
+    const paymentLinkResponse = await payOS.createPaymentLink(paymentLinkData);
+    return paymentLinkResponse.checkoutUrl;
 };
 
 const verifyMomoSignature = (payload) => {
@@ -132,16 +64,15 @@ const verifyMomoSignature = (payload) => {
         .map((key) => `${key}=${payload[key]}`)
         .join('&');
 
-    const expectedSignature = signHmac({
-        algorithm: 'sha256',
-        secret: secretKey,
-        data: signData,
-    });
+    const expectedSignature = crypto
+        .createHmac('sha256', secretKey)
+        .update(Buffer.from(signData, 'utf-8'))
+        .digest('hex');
 
     return expectedSignature.toLowerCase() === String(payload.signature).toLowerCase();
 };
 
-export const createPayment = async ({ userId, packageId, paymentMethod, ipAddr }) => {
+export const createPayment = async ({ userId, packageId, paymentMethod = 'payos', ipAddr }) => {
     const activePackages = await getActiveCoinPackages();
     const coinPackage = activePackages.find(p => p.package_id === packageId);
 
@@ -156,20 +87,107 @@ export const createPayment = async ({ userId, packageId, paymentMethod, ipAddr }
     const bonusCoin = Number(coinPackage.bonus_coin || 0);
     const totalCoin = coinAmount + bonusCoin;
     const transactionId = crypto.randomUUID();
+    const orderCode = Number(String(Date.now()).slice(-9) + Math.floor(100 + Math.random() * 900));
 
     const payment = await paymentsRepository.createPaymentTransaction({
-        userId, packageId, paymentMethod, coinPackage, coinAmount, bonusCoin, totalCoin, transactionId
+        userId,
+        packageId,
+        paymentMethod: paymentMethod || 'payos',
+        coinPackage,
+        coinAmount,
+        bonusCoin,
+        totalCoin,
+        transactionId,
+        orderCode
     });
+
+    let paymentUrl = null;
+    if (paymentMethod === 'payos' || !paymentMethod) {
+        paymentUrl = await buildPayosPaymentUrl(payment, coinPackage);
+    } else {
+        paymentUrl = `${getBaseUrl()}/api/v1/payments/${payment.transaction_id}`;
+    }
 
     return {
         payment,
-        paymentUrl: buildPaymentUrl(payment, ipAddr),
+        paymentUrl,
     };
 };
 
 export const getPaymentById = async ({ transactionId, user }) => {
     const isAdmin = user?.role === 'ADMINISTRATOR';
-    return await paymentsRepository.getPaymentById({ transactionId, userId: user.user_id, isAdmin });
+    let payment = await paymentsRepository.getPaymentById({ transactionId, userId: user.user_id, isAdmin });
+    if (!payment) {
+        return null;
+    }
+
+    if (payment.payment_status === 'pending' && payment.order_code) {
+        try {
+            const payosInfo = await payOS.paymentRequests.get(Number(payment.order_code));
+            if (payosInfo) {
+                if (payosInfo.status === 'PAID') {
+                    const providerTransactionCode = payosInfo.transactions?.[0]?.reference || String(payment.order_code);
+                    await paymentsRepository.markPaymentSuccessAndCredit({
+                        orderCode: payment.order_code,
+                        providerTransactionCode,
+                        note: `PayOS sync confirmed payment success (ref: ${providerTransactionCode})`,
+                    });
+                    payment = await paymentsRepository.getPaymentById({ transactionId, userId: user.user_id, isAdmin });
+                } else if (payosInfo.status === 'CANCELLED') {
+                    await paymentsRepository.markPaymentFailed({
+                        orderCode: payment.order_code,
+                        providerTransactionCode: String(payment.order_code),
+                        note: payosInfo.cancellationReason || 'PayOS payment cancelled',
+                    });
+                    payment = await paymentsRepository.getPaymentById({ transactionId, userId: user.user_id, isAdmin });
+                }
+            }
+        } catch (syncErr) {
+            logger.warn(`[PayOS Sync] Failed to sync payment for transaction ${transactionId}:`, syncErr.message);
+        }
+    }
+
+    return payment;
+};
+
+export const getPaymentByOrderCode = async (orderCode) => {
+    let payment = await paymentsRepository.getPaymentByOrderCode(orderCode);
+    if (!payment) {
+        const error = new Error('Khong tim thay giao dich thanh toan');
+        error.statusCode = 404;
+        error.code = 'PAYMENT_NOT_FOUND';
+        throw error;
+    }
+
+    // Neu giao dich van o trang thai pending, chu dong dong bo tu PayOS API
+    // Giup cap nhat tuc thi khi chay tren localhost (khong nhan duoc webhook tu internet) hoac khi webhook bi cham
+    if (payment.payment_status === 'pending') {
+        try {
+            const payosInfo = await payOS.paymentRequests.get(Number(orderCode));
+            if (payosInfo) {
+                if (payosInfo.status === 'PAID') {
+                    const providerTransactionCode = payosInfo.transactions?.[0]?.reference || String(orderCode);
+                    await paymentsRepository.markPaymentSuccessAndCredit({
+                        orderCode,
+                        providerTransactionCode,
+                        note: `PayOS sync confirmed payment success (ref: ${providerTransactionCode})`,
+                    });
+                    payment = await paymentsRepository.getPaymentByOrderCode(orderCode);
+                } else if (payosInfo.status === 'CANCELLED') {
+                    await paymentsRepository.markPaymentFailed({
+                        orderCode,
+                        providerTransactionCode: String(orderCode),
+                        note: payosInfo.cancellationReason || 'PayOS payment cancelled',
+                    });
+                    payment = await paymentsRepository.getPaymentByOrderCode(orderCode);
+                }
+            }
+        } catch (syncErr) {
+            logger.warn(`[PayOS Sync] Failed to sync payment for orderCode ${orderCode}:`, syncErr.message);
+        }
+    }
+
+    return payment;
 };
 
 export const getPaymentsByUserId = async (userId, options = {}) => {
@@ -202,72 +220,59 @@ export const getAdminPayments = async (options = {}) => {
     };
 };
 
-export const handleVnpayReturn = async (params) => {
-    const transactionId = params.vnp_TxnRef;
-
-    if (!transactionId) {
-        const error = new Error('Thieu ma giao dich VNPay');
-        error.statusCode = 400;
-        error.code = 'VNPAY_TXN_REF_MISSING';
-        throw error;
-    }
-
-    const isValidSignature = verifyVnpaySignature(params);
-    const payment = await paymentsRepository.getRawPaymentById(transactionId);
-
-    return {
-        isValidSignature,
-        transactionId,
-        payment: payment ? payment : null,
-        gatewayResponseCode: params.vnp_ResponseCode || null,
-        gatewayTransactionStatus: params.vnp_TransactionStatus || null,
-    };
-};
-
-export const handleVnpayIpn = async (payload) => {
+export const handlePayosWebhook = async (webhookBody) => {
     try {
-        const transactionId = payload.vnp_TxnRef;
-        const providerTransactionCode = payload.vnp_TransactionNo || payload.vnp_BankTranNo || null;
-
-        if (!transactionId || !payload.vnp_Amount || !payload.vnp_ResponseCode) {
-            return { rspCode: '99', message: 'Invalid IPN data' };
+        if (!webhookBody) {
+            return { success: false, message: 'Missing webhook body' };
         }
 
-        if (!verifyVnpaySignature(payload)) {
-            return { rspCode: '97', message: 'Invalid signature' };
+        let webhookData;
+        try {
+            webhookData = await payOS.verifyPaymentWebhookData(webhookBody);
+        } catch (verifyErr) {
+            logger.error('[PayOS Service] Webhook signature verification failed:', verifyErr);
+            const error = new Error('Invalid webhook signature');
+            error.statusCode = 400;
+            throw error;
         }
 
-        const payment = await paymentsRepository.getRawPaymentById(transactionId);
+        const { orderCode, amount, reference, code, desc } = webhookData;
+
+        // Ho tro PayOS test webhook (Dashboard 'Confirm Webhook' gui du lieu mau)
+        if (webhookData.description === 'Ma xac thuc webhook' || orderCode === 123) {
+            logger.info('[PayOS Service] PayOS test webhook verified successfully');
+            return { success: true, message: 'Webhook verified' };
+        }
+
+        const payment = await paymentsRepository.getRawPaymentByOrderCode(orderCode);
         if (!payment) {
-            return { rspCode: '01', message: 'Order not found' };
+            logger.warn(`[PayOS Service] Payment with orderCode ${orderCode} not found`);
+            return { success: false, message: 'Payment not found' };
         }
 
-        const expectedAmount = Math.round(Number(payment.amount) * 100);
-        if (Number(payload.vnp_Amount) !== expectedAmount) {
-            return { rspCode: '04', message: 'Invalid amount' };
+        if (Number(amount) !== Math.round(Number(payment.amount))) {
+            logger.warn(`[PayOS Service] Amount mismatch for orderCode ${orderCode}: expected ${payment.amount}, got ${amount}`);
+            return { success: false, message: 'Invalid amount' };
         }
 
-        const isSuccess = payload.vnp_ResponseCode === '00' && (!payload.vnp_TransactionStatus || payload.vnp_TransactionStatus === '00');
-
-        if (!isSuccess) {
-            await paymentsRepository.markPaymentFailed({
-                transactionId,
-                providerTransactionCode,
-                note: `VNPay failed with code ${payload.vnp_ResponseCode}`,
+        if (code === '00' || desc === 'success') {
+            await paymentsRepository.markPaymentSuccessAndCredit({
+                orderCode,
+                providerTransactionCode: reference || String(orderCode),
+                note: `PayOS Webhook confirmed payment success (ref: ${reference || 'N/A'})`,
             });
-            return { rspCode: '00', message: 'Confirm Success' };
+            return { success: true, message: 'Payment confirmed successfully' };
+        } else {
+            await paymentsRepository.markPaymentFailed({
+                orderCode,
+                providerTransactionCode: reference || String(orderCode),
+                note: `PayOS payment failed or cancelled with code: ${code}`,
+            });
+            return { success: true, message: 'Payment failed confirmed' };
         }
-
-        await paymentsRepository.markPaymentSuccessAndCredit({
-            transactionId,
-            providerTransactionCode,
-            note: 'VNPay IPN confirmed payment success',
-        });
-
-        return { rspCode: '00', message: 'Confirm Success' };
     } catch (error) {
-        logger.error('[Payment Service] Error while handling VNPay IPN:', error);
-        return { rspCode: '99', message: 'Unknown error' };
+        logger.error('[PayOS Service] Error while handling PayOS webhook:', error);
+        throw error;
     }
 };
 

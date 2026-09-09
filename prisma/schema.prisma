@@ -509,6 +509,7 @@ model coin_package {
 
 model payment_transaction {
   transaction_id            String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  order_code                BigInt?              @unique
   user_id                   String               @db.Uuid
   package_id                String?              @db.Uuid
   amount                    Decimal              @db.Decimal(18, 2)
@@ -870,6 +871,7 @@ enum message_status {
 }
 
 enum payment_method {
+  payos
   vnpay
   momo
   bank_transfer
