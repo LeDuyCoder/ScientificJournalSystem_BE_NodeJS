@@ -26,12 +26,23 @@ const getBaseUrl = () => {
 };
 
 const getFrontendUrl = () => {
-    return process.env.FRONTEND_URL || 'http://localhost:5173';
+    const raw = process.env.FRONTEND_URL;
+    if (!raw) return 'http://localhost:5173';
+    let cleaned = raw.trim();
+    if ((cleaned.startsWith('"') && cleaned.endsWith('"')) || (cleaned.startsWith("'") && cleaned.endsWith("'"))) {
+        cleaned = cleaned.slice(1, -1).trim();
+    }
+    if (cleaned.startsWith('[') && cleaned.endsWith(']')) {
+        cleaned = cleaned.slice(1, -1).trim();
+    }
+    const first = cleaned.split(',')[0].trim().replace(/^['"]|['"]$/g, '').replace(/\/+$/, '');
+    return first || 'http://localhost:5173';
 };
 
 const buildPayosPaymentUrl = async (payment, coinPackage) => {
-    const returnUrl = process.env.PAYOS_RETURN_URL || `${getFrontendUrl()}/wallet/payment/result`;
-    const cancelUrl = process.env.PAYOS_CANCEL_URL || `${getFrontendUrl()}/wallet/top-up?cancel=true`;
+    const defaultFrontend = getFrontendUrl();
+    const returnUrl = (process.env.PAYOS_RETURN_URL || `${defaultFrontend}/wallet/payment/result`).trim().replace(/\/+$/, '');
+    const cancelUrl = (process.env.PAYOS_CANCEL_URL || `${defaultFrontend}/wallet/top-up?cancel=true`).trim();
 
     const description = `NAPCOIN ${payment.order_code}`.slice(0, 25);
 

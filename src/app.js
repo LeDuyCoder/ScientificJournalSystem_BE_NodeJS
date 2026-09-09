@@ -13,10 +13,33 @@ export const buildApp = async (opts = {}) => {
   const parseCorsOrigins = (envVar) => {
     if (!envVar) return [];
     let cleaned = envVar.trim();
-    if (cleaned.startsWith('[') && cleaned.endsWith(']')) {
-      cleaned = cleaned.slice(1, -1);
+    if ((cleaned.startsWith('"') && cleaned.endsWith('"')) || (cleaned.startsWith("'") && cleaned.endsWith("'"))) {
+      cleaned = cleaned.slice(1, -1).trim();
     }
-    return cleaned.split(',').map(url => url.trim()).filter(Boolean);
+    if (cleaned.startsWith('[') && cleaned.endsWith(']')) {
+      cleaned = cleaned.slice(1, -1).trim();
+    }
+    const rawList = cleaned
+      .split(',')
+      .map(url => url.trim().replace(/^['"]|['"]$/g, '').replace(/\/+$/, ''))
+      .filter(Boolean);
+
+    const origins = new Set();
+    for (const url of rawList) {
+      if (!url) continue;
+      origins.add(url);
+      try {
+        const parsed = new URL(url);
+        if (parsed.hostname.startsWith('www.')) {
+          origins.add(`${parsed.protocol}//${parsed.hostname.slice(4)}${parsed.port ? ':' + parsed.port : ''}`);
+        } else if (!parsed.hostname.includes('localhost') && !/^\d+\.\d+\.\d+\.\d+$/.test(parsed.hostname)) {
+          origins.add(`${parsed.protocol}//www.${parsed.hostname}${parsed.port ? ':' + parsed.port : ''}`);
+        }
+      } catch {
+        // ignore invalid urls
+      }
+    }
+    return Array.from(origins);
   };
 
   const frontendUrls = parseCorsOrigins(process.env.FRONTEND_URL);
