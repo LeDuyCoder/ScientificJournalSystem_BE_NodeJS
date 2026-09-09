@@ -354,6 +354,10 @@ export const createProject = async ({ userId, title, subject_area, subject_categ
 
     await client.query('COMMIT');
     await cacheService.del(`project:user-list:${userId}`);
+
+    // Tự động đồng bộ Project_Article_Scope trong nền để Analytics có dữ liệu
+    syncProjectScope(projectId).catch(err => logger.error(`[Project Scope] Auto sync failed for project ${projectId}:`, err));
+
     return newProject;
   } catch (error) {
     await client.query('ROLLBACK');
@@ -462,6 +466,10 @@ export const updateProject = async (projectId, userId, { title, subject_area, su
     await cacheService.del(`project:user-list:${userId}`);
     await cacheService.del(`project:overview:${projectId}`);
     await cacheService.del(`project:stats:${projectId}`);
+
+    // Tự động đồng bộ Project_Article_Scope khi cập nhật project
+    syncProjectScope(projectId).catch(err => logger.error(`[Project Scope] Auto sync failed for project ${projectId}:`, err));
+
     return true;
   } catch (error) {
     await client.query('ROLLBACK');
@@ -954,16 +962,31 @@ export const getProjectOverview = async (projectId, userId) => {
 export const syncProjectScope = async (projectId) => {
   try {
     // 1. Clear existing scope
-    await pool.query('DELETE FROM "Project_Article_Scope" WHERE project_id = $1', [projectId]);
+    await pool.query('DELETE FROM "Project_Article_Scope" WHERE project_id = $1::bigint', [projectId]);
 
-    // 2. Get project categories
-    const catsRes = await pool.query('SELECT subject_category_id FROM "Subject_Category_Project" WHERE project_id = $1', [projectId]);
-    const catIds = catsRes.rows.map(r => r.subject_category_id);
+    // 2. Lấy thông tin project (để lấy subject_area)
+    const projectRes = await pool.query('SELECT subject_area FROM "Project" WHERE project_id = $1::bigint', [projectId]);
+    if (projectRes.rows.length === 0) return;
+    const project = projectRes.rows[0];
+
+    // 3. Thu thập tất cả subject_category_id từ subject_area và Subject_Category_Project
+    let catIds = [];
+    if (project.subject_area) {
+      const saCats = await pool.query(
+        'SELECT subject_category_id FROM "Subject_Category" WHERE subject_area_id = $1 AND COALESCE(is_deleted, false) = false',
+        [project.subject_area]
+      );
+      catIds.push(...saCats.rows.map(r => r.subject_category_id));
+    }
+
+    const catsRes = await pool.query('SELECT subject_category_id FROM "Subject_Category_Project" WHERE project_id = $1::bigint', [projectId]);
+    catIds.push(...catsRes.rows.map(r => r.subject_category_id));
+    catIds = [...new Set(catIds.map(id => String(id)))];
 
     if (catIds.length > 0) {
       await pool.query(`
         INSERT INTO "Project_Article_Scope" (project_id, article_id, publication_year)
-        SELECT DISTINCT $1, a.article_id, a.publication_year
+        SELECT DISTINCT $1::bigint, a.article_id, a.publication_year
         FROM "Article" a
         WHERE a.primary_topic IN (
           SELECT topic_id FROM "Topic" WHERE subject_category_id = ANY($2::bigint[])
@@ -973,7 +996,7 @@ export const syncProjectScope = async (projectId) => {
 
       await pool.query(`
         INSERT INTO "Project_Article_Scope" (project_id, article_id, publication_year)
-        SELECT DISTINCT $1, a.article_id, a.publication_year
+        SELECT DISTINCT $1::bigint, a.article_id, a.publication_year
         FROM "Sub_Topic" st
         JOIN "Topic" sub_topic ON st.topic_id = sub_topic.topic_id
         JOIN "Article" a ON st.article_id = a.article_id
@@ -982,21 +1005,23 @@ export const syncProjectScope = async (projectId) => {
       `, [projectId, catIds]);
     }
 
-    // 3. Get project keywords
-    const kwsRes = await pool.query('SELECT keyword_id FROM "Project_Keyword" WHERE project_id = $1', [projectId]);
-    const kwIds = kwsRes.rows.map(r => r.keyword_id);
+    // 4. Lấy project keywords
+    const kwsRes = await pool.query('SELECT keyword_id FROM "Project_Keyword" WHERE project_id = $1::bigint', [projectId]);
+    const kwIds = [...new Set(kwsRes.rows.map(r => String(r.keyword_id)))];
 
     if (kwIds.length > 0) {
       await pool.query(`
         INSERT INTO "Project_Article_Scope" (project_id, article_id, publication_year)
-        SELECT DISTINCT $1, a.article_id, a.publication_year
+        SELECT DISTINCT $1::bigint, a.article_id, a.publication_year
         FROM "Keyword_Article" ka
         JOIN "Article" a ON ka.article_id = a.article_id
         WHERE ka.keyword_id = ANY($2::bigint[])
         ON CONFLICT DO NOTHING;
       `, [projectId, kwIds]);
     }
+
+    logger.info(`[Scope Sync] Project ${projectId} scope synced successfully`);
   } catch (error) {
-    logger.error('Error syncing Project_Article_Scope:', error);
+    logger.error(`[Scope Sync] Error syncing Project_Article_Scope for project ${projectId}:`, error);
   }
 };

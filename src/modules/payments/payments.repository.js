@@ -6,6 +6,7 @@ const normalizeNumber = (value) => Number(value || 0);
 
 const normalizePayment = (payment) => ({
     ...payment,
+    order_code: payment.order_code !== null && payment.order_code !== undefined ? Number(payment.order_code) : null,
     amount: payment.amount === null || payment.amount === undefined ? payment.amount : Number(payment.amount),
     coin_amount: normalizeNumber(payment.coin_amount),
     bonus_coin: normalizeNumber(payment.bonus_coin),
@@ -21,10 +22,19 @@ export const getRawPaymentById = async (transactionId) => {
     return payment;
 };
 
-export const createPaymentTransaction = async ({ userId, packageId, paymentMethod, coinPackage, coinAmount, bonusCoin, totalCoin, transactionId }) => {
+export const getRawPaymentByOrderCode = async (orderCode) => {
+    if (!orderCode) return null;
+    const payment = await prisma.payment_transaction.findFirst({
+        where: { order_code: BigInt(orderCode) }
+    });
+    return payment;
+};
+
+export const createPaymentTransaction = async ({ userId, packageId, paymentMethod, coinPackage, coinAmount, bonusCoin, totalCoin, transactionId, orderCode }) => {
     const payment = await prisma.payment_transaction.create({
         data: {
             transaction_id: transactionId,
+            order_code: orderCode !== undefined && orderCode !== null ? BigInt(orderCode) : undefined,
             user_id: userId,
             package_id: coinPackage.package_id,
             amount: coinPackage.price,
@@ -38,6 +48,18 @@ export const createPaymentTransaction = async ({ userId, packageId, paymentMetho
         }
     });
     return normalizePayment(payment);
+};
+
+export const getPaymentByOrderCode = async (orderCode) => {
+    if (!orderCode) return null;
+    const payment = await prisma.payment_transaction.findFirst({
+        where: { order_code: BigInt(orderCode) },
+        include: {
+            coin_package: { select: { name: true } },
+            user: { select: { email: true } }
+        }
+    });
+    return payment ? normalizePayment(payment) : null;
 };
 
 export const getPaymentById = async ({ transactionId, userId, isAdmin }) => {
@@ -98,17 +120,30 @@ export const getAdminPayments = async ({ limit, offset, userId, status, paymentM
     return { items: items.map(normalizePayment), total };
 };
 
-export const markPaymentSuccessAndCredit = async ({ transactionId, providerTransactionCode, note }) => {
+export const markPaymentSuccessAndCredit = async ({ transactionId, orderCode, providerTransactionCode, note }) => {
     return await prisma.$transaction(async (tx) => {
-        const paymentResult = await tx.$queryRaw`
-            SELECT transaction_id, user_id, package_id, amount, currency,
-                   coin_amount, bonus_coin, total_coin, payment_method,
-                   payment_status, provider_transaction_code, note,
-                   created_at, paid_at
-            FROM payment_transaction
-            WHERE transaction_id = ${transactionId}::uuid
-            FOR UPDATE
-        `;
+        let paymentResult = [];
+        if (transactionId) {
+            paymentResult = await tx.$queryRaw`
+                SELECT transaction_id, order_code, user_id, package_id, amount, currency,
+                       coin_amount, bonus_coin, total_coin, payment_method,
+                       payment_status, provider_transaction_code, note,
+                       created_at, paid_at
+                FROM payment_transaction
+                WHERE transaction_id = ${transactionId}::uuid
+                FOR UPDATE
+            `;
+        } else if (orderCode !== undefined && orderCode !== null) {
+            paymentResult = await tx.$queryRaw`
+                SELECT transaction_id, order_code, user_id, package_id, amount, currency,
+                       coin_amount, bonus_coin, total_coin, payment_method,
+                       payment_status, provider_transaction_code, note,
+                       created_at, paid_at
+                FROM payment_transaction
+                WHERE order_code = ${BigInt(orderCode)}
+                FOR UPDATE
+            `;
+        }
 
         if (paymentResult.length === 0) {
             const error = new Error('Khong tim thay giao dich thanh toan');
@@ -141,8 +176,8 @@ export const markPaymentSuccessAndCredit = async ({ transactionId, providerTrans
                 provider_transaction_code = COALESCE(${providerTransactionCode || null}, provider_transaction_code),
                 note = COALESCE(${note || null}, note),
                 paid_at = COALESCE(paid_at, NOW())
-            WHERE transaction_id = ${transactionId}::uuid
-            RETURNING transaction_id, user_id, package_id, amount, currency,
+            WHERE transaction_id = ${payment.transaction_id}::uuid
+            RETURNING transaction_id, order_code, user_id, package_id, amount, currency,
                       coin_amount, bonus_coin, total_coin, payment_method,
                       payment_status, provider_transaction_code, note,
                       created_at, paid_at
@@ -156,15 +191,18 @@ export const markPaymentSuccessAndCredit = async ({ transactionId, providerTrans
             walletTransaction: creditResult.transaction,
             alreadyProcessed: false,
         };
+    }, {
+        timeout: 15000
     });
 };
 
-export const markPaymentFailed = async ({ transactionId, providerTransactionCode, note }) => {
+export const markPaymentFailed = async ({ transactionId, orderCode, providerTransactionCode, note }) => {
+    const where = { payment_status: 'pending' };
+    if (transactionId) where.transaction_id = transactionId;
+    if (orderCode !== undefined && orderCode !== null) where.order_code = BigInt(orderCode);
+
     const payment = await prisma.payment_transaction.updateMany({
-        where: {
-            transaction_id: transactionId,
-            payment_status: 'pending'
-        },
+        where,
         data: {
             payment_status: 'failed',
             provider_transaction_code: providerTransactionCode || undefined,
@@ -173,7 +211,9 @@ export const markPaymentFailed = async ({ transactionId, providerTransactionCode
     });
 
     if (payment.count > 0) {
-        const updated = await prisma.payment_transaction.findUnique({ where: { transaction_id: transactionId } });
+        const updated = transactionId
+            ? await prisma.payment_transaction.findUnique({ where: { transaction_id: transactionId } })
+            : await prisma.payment_transaction.findFirst({ where: { order_code: BigInt(orderCode) } });
         return updated ? normalizePayment(updated) : null;
     }
     return null;

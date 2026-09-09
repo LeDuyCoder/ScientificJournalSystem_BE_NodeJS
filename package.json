@@ -21,6 +21,7 @@
     "@fastify/express": "^4.0.7",
     "@fastify/swagger": "^9.8.1",
     "@fastify/swagger-ui": "^6.1.1",
+    "@payos/node": "^2.0.5",
     "@prisma/client": "^6.19.3",
     "axios": "^1.17.0",
     "bcrypt": "^6.0.0",

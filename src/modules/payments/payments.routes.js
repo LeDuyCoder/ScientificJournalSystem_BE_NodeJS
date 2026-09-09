@@ -1,10 +1,10 @@
 import {
     createPayment,
     getPaymentById,
+    getPaymentByOrderCode,
     getMyPayments,
     handleMomoIpn,
-    handleVnpayIpn,
-    handleVnpayReturn,
+    handlePayosWebhook,
 } from './payments.controller.js';
 import {
     createPaymentBodySchema,
@@ -31,26 +31,19 @@ export default async function paymentsRoutes(fastify, options) {
         }
     }, getMyPayments);
 
-    fastify.get('/vnpay/return', {
+    fastify.post('/payos/webhook', {
         schema: {
             tags: ['Payment Callbacks'],
-            summary: 'VNPay return URL sau khi nguoi dung thanh toan',
+            summary: 'Xu ly PayOS Webhook sau khi nguoi dung thanh toan',
         }
-    }, handleVnpayReturn);
+    }, handlePayosWebhook);
 
-    fastify.post('/vnpay/ipn', {
+    fastify.get('/payos/order/:orderCode', {
         schema: {
-            tags: ['Payment Callbacks'],
-            summary: 'Xu ly VNPay IPN',
+            tags: ['Coin Payments'],
+            summary: 'Lay thong tin giao dich theo orderCode cua PayOS',
         }
-    }, handleVnpayIpn);
-
-    fastify.get('/vnpay/ipn', {
-        schema: {
-            tags: ['Payment Callbacks'],
-            summary: 'Xu ly VNPay IPN dang query string',
-        }
-    }, handleVnpayIpn);
+    }, getPaymentByOrderCode);
 
     fastify.post('/momo/ipn', {
         schema: {
