@@ -1,5 +1,6 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { google } from 'googleapis';
 import {
   findUserByEmail,
   createUser,
@@ -212,6 +213,90 @@ export const resetPassword = async (token, newPassword) => {
     success: true,
     message: 'Đặt lại mật khẩu thành công'
   };
+};
+
+/**
+ * Đăng nhập / đăng ký bằng Google OAuth2 (authorization code flow).
+ * FE gửi `code` nhận từ Google popup → BE exchange lấy id_token → verify → tìm/tạo user.
+ *
+ * @param {string} code - Authorization code từ Google OAuth popup
+ * @returns {{ token: string, refreshToken: string, user: object, isNewUser: boolean }}
+ */
+export const loginWithGoogle = async (code) => {
+  if (!code) {
+    throw new Error('Authorization code không hợp lệ');
+  }
+
+  // Khởi tạo OAuth2 client
+  const oauth2Client = new google.auth.OAuth2(
+    process.env.CLIENT_ID,
+    process.env.CLIENT_SECRET,
+    'postmessage' // redirect_uri dùng cho auth-code flow với popup
+  );
+
+  // Exchange authorization code → access_token + id_token
+  let googleTokens;
+  try {
+    const { tokens } = await oauth2Client.getToken(code);
+    googleTokens = tokens;
+    oauth2Client.setCredentials(tokens);
+  } catch (err) {
+    throw new Error('Không thể xác thực với Google. Vui lòng thử lại.');
+  }
+
+  // Lấy thông tin user từ Google
+  const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
+  let googleUser;
+  try {
+    const { data } = await oauth2.userinfo.get();
+    googleUser = data;
+  } catch (err) {
+    throw new Error('Không thể lấy thông tin tài khoản Google.');
+  }
+
+  const { email, given_name, family_name, picture } = googleUser;
+
+  if (!email) {
+    throw new Error('Không lấy được email từ tài khoản Google.');
+  }
+
+  // Tìm user theo email hoặc tạo mới
+  let user = await findUserByEmail(email.toLowerCase());
+  let isNewUser = false;
+
+  if (!user) {
+    // Tạo user mới — tài khoản Google không cần password, dùng random hash
+    const randomPassword = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 10);
+    user = await createUser({
+      user_id: crypto.randomUUID(),
+      email: email.toLowerCase(),
+      password: randomPassword,
+      first_name: given_name || '',
+      last_name: family_name || '',
+      avatar: picture || null,
+      role: 'STUDENT',
+      status: 'ACTIVE', // Google đã xác thực email, active luôn
+    });
+    isNewUser = true;
+  } else if (user.status !== 'ACTIVE') {
+    // Tài khoản bị khoá
+    throw new Error('Tài khoản đã bị khóa. Vui lòng liên hệ hỗ trợ.');
+  }
+
+  // Tạo JWT
+  const token = jwt.sign(
+    { user_id: user.user_id, role: user.role, email: user.email },
+    process.env.JWT_SECRET || 'secret',
+    { expiresIn: process.env.JWT_EXPIRES_IN || '1h' }
+  );
+
+  const refreshToken = jwt.sign(
+    { user_id: user.user_id },
+    process.env.JWT_REFRESH_SECRET || 'secret_refresh',
+    { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '30d' }
+  );
+
+  return { token, refreshToken, user, isNewUser };
 };
 
 

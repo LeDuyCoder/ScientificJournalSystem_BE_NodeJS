@@ -1,4 +1,4 @@
-import { login, register, refreshToken, logout, checkAuth, verifyAccount, forgotPassword, resetPassword } from './auth.controller.js';
+import { login, register, refreshToken, logout, checkAuth, verifyAccount, forgotPassword, resetPassword, googleLogin } from './auth.controller.js';
 import { verifyTokenFastify } from './auth.middleware.js';
 import { loginSchema, registerSchema, forgotPasswordSchema, resetPasswordSchema } from './auth.schema.js';
 
@@ -23,6 +23,8 @@ export default async function authRoutes(fastify, options) {
   fastify.get('/check-auth', { preHandler: [verifyTokenFastify], schema: { tags: ['Auth'] } }, checkAuth);
   
   fastify.post('/logout', { schema: { tags: ['Auth'] } }, logout);
+
+  fastify.post('/google', { schema: { tags: ['Auth'] } }, googleLogin);
 }
 
 
