@@ -1,4 +1,4 @@
-import { loginUser, registerUser, verifyUserEmail, requestPasswordReset, resetPassword as resetPasswordService } from './auth.service.js';
+import { loginUser, registerUser, verifyUserEmail, requestPasswordReset, resetPassword as resetPasswordService, loginWithGoogle as loginWithGoogleService } from './auth.service.js';
 
 
 export const login = async (request, reply) => {
@@ -150,4 +150,53 @@ export const resetPassword = async (request, reply) => {
   }
 };
 
+export const googleLogin = async (request, reply) => {
+  try {
+    const { code } = request.body || {};
+    if (!code) {
+      return reply.code(400).send({ success: false, message: 'Thiếu authorization code' });
+    }
 
+    const { token, refreshToken, user, isNewUser } = await loginWithGoogleService(code);
+
+    const isProduction = process.env.NODE_ENV === 'production';
+    const cookieOpts = {
+      path: '/',
+      domain: process.env.COOKIE_DOMAIN || undefined,
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: isProduction ? 'none' : 'lax',
+    };
+
+    reply.setCookie('access_token', token, {
+      ...cookieOpts,
+      maxAge: parseInt(process.env.COOKIE_ACCESS_MAX_AGE || 3600000, 10) / 1000,
+    });
+
+    reply.setCookie('refresh_token', refreshToken, {
+      ...cookieOpts,
+      maxAge: parseInt(process.env.COOKIE_REFRESH_MAX_AGE || 2592000000, 10) / 1000,
+    });
+
+    return reply.send({
+      success: true,
+      code: 'GOOGLE_LOGIN_SUCCESS',
+      message: isNewUser ? 'Đăng ký và đăng nhập thành công' : 'Đăng nhập thành công',
+      data: {
+        token,
+        refresh_token: refreshToken,
+        user: {
+          user_id: user.user_id,
+          email: user.email,
+          role: user.role,
+          status: user.status,
+        },
+      },
+    });
+  } catch (error) {
+    return reply.code(401).send({
+      success: false,
+      message: error.message || 'Đăng nhập Google thất bại',
+    });
+  }
+};

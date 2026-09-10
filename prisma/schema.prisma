@@ -99,6 +99,7 @@ model Author_Article {
 
   @@id([author_id, article_id])
   @@index([article_id], map: "idx_author_article_article")
+  @@index([article_id], map: "idx_author_article_aid")
   @@schema("public")
 }
 
@@ -249,6 +250,7 @@ model Keyword_Article {
 
   @@id([keyword_id, article_id])
   @@index([article_id], map: "idx_keyword_article_article")
+  @@index([article_id], map: "idx_keyword_article_aid")
   @@schema("public")
 }
 
@@ -509,7 +511,6 @@ model coin_package {
 
 model payment_transaction {
   transaction_id            String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  order_code                BigInt?              @unique
   user_id                   String               @db.Uuid
   package_id                String?              @db.Uuid
   amount                    Decimal              @db.Decimal(18, 2)
@@ -523,12 +524,14 @@ model payment_transaction {
   note                      String?
   created_at                DateTime             @default(now()) @db.Timestamp(6)
   paid_at                   DateTime?            @db.Timestamp(6)
+  order_code                BigInt?              @unique
   coin_package              coin_package?        @relation(fields: [package_id], references: [package_id], onUpdate: NoAction, map: "fk_payment_package")
   user                      user                 @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction, map: "fk_payment_user")
   wallet_transaction        wallet_transaction[]
 
   @@index([payment_status], map: "idx_payment_status")
   @@index([user_id], map: "idx_payment_user")
+  @@index([order_code], map: "idx_payment_transaction_order_code")
   @@schema("public")
 }
 
@@ -871,12 +874,12 @@ enum message_status {
 }
 
 enum payment_method {
-  payos
   vnpay
   momo
   bank_transfer
   stripe
   paypal
+  payos
 
   @@schema("public")
 }
