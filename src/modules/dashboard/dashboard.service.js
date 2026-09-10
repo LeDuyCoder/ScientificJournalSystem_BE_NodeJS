@@ -1,4 +1,5 @@
 import * as dashboardRepository from './dashboard.repository.js';
+import cacheService from '../../services/cache.service.js';
 
 const formatTrendingKeywordChartData = (rows, metric) => {
     const labels = [];
@@ -38,6 +39,12 @@ const formatTrendingKeywordChartData = (rows, metric) => {
 };
 
 export const getTrendingKeywordsChart = async ({ userId, projectId, fromYear, toYear, metric = 'articleCount', limit = 10 }) => {
+    const activeMetric = metric || 'articleCount';
+    const activeLimit = parseInt(limit, 10) || 10;
+    const cacheKey = `dashboard:keywords:${userId}:${projectId || 'all'}:${fromYear || 'any'}:${toYear || 'any'}:${activeMetric}:${activeLimit}`;
+    const cached = await cacheService.get(cacheKey);
+    if (cached) return cached;
+
     if (projectId) {
         const isOwned = await dashboardRepository.projectBelongsToUser(projectId, userId);
         if (!isOwned) {
@@ -48,9 +55,6 @@ export const getTrendingKeywordsChart = async ({ userId, projectId, fromYear, to
         }
     }
 
-    const activeMetric = metric || 'articleCount';
-    const activeLimit = parseInt(limit, 10) || 10;
-
     const rows = await dashboardRepository.getTrendingKeywords({
         userId,
         projectId,
@@ -60,5 +64,8 @@ export const getTrendingKeywordsChart = async ({ userId, projectId, fromYear, to
         limit: activeLimit
     });
 
-    return formatTrendingKeywordChartData(rows, activeMetric);
+    const result = formatTrendingKeywordChartData(rows, activeMetric);
+    await cacheService.set(cacheKey, result, 600); // 10 mins cache
+    return result;
 };
+
