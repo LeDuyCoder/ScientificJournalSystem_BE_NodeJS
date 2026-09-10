@@ -1,5 +1,4 @@
 import * as dashboardRepository from './dashboard.repository.js';
-import logger from '../../utils/logger.js';
 
 const formatTrendingKeywordChartData = (rows, metric) => {
     const labels = [];

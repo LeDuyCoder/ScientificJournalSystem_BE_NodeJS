@@ -1,5 +1,4 @@
 import jwt from 'jsonwebtoken';
-import { createLog } from '../../services/log.service.js'; // keep relative path for now if log service is still legacy
 
 export const requireAuthFastify = async (request, reply) => {
   try {
