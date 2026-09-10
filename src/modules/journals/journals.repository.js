@@ -8,19 +8,21 @@ export const getJournals = async (paramsInput = {}) => {
     search,
     page = 1,
     limit = 10,
-    sort = 'relevance',
-    subjectAreaIds,
-    subjectCategoryIds,
-    isOpenAccess,
-    quartiles,
-    rankingYear,
-    isOaDiamond,
-    countryIds,
-    subject_area_id,
-    publisher_id,
     sort_by,
     sort_order,
   } = paramsInput;
+
+  // Support both camelCase and snake_case query params for all catalog filters
+  const countryIds = paramsInput.countryIds || paramsInput.country_ids || paramsInput.country_id;
+  const subjectAreaIds = paramsInput.subjectAreaIds || paramsInput.subject_area_ids || paramsInput.subject_area_id;
+  const subjectCategoryIds = paramsInput.subjectCategoryIds || paramsInput.subject_category_ids || paramsInput.subject_category_id;
+  const isOpenAccess = paramsInput.isOpenAccess !== undefined ? paramsInput.isOpenAccess : paramsInput.is_open_access;
+  const quartiles = paramsInput.quartiles;
+  const rankingYear = paramsInput.rankingYear || paramsInput.ranking_year;
+  const isOaDiamond = paramsInput.isOaDiamond !== undefined ? paramsInput.isOaDiamond : paramsInput.is_oa_diamond;
+  const publisher_id = paramsInput.publisher_id || paramsInput.publisherId;
+  const rawSort = paramsInput.sort || 'relevance';
+  const isSortMetric = rawSort === 'metric' || rawSort === '-metric';
 
   const cacheKey = `journals:list:${crypto.createHash('md5').update(JSON.stringify(paramsInput)).digest('hex')}`;
   const cachedData = await cacheService.get(cacheKey);
@@ -39,15 +41,11 @@ export const getJournals = async (paramsInput = {}) => {
     .filter(Boolean);
 
   if (search && search.trim() !== '') {
-    const cacheKeySearch = `journals:search:${search.trim()}`;
-    const cachedSearchData = await cacheService.get(cacheKeySearch);
-    if (cachedSearchData) return cachedSearchData;
-
     values.push(`%${search.trim()}%`);
     whereClauses.push(`j.display_name ILIKE $${values.length}`);
   }
 
-  const areaIds = pushCsvFilter(subjectAreaIds || subject_area_id);
+  const areaIds = pushCsvFilter(subjectAreaIds);
   if (areaIds.length > 0) {
     values.push(areaIds);
     whereClauses.push(`EXISTS (
@@ -123,7 +121,7 @@ export const getJournals = async (paramsInput = {}) => {
 
   let finalQuery;
 
-  if (sort === 'metric') {
+  if (isSortMetric) {
     finalQuery = `
       WITH LatestSJR AS (
         SELECT DISTINCT ON (jr.journal_id)
