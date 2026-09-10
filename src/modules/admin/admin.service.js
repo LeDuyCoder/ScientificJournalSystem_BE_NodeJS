@@ -1,6 +1,5 @@
 import * as adminRepository from './admin.repository.js';
 import * as journalService from '../journals/journals.service.js';
-import logger from '../../utils/logger.js';
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 10;

@@ -1,5 +1,4 @@
 import pool from "../../config/database.js";
-import logger from "../../utils/logger.js";
 
 export const getTopicById = async (topicId) => {
     const query = `

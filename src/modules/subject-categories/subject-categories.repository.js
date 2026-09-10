@@ -1,5 +1,4 @@
 import pool from "../../config/database.js";
-import logger from "../../utils/logger.js";
 
 export const subjectCategoryExist = async (id) => {
   const query = `SELECT 1 FROM "Subject_Category" WHERE subject_category_id = $1`;

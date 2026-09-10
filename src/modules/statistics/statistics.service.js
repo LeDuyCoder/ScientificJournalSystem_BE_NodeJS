@@ -1,5 +1,4 @@
 import * as statisticsRepository from './statistics.repository.js';
-import logger from '../../utils/logger.js';
 import cacheService from '../../services/cache.service.js';
 
 const mapPublicationTrendRow = (row) => ({

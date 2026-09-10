@@ -1,5 +1,4 @@
 import { 
-  getArticles, 
   getArticle, 
   getArticleById, 
   createArticle, 

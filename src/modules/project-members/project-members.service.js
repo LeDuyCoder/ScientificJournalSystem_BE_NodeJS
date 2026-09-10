@@ -1,12 +1,6 @@
 import pool from "../../config/database.js";
-import crypto from "crypto";
 import { emailHelper } from "../../utils/email.js";
-import logger from "../../utils/logger.js";
 import jwt from "jsonwebtoken";
-
-const generateToken = () => {
-  return crypto.randomBytes(32).toString('hex');
-};
 
 /**
  * Get all members of a project
