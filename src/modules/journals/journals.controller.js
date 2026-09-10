@@ -1,18 +1,6 @@
 import * as journalService from "./journals.service.js";
 import logger from "../../utils/logger.js";
 
-const JOURNAL_CODES = {
-  JOURNAL_LIST_FETCHED: "JOURNAL_LIST_FETCHED",
-  JOURNAL_FETCHED: "JOURNAL_FETCHED",
-  JOURNAL_CREATED: "JOURNAL_CREATED",
-  JOURNAL_UPDATED: "JOURNAL_UPDATED",
-  JOURNAL_DELETED: "JOURNAL_DELETED",
-  JOURNAL_RESTORED: "JOURNAL_RESTORED",
-  JOURNAL_NOT_FOUND: "JOURNAL_NOT_FOUND",
-  INVALID_ID: "INVALID_ID",
-  SERVER_ERROR: "SERVER_ERROR",
-};
-
 export const getJournalsController = async (request, reply) => {
   try {
     const result = await journalService.getJournals(request.query);
